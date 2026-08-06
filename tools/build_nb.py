@@ -1,0 +1,399 @@
+"""Builds the Track-A Kaggle notebook."""
+import json, pathlib
+
+AUDIT = pathlib.Path(__file__).with_name("audit_lib.py").read_text()
+# strip the module docstring — it is re-stated in the notebook markdown
+AUDIT = AUDIT.split('"""', 2)[2].lstrip("\n")
+
+cells = []
+
+
+def md(src):
+    cells.append({"cell_type": "markdown", "metadata": {}, "source": src.rstrip("\n")})
+
+
+def code(src):
+    cells.append({"cell_type": "code", "execution_count": None, "metadata": {},
+                  "outputs": [], "source": src.rstrip("\n")})
+
+
+md("""# ClearSAR Track-1 — Phase 3 · Track A diagnostics
+
+**Read-only w.r.t. training.** This notebook does not train anything. It loads your
+existing best checkpoints, regenerates val-fold predictions at two NMS settings, scores
+them with the official metric, and runs three diagnostics that decide whether the
+post-processing work is worth doing.
+
+### What you need to attach (right panel → Add Input)
+1. Your **ClearSAR dataset** (the one with `images/train`, `annotations/instances_train.json`).
+2. Your **runs dataset** (`q-clearsar-output-runs`) containing the `best.pt` checkpoints.
+
+Then **Settings → Accelerator = GPU**, **Internet = ON**, and **Run All**.
+
+### Why two NMS settings
+The published run used `iou=0.6`, which has already merged overlapping boxes. Re-running
+NMS offline on those outputs can only ever suppress *more*, never less — so a sweep over
+`iou` above 0.6 would be impossible, and any fragments that NMS already deleted are
+invisible to the fragmentation audit. So we also emit a **loose** set at `iou=0.9,
+max_det=1000` that retains near-duplicates. The tight set reproduces your headline
+number; the loose set is what the offline sweep will actually operate on.
+
+### What to send back
+The **full printed output** of every cell (that alone answers the go/no-go question),
+plus the `*.json.gz` files listed at the end if you can upload them.""")
+
+code("""# ============================== CONFIG ==============================
+from pathlib import Path
+
+DATA_ROOT   = Path('/kaggle/input/clearsar')   # <- EDIT if your ClearSAR slug differs
+RUNS_SEARCH = '/kaggle/input'                  # checkpoints are auto-discovered below
+
+CONF        = 0.001
+TIGHT_IOU, TIGHT_MAXDET = 0.60, 300   # reproduces the published E01/E04 numbers
+LOOSE_IOU, LOOSE_MAXDET = 0.90, 1000  # retains fragments for the offline sweep
+RUN_TTA     = True
+
+WORK = Path('/kaggle/working'); WORK.mkdir(exist_ok=True)
+OUT  = WORK/'trackA'; OUT.mkdir(exist_ok=True)
+# ====================================================================
+
+def _resolve(*c):
+    for p in c:
+        if Path(p).exists(): return Path(p)
+    raise FileNotFoundError(f'Not found (check DATA_ROOT / attach the dataset): {c}')
+
+IMAGES_TRAIN = _resolve(DATA_ROOT/'data/images/train', DATA_ROOT/'images/train')
+ANNOTATIONS  = _resolve(DATA_ROOT/'data/annotations/instances_train.json',
+                        DATA_ROOT/'annotations/instances_train.json')
+print('train images:', len(list(IMAGES_TRAIN.glob('*.png'))))
+print('annotations :', ANNOTATIONS)""")
+
+code("!pip -q install ultralytics pycocotools")
+
+md("""## 1 · Discover the checkpoints and read what they were trained with
+
+Every ultralytics checkpoint stores its `train_args`. That resolves — without guesswork —
+the model family (YOLO vs RT-DETR), the `imgsz` inference must match, and crucially
+whether the run trained on `yolo_ds` (**plain RGB**) or `yolo_ds_comp` (**physics
+composite**), which determines how we must preprocess the val images.""")
+
+code("""import torch, glob, json
+from pathlib import Path
+
+def load_ckpt(p):
+    try:
+        return torch.load(p, map_location='cpu', weights_only=False)
+    except TypeError:
+        return torch.load(p, map_location='cpu')
+
+found = sorted(glob.glob(f'{RUNS_SEARCH}/**/*.pt', recursive=True))
+print(f'found {len(found)} checkpoint file(s) under {RUNS_SEARCH}\\n')
+
+RUNS = []
+for p in found:
+    try:
+        ck = load_ckpt(p)
+    except Exception as e:
+        print(f'  [skip] {p}\\n         {type(e).__name__}: {e}'); continue
+    ta = ck.get('train_args', {}) or {}
+    base  = str(ta.get('model', '')).lower()
+    data  = str(ta.get('data', '')).lower()
+    fam   = 'rtdetr' if 'rtdetr' in base or 'rtdetr' in str(ta.get('name','')).lower() else 'yolo'
+    comp  = 'comp' in data
+    imgsz = int(ta.get('imgsz', 1024) or 1024)
+    name  = ta.get('name') or Path(p).parent.parent.name
+    RUNS.append(dict(path=p, family=fam, composite=comp, imgsz=imgsz, name=str(name)))
+    print(f'* {p}')
+    print(f'    name={name}  base_model={ta.get("model")}  imgsz={imgsz}  epochs={ta.get("epochs")}')
+    print(f'    data={ta.get("data")}')
+    print(f'    -> family={fam.upper()}   input={"PHYSICS COMPOSITE" if comp else "PLAIN RGB"}\\n')
+
+assert RUNS, 'No usable checkpoints found — check that the runs dataset is attached.'
+print('torch', torch.__version__)
+import ultralytics; print('ultralytics', ultralytics.__version__)""")
+
+md("""If any row above is mislabelled, override it here before continuing — otherwise leave
+this cell exactly as it is and run it.""")
+
+code("""# Manual override, e.g.  OVERRIDE = {'Phase_02': dict(family='rtdetr', composite=False)}
+OVERRIDE = {}
+
+for r in RUNS:
+    for key, patch in OVERRIDE.items():
+        if key in r['path'] or key == r['name']:
+            r.update(patch); print(f'overridden {r["name"]} -> {patch}')
+for r in RUNS:
+    print(f'{r["name"]:<28} {r["family"]:<7} imgsz={r["imgsz"]:<5} '
+          f'input={"composite" if r["composite"] else "rgb"}')""")
+
+md("## 2 · Inlined ClearSAR helpers (identical to your Phase-1/2 notebooks)")
+
+code('''import os, io
+from collections import defaultdict
+from contextlib import redirect_stdout
+import numpy as np
+
+RFI_CLASS_ID = 0
+SMALL_MAX, MEDIUM_MAX = 32**2, 96**2
+
+def _boxes_by_image(coco):
+    d = defaultdict(list)
+    for a in coco["annotations"]: d[a["image_id"]].append(a["bbox"])
+    return d
+
+def _cbucket(n): return "n0" if n==0 else "n1" if n==1 else "n2-3" if n<=3 else "n4-7" if n<=7 else "n8+"
+def _sclass(a): return "s" if a<SMALL_MAX else "m" if a<MEDIUM_MAX else "l"
+def _abucket(w,h):
+    r=w/max(h,1); return "a_tall" if r<1.2 else "a_std" if r<1.8 else "a_wide"
+
+def stratified_split(coco, val_frac=0.2, seed=42):
+    bbi=_boxes_by_image(coco); feats={}
+    for im in coco["images"]:
+        anns=bbi.get(im["id"],[]); n=len(anns)
+        dom="none" if n==0 else _sclass(max(b[2]*b[3] for b in anns))
+        feats[im["id"]]=f"{_cbucket(n)}|{dom}|{_abucket(im['width'],im['height'])}"
+    by=defaultdict(list)
+    for iid,k in feats.items(): by[k].append(iid)
+    rng=np.random.default_rng(seed); tr,va,carry=[],[],0.0
+    for key in sorted(by):
+        ids=sorted(by[key]); rng.shuffle(ids)
+        exact=len(ids)*val_frac+carry; k=max(0,min(len(ids),int(round(exact)))); carry=exact-k
+        va+=ids[:k]; tr+=ids[k:]
+    return sorted(tr), sorted(va)
+
+def subset_coco(coco, ids):
+    s=set(ids)
+    return {"images":[i for i in coco["images"] if i["id"] in s],
+            "annotations":[a for a in coco["annotations"] if a["image_id"] in s],
+            "categories":coco["categories"]}
+
+def yolo_predictions_to_coco(image_id, boxes_xywh, scores):
+    out=[]
+    for (cx,cy,w,h), s in zip(boxes_xywh, scores):
+        out.append({"image_id": int(image_id), "category_id": 1,
+                    "bbox":[float(cx-w/2), float(cy-h/2), float(w), float(h)],
+                    "score": float(s)})
+    return out
+
+from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
+STAT_NAMES=["mAP","AP50","AP75","AP_small","AP_medium","AP_large",
+            "AR1","AR10","AR100","AR_small","AR_medium","AR_large"]
+
+def evaluate_map(gt_dict, dets, verbose=False):
+    if not dets: return {n:0.0 for n in STAT_NAMES}
+    with redirect_stdout(io.StringIO()):
+        cg=COCO(); cg.dataset=gt_dict; cg.createIndex()
+        cd=cg.loadRes([dict(d) for d in dets]); ev=COCOeval(cg,cd,iouType="bbox")
+        ev.evaluate(); ev.accumulate()
+        buf=io.StringIO()
+        with redirect_stdout(buf): ev.summarize()
+    if verbose: print(buf.getvalue())
+    return dict(zip(STAT_NAMES,[float(x) for x in ev.stats]))
+
+print("helpers ready")''')
+
+md("## 3 · Physics composite (verbatim from your Phase-2 notebook, so pixels match exactly)")
+
+code('''def _box_mean(a, ky, kx):
+    H, W = a.shape
+    ii = np.zeros((H+1, W+1), dtype=np.float64); ii[1:,1:] = a.cumsum(0).cumsum(1)
+    y0 = np.clip(np.arange(H)-ky, 0, H)[:,None]; y1 = np.clip(np.arange(H)+ky+1, 0, H)[:,None]
+    x0 = np.clip(np.arange(W)-kx, 0, W)[None,:]; x1 = np.clip(np.arange(W)+kx+1, 0, W)[None,:]
+    tot = ii[y1,x1]-ii[y0,x1]-ii[y1,x0]+ii[y0,x0]
+    return tot/np.maximum((y1-y0)*(x1-x0), 1)
+
+def cyan_excess(rgb):
+    r,g,b = rgb[...,0].astype(np.float64), rgb[...,1].astype(np.float64), rgb[...,2].astype(np.float64)
+    return (g+b)/2.0 - r
+
+def horizontal_structure(gray, kx=25, ky_band=1, ky_ctx=25):
+    return np.maximum(_box_mean(gray, ky_band, kx) - _box_mean(gray, ky_ctx, kx), 0.0)
+
+def to_uint8(x, lo=1.0, hi=99.0):
+    a, b = np.percentile(x, [lo, hi]); b = b if b > a else a+1.0
+    return np.clip((x-a)/(b-a)*255.0, 0, 255).astype(np.uint8)
+
+def physics_composite(rgb):
+    gray = rgb.astype(np.float64).mean(2)
+    return np.stack([to_uint8(cyan_excess(rgb)),
+                     to_uint8(horizontal_structure(gray)),
+                     to_uint8(gray)], axis=-1)
+print("composite ready")''')
+
+md("""## 4 · Rebuild the exact val fold and stage the val images
+
+The split is deterministic (seed 42) and asserted to be 2523 / 631 — the same fold both
+your runs were validated on. Only the 631 val images are staged, so the composite pass is
+quick.""")
+
+code("""from PIL import Image
+
+coco = json.loads(ANNOTATIONS.read_text())
+train_ids, val_ids = stratified_split(coco, 0.2, 42)
+assert (len(train_ids), len(val_ids)) == (2523, 631), (len(train_ids), len(val_ids))
+val_gt = subset_coco(coco, val_ids)
+img_h  = {i['id']: i['height'] for i in coco['images']}
+print(f'val fold: {len(val_ids)} images, {len(val_gt["annotations"])} boxes')
+
+VAL_RGB  = WORK/'val_rgb'
+VAL_COMP = WORK/'val_comp'
+
+def stage_rgb():
+    VAL_RGB.mkdir(exist_ok=True)
+    for iid in val_ids:
+        dst = VAL_RGB/f'{iid}.png'
+        if dst.exists() or dst.is_symlink(): dst.unlink()
+        os.symlink((IMAGES_TRAIN/f'{iid}.png').resolve(), dst)
+    return VAL_RGB
+
+def stage_comp():
+    VAL_COMP.mkdir(exist_ok=True)
+    done = len(list(VAL_COMP.glob('*.png')))
+    if done == len(val_ids):
+        print('composites already staged'); return VAL_COMP
+    for i, iid in enumerate(val_ids):
+        rgb = np.array(Image.open(IMAGES_TRAIN/f'{iid}.png').convert('RGB'))
+        Image.fromarray(physics_composite(rgb)).save(VAL_COMP/f'{iid}.png')
+        if (i+1) % 200 == 0: print(f'  composited {i+1}/{len(val_ids)}')
+    return VAL_COMP
+
+src_rgb = stage_rgb(); print('staged RGB   ->', src_rgb, len(list(src_rgb.glob('*.png'))))
+if any(r['composite'] for r in RUNS):
+    src_comp = stage_comp(); print('staged COMP  ->', src_comp, len(list(src_comp.glob('*.png'))))
+else:
+    src_comp = None; print('no composite run detected — skipping composite staging')""")
+
+md("""## 5 · Predict: tight (reproduces your published numbers) + loose (for the sweep)
+
+For each checkpoint this runs up to four passes — {tight, loose} × {plain, TTA}. TTA is
+skipped automatically if the model family doesn't support `augment=True`.""")
+
+code("""import gzip, time
+from ultralytics import YOLO
+try:
+    from ultralytics import RTDETR
+except ImportError:
+    RTDETR = None
+
+def load_model(run):
+    if run['family'] == 'rtdetr':
+        assert RTDETR is not None, 'RTDETR unavailable in this ultralytics version'
+        return RTDETR(run['path'])
+    return YOLO(run['path'])
+
+def predict(model, source, imgsz, iou, max_det, augment):
+    dets = []
+    for r in model.predict(source=str(source), conf=CONF, iou=iou, max_det=max_det,
+                           imgsz=imgsz, augment=augment, stream=True, verbose=False):
+        b = r.boxes
+        if b is None or len(b) == 0: continue
+        dets += yolo_predictions_to_coco(int(Path(r.path).stem),
+                                         b.xywh.cpu().numpy(), b.conf.cpu().numpy())
+    return dets
+
+def save_gz(dets, path):
+    slim = [{"image_id": d["image_id"], "category_id": 1,
+             "bbox": [round(v, 3) for v in d["bbox"]],
+             "score": round(d["score"], 6)} for d in dets]
+    with gzip.open(path, 'wt') as f: json.dump(slim, f)
+    return path.stat().st_size/1e6
+
+ALL = {}   # tag -> dets
+for run in RUNS:
+    src = (src_comp if run['composite'] else src_rgb)
+    if src is None:
+        print(f'[skip] {run["name"]}: composite source unavailable'); continue
+    model = load_model(run)
+    for setting, (iou, md_) in {'tight': (TIGHT_IOU, TIGHT_MAXDET),
+                                'loose': (LOOSE_IOU, LOOSE_MAXDET)}.items():
+        for aug in ([False, True] if RUN_TTA else [False]):
+            tag = f"{run['name']}__{setting}__{'tta' if aug else 'plain'}"
+            t0 = time.time()
+            try:
+                dets = predict(model, src, run['imgsz'], iou, md_, aug)
+            except Exception as e:
+                print(f'[skip] {tag}: {type(e).__name__}: {e}'); continue
+            mb = save_gz(dets, OUT/f'{tag}.json.gz')
+            ALL[tag] = dets
+            print(f'{tag:<48} {len(dets):>7} dets  {mb:>6.1f} MB  {time.time()-t0:>5.0f}s')
+print('\\ndone:', len(ALL), 'prediction sets')""")
+
+md("""## 6 · Official metric — the gate
+
+The `tight / plain` row for the RGB run must come back at **mAP 0.3940, AP50 0.6782,
+AP75 0.4079**. If it does not, the checkpoint, the split, or the preprocessing does not
+match the published run, and every diagnostic below would be measuring the wrong thing.
+The cell says so explicitly rather than letting it slide.""")
+
+code("""rows = []
+for tag, dets in ALL.items():
+    r = evaluate_map(val_gt, dets); r['tag'] = tag; rows.append(r)
+
+cols = ['mAP','AP50','AP75','AP_small','AP_medium','AP_large','AR100','AR_large']
+print(f"{'run':<48}" + ''.join(f'{c:>10}' for c in cols))
+print('-'*(48+10*len(cols)))
+for r in sorted(rows, key=lambda x: x['tag']):
+    print(f"{r['tag']:<48}" + ''.join(f"{r[c]:>10.4f}" for c in cols))
+
+REF = {'mAP': 0.3940, 'AP50': 0.6782, 'AP75': 0.4079}
+print('\\n--- gate: does any tight/plain run reproduce the published E01 baseline? ---')
+ok = False
+for r in rows:
+    if 'tight' in r['tag'] and 'plain' in r['tag']:
+        d = {k: r[k]-v for k, v in REF.items()}
+        hit = all(abs(v) < 0.002 for v in d.values())
+        ok |= hit
+        print(f"  {r['tag']:<48} dmAP={d['mAP']:+.4f} dAP50={d['AP50']:+.4f} "
+              f"dAP75={d['AP75']:+.4f}  {'MATCH' if hit else 'no match'}")
+print('\\nGATE PASSED' if ok else
+      '\\nGATE FAILED — no tight/plain run reproduces 0.3940. Send this output before proceeding.')""")
+
+md("## 7 · Diagnostics")
+
+code(AUDIT + '\nprint("audit lib ready")')
+
+md("""### The three questions this answers
+
+**Fragmentation.** `union_IoU` much greater than `best_IoU` on the large class means one
+event is being split across several detections that NMS cannot merge, and the stack-merge
+has real headroom. Roughly equal means the model predicts one systematically wrong extent
+— a training problem, and the whole post-processing track is dead.
+
+**FP decomposition.** Where the confident false positives actually live: inside a GT box
+(fragments), partly overlapping (localisation error), or nowhere near one (spurious).
+These three demand completely different fixes.
+
+**Azimuth cue.** Whether azimuth proximity separates true from false positives *in the
+predictions*. The handoff established the clustering in the labels, which is necessary but
+not sufficient. An AUC near 0.50 means no `boost` value can help and Step 3 should be
+skipped outright.""")
+
+code("""gt_by_img = defaultdict(list)
+for a in val_gt['annotations']:
+    gt_by_img[a['image_id']].append(a['bbox'])
+
+for tag in sorted(ALL):
+    print(report(gt_by_img, group(ALL[tag]), img_h, tag))
+    print()""")
+
+md("## 8 · Files to send back")
+
+code("""print('Upload these (or paste the printed output above if they are too large):\\n')
+tot = 0
+for p in sorted(OUT.glob('*.json.gz')):
+    mb = p.stat().st_size/1e6; tot += mb
+    print(f'  {p}   {mb:.1f} MB')
+print(f'\\ntotal {tot:.1f} MB')
+print('\\nThe loose/* files are the ones the offline sweep needs. The tight/* files are '
+      'small and confirm the gate.')""")
+
+nb = {"cells": cells,
+      "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python",
+                                  "name": "python3"},
+                   "language_info": {"name": "python", "version": "3.11"}},
+      "nbformat": 4, "nbformat_minor": 5}
+
+out = pathlib.Path(__file__).with_name("clearsar_phase3_trackA.ipynb")
+out.write_text(json.dumps(nb, indent=1))
+print("wrote", out, out.stat().st_size, "bytes,", len(cells), "cells")
