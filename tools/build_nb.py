@@ -165,7 +165,7 @@ Expected here: **two YOLO runs**, `YOLO_Phase_01` on plain RGB (E01) and `Phase_
 physics composite (E04) — both `yolo11l.pt` at `imgsz=1024`. The RT-DETR branch is kept
 only as a fallback in case an older checkpoint turns up in the dataset.""")
 
-code("""import torch, json
+code("""import torch, json, zipfile, os
 from pathlib import Path
 from collections import Counter
 
@@ -175,12 +175,49 @@ def load_ckpt(p):
     except TypeError:
         return torch.load(p, map_location='cpu')
 
+# ---------------------------------------------------------------------------
+# Kaggle unpacks .pt files into directories.
+#
+# torch.save writes a ZIP archive, so Kaggle's ingestion sees the ZIP magic
+# bytes and extracts it. What should be best.pt arrives as a directory named
+# best/ holding data.pkl, data/0..N, version, byteorder and friends. Re-zipping
+# those members restores a loadable checkpoint, with no re-upload needed.
+#
+# Entries must be STORED rather than deflated, and all members must sit under a
+# single top-level directory, which is what torch treats as the archive root.
+# ---------------------------------------------------------------------------
+_HEAD = ['data.pkl', 'byteorder', 'version', '.format_version',
+         '.storage_alignment', '.data/serialization_id']
+
+def repack_pt(src_dir, out_path, arcroot=None):
+    src, out = Path(src_dir), Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    arcroot = arcroot or out.stem
+    members = [(src/n, n) for n in _HEAD if (src/n).is_file()]
+    d = src/'data'
+    if d.is_dir():
+        for f in sorted(d.iterdir(), key=lambda q: (not q.name.isdigit(),
+                        int(q.name) if q.name.isdigit() else q.name)):
+            if f.is_file(): members.append((f, f'data/{f.name}'))
+    known = {m[1] for m in members}
+    for r, _dirs, files in os.walk(src, followlinks=True):
+        for f in files:
+            p = Path(r)/f
+            rel = str(p.relative_to(src))
+            if rel not in known: members.append((p, rel))
+    with zipfile.ZipFile(out, 'w', zipfile.ZIP_STORED) as z:
+        for p, rel in members:
+            z.write(p, str(Path(arcroot)/rel))
+    return out, len(members)
+
 CKPT_EXT = ('.pt', '.pth', '.ckpt')
 MIN_CKPT_MB = 5.0        # a yolo11l checkpoint is ~50 MB; nothing smaller is one
 
 # Inventory every file once: by extension, and every large file regardless of name.
-ext_hist, big_files, found = Counter(), [], []
+ext_hist, big_files, found, unpacked = Counter(), [], [], []
 for d, files in _walk(KAGGLE_INPUT):
+    if 'data.pkl' in files and (d/'data').is_dir():
+        unpacked.append(d)                      # an extracted checkpoint
     for f in files:
         p = d/f
         ext_hist[p.suffix.lower() or '(no extension)'] += 1
@@ -188,6 +225,14 @@ for d, files in _walk(KAGGLE_INPUT):
         except OSError: continue
         if mb >= MIN_CKPT_MB: big_files.append((mb, str(p)))
         if f.lower().endswith(CKPT_EXT): found.append(str(p))
+
+for d in sorted(unpacked):
+    out_pt = WORK/'repacked'/f'{d.parent.name}_{d.name}.pt'
+    if not out_pt.exists():
+        _, n = repack_pt(d, out_pt)
+        print(f'repacked (Kaggle had unzipped this checkpoint):\\n  {d}\\n'
+              f'  -> {out_pt}  [{n} members, {out_pt.stat().st_size/1e6:.1f} MB]')
+    found.append(str(out_pt))
 
 if CKPT_PATHS:
     found = [str(p) for p in CKPT_PATHS]
