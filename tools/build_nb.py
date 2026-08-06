@@ -24,11 +24,16 @@ existing best checkpoints, regenerates val-fold predictions at two NMS settings,
 them with the official metric, and runs three diagnostics that decide whether the
 post-processing work is worth doing.
 
-### What you need to attach (right panel → Add Input)
-1. Your **ClearSAR dataset** (the one with `images/train`, `annotations/instances_train.json`).
-2. Your **runs dataset** (`q-clearsar-output-runs`) containing the `best.pt` checkpoints.
+### Setup — attach two datasets, edit nothing
+1. Your **ClearSAR dataset** (the one with the train PNGs and `instances_train.json`).
+2. Your **runs dataset** (`q-clearsar-output-runs`) with the `best.pt` checkpoints.
 
-Then **Settings → Accelerator = GPU**, **Internet = ON**, and **Run All**.
+Then **Settings → Accelerator = GPU**, **Internet = ON**, **Run All**.
+
+There are no paths to fill in. The annotations, the train images and the checkpoints are
+all located by searching `/kaggle/input`, so dataset slugs and internal folder layouts do
+not matter. The first cell prints everything that is attached, so if something is missing
+the listing shows it immediately.
 
 ### Why two NMS settings
 The published run used `iou=0.6`, which has already merged overlapping boxes. Re-running
@@ -42,31 +47,90 @@ number; the loose set is what the offline sweep will actually operate on.
 The **full printed output** of every cell (that alone answers the go/no-go question),
 plus the `*.json.gz` files listed at the end if you can upload them.""")
 
-code("""# ============================== CONFIG ==============================
+code('''# ============================== CONFIG ==============================
+# Nothing here needs editing. Attach the two datasets and Run All — the
+# annotations, the train images and the checkpoints are all located by
+# searching /kaggle/input, so dataset slugs and folder layouts do not matter.
 from pathlib import Path
+import os, json
 
-DATA_ROOT   = Path('/kaggle/input/clearsar')   # <- EDIT if your ClearSAR slug differs
-RUNS_SEARCH = '/kaggle/input'                  # checkpoints are auto-discovered below
+# Only set these if auto-discovery fails and the cell tells you to.
+ANNOTATIONS_OVERRIDE  = None   # e.g. Path('/kaggle/input/<slug>/annotations/instances_train.json')
+IMAGES_TRAIN_OVERRIDE = None   # e.g. Path('/kaggle/input/<slug>/images/train')
 
 CONF        = 0.001
 TIGHT_IOU, TIGHT_MAXDET = 0.60, 300   # reproduces the published E01/E04 numbers
 LOOSE_IOU, LOOSE_MAXDET = 0.90, 1000  # retains fragments for the offline sweep
 RUN_TTA     = True
 
+KAGGLE_INPUT = Path('/kaggle/input')
 WORK = Path('/kaggle/working'); WORK.mkdir(exist_ok=True)
 OUT  = WORK/'trackA'; OUT.mkdir(exist_ok=True)
 # ====================================================================
 
-def _resolve(*c):
-    for p in c:
-        if Path(p).exists(): return Path(p)
-    raise FileNotFoundError(f'Not found (check DATA_ROOT / attach the dataset): {c}')
+def _walk(root, want_file=None, want_any=None):
+    """Yield (dir, files) under root, skipping hidden dirs."""
+    for r, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        yield Path(r), files
 
-IMAGES_TRAIN = _resolve(DATA_ROOT/'data/images/train', DATA_ROOT/'images/train')
-ANNOTATIONS  = _resolve(DATA_ROOT/'data/annotations/instances_train.json',
-                        DATA_ROOT/'annotations/instances_train.json')
-print('train images:', len(list(IMAGES_TRAIN.glob('*.png'))))
-print('annotations :', ANNOTATIONS)""")
+# ---- 1. show what is actually attached -----------------------------------
+print('=== /kaggle/input ===')
+if not KAGGLE_INPUT.exists():
+    raise FileNotFoundError('/kaggle/input does not exist')
+tops = sorted(KAGGLE_INPUT.iterdir())
+if not tops:
+    print('  (empty — no datasets attached)')
+for d in tops:
+    print(f'  {d.name}/')
+    if d.is_dir():
+        for s in sorted(d.iterdir())[:10]:
+            extra = ''
+            if s.is_dir():
+                try: extra = f'  ({len(os.listdir(s))} entries)'
+                except OSError: pass
+            print(f'      {s.name}{"/" if s.is_dir() else ""}{extra}')
+
+# ---- 2. locate instances_train.json --------------------------------------
+if ANNOTATIONS_OVERRIDE:
+    ANNOTATIONS = Path(ANNOTATIONS_OVERRIDE)
+else:
+    hits = [p/'instances_train.json' for p, files in _walk(KAGGLE_INPUT)
+            if 'instances_train.json' in files]
+    if not hits:
+        raise FileNotFoundError(
+            'instances_train.json not found anywhere under /kaggle/input.\\n'
+            'The ClearSAR dataset is not attached — add it via Add Input (right panel).\\n'
+            'See the listing above for what IS attached.')
+    if len(hits) > 1:
+        print(f'\\n[!] {len(hits)} candidates, using the first:')
+        for h in hits: print('   ', h)
+    ANNOTATIONS = hits[0]
+
+coco_probe = json.loads(ANNOTATIONS.read_text())
+print(f'\\nannotations  : {ANNOTATIONS}')
+print(f'               {len(coco_probe["images"])} images, {len(coco_probe["annotations"])} boxes')
+
+# ---- 3. locate the train images by looking for files the JSON names ------
+if IMAGES_TRAIN_OVERRIDE:
+    IMAGES_TRAIN = Path(IMAGES_TRAIN_OVERRIDE)
+else:
+    probe = [im['file_name'] for im in coco_probe['images'][:5]]
+    IMAGES_TRAIN = None
+    for p, files in _walk(KAGGLE_INPUT):
+        if probe[0] in files and all((p/n).exists() for n in probe):
+            IMAGES_TRAIN = p; break
+    if IMAGES_TRAIN is None:
+        raise FileNotFoundError(
+            f'Could not find a directory containing the annotated images '
+            f'(looked for {probe[0]}).\\nSet IMAGES_TRAIN_OVERRIDE above.')
+
+n_png = len(list(IMAGES_TRAIN.glob("*.png")))
+print(f'train images : {IMAGES_TRAIN}')
+print(f'               {n_png} png files')
+if n_png < len(coco_probe['images']):
+    print(f'[!] fewer images ({n_png}) than annotation entries '
+          f'({len(coco_probe["images"])}) — check this is the full train split.')''')
 
 code("!pip -q install ultralytics pycocotools")
 
@@ -90,14 +154,14 @@ def load_ckpt(p):
     except TypeError:
         return torch.load(p, map_location='cpu')
 
-found = sorted(glob.glob(f'{RUNS_SEARCH}/**/*.pt', recursive=True))
+found = sorted(glob.glob(f'{KAGGLE_INPUT}/**/*.pt', recursive=True))
 # drop last.pt when a sibling best.pt exists — otherwise every run is inferred twice
 _best_dirs = {str(Path(p).parent) for p in found if Path(p).name == 'best.pt'}
 _drop = [p for p in found if Path(p).name == 'last.pt' and str(Path(p).parent) in _best_dirs]
 found = [p for p in found if p not in _drop]
 for p in _drop:
     print(f'  [skip] {p}  (sibling best.pt present)')
-print(f'found {len(found)} checkpoint file(s) under {RUNS_SEARCH}\\n')
+print(f'found {len(found)} checkpoint file(s) under {KAGGLE_INPUT}\\n')
 
 RUNS = []
 for p in found:
@@ -118,7 +182,9 @@ for p in found:
     print(f'    data={ta.get("data")}')
     print(f'    -> family={fam.upper()}   input={"PHYSICS COMPOSITE" if comp else "PLAIN RGB"}\\n')
 
-assert RUNS, 'No usable checkpoints found — check that the runs dataset is attached.'
+assert RUNS, ('No usable checkpoints found under /kaggle/input. Attach the runs dataset '
+              '(q-clearsar-output-runs) via Add Input; see the listing in the config cell '
+              'for what is currently attached.')
 print('torch', torch.__version__)
 import ultralytics; print('ultralytics', ultralytics.__version__)""")
 
