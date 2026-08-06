@@ -36,8 +36,18 @@ def find_unpacked_pt(root):
 
 
 def repack_pt(src_dir, out_path, arcroot=None):
-    """Re-zip an extracted checkpoint directory into a loadable .pt file."""
+    """Re-zip an extracted checkpoint directory into a loadable .pt file.
+
+    'version' is mandatory: without it torch fails with a cryptic
+    hasRecord("version") error. The dotfiles are optional — torch loads fine
+    when they are absent, which matters because Kaggle may strip them.
+    """
     src, out = Path(src_dir), Path(out_path)
+    missing = [n for n in ("data.pkl", "version") if not (src / n).is_file()]
+    if not (src / "data").is_dir():
+        missing.append("data/")
+    if missing:
+        raise FileNotFoundError(f"{src} is missing {missing}; cannot rebuild")
     out.parent.mkdir(parents=True, exist_ok=True)
     arcroot = arcroot or out.stem
 

@@ -191,6 +191,16 @@ _HEAD = ['data.pkl', 'byteorder', 'version', '.format_version',
 
 def repack_pt(src_dir, out_path, arcroot=None):
     src, out = Path(src_dir), Path(out_path)
+    # 'version' is mandatory — without it torch fails with a cryptic
+    # hasRecord("version") error. The dotfiles are optional; torch loads fine
+    # if Kaggle stripped them.
+    missing = [n for n in ('data.pkl', 'version') if not (src/n).is_file()]
+    if not (src/'data').is_dir(): missing.append('data/')
+    if missing:
+        raise FileNotFoundError(
+            f'{src} is missing {missing}, so it cannot be rebuilt into a valid '
+            f'checkpoint. Re-upload this run to Kaggle as a .tar.gz so it is not '
+            f'unpacked, or point CKPT_PATHS at an intact .pt.')
     out.parent.mkdir(parents=True, exist_ok=True)
     arcroot = arcroot or out.stem
     members = [(src/n, n) for n in _HEAD if (src/n).is_file()]
