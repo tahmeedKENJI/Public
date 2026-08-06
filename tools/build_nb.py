@@ -57,6 +57,7 @@ import os, json
 # Only set these if auto-discovery fails and the cell tells you to.
 ANNOTATIONS_OVERRIDE  = None   # e.g. Path('/kaggle/input/<slug>/annotations/instances_train.json')
 IMAGES_TRAIN_OVERRIDE = None   # e.g. Path('/kaggle/input/<slug>/images/train')
+CKPT_PATHS            = []     # e.g. ['/kaggle/input/<slug>/YOLO_Phase_01/best/best.pt']
 
 CONF        = 0.001
 TIGHT_IOU, TIGHT_MAXDET = 0.60, 300   # reproduces the published E01/E04 numbers
@@ -68,11 +69,30 @@ WORK = Path('/kaggle/working'); WORK.mkdir(exist_ok=True)
 OUT  = WORK/'trackA'; OUT.mkdir(exist_ok=True)
 # ====================================================================
 
-def _walk(root, want_file=None, want_any=None):
-    """Yield (dir, files) under root, skipping hidden dirs."""
-    for r, dirs, files in os.walk(root):
+def _walk(root):
+    """Yield (dir, files) under root, skipping hidden dirs.
+
+    followlinks=True matters: Kaggle can mount dataset subdirectories as
+    symlinks, and the default os.walk / glob behaviour silently skips them.
+    """
+    for r, dirs, files in os.walk(root, followlinks=True):
         dirs[:] = [d for d in dirs if not d.startswith('.')]
         yield Path(r), files
+
+def print_tree(root, max_depth=4, max_entries=25):
+    root = Path(root)
+    for r, files in _walk(root):
+        depth = len(r.relative_to(root).parts)
+        if depth > max_depth:
+            continue
+        pad = '  ' * depth
+        print(f'{pad}{r.name or str(root)}/')
+        for f in sorted(files)[:max_entries]:
+            try: sz = f'  {(r/f).stat().st_size/1e6:.1f} MB'
+            except OSError: sz = ''
+            print(f'{pad}  {f}{sz}')
+        if len(files) > max_entries:
+            print(f'{pad}  ... +{len(files)-max_entries} more files')
 
 # ---- 1. show what is actually attached -----------------------------------
 print('=== /kaggle/input ===')
@@ -145,8 +165,9 @@ Expected here: **two YOLO runs**, `YOLO_Phase_01` on plain RGB (E01) and `Phase_
 physics composite (E04) — both `yolo11l.pt` at `imgsz=1024`. The RT-DETR branch is kept
 only as a fallback in case an older checkpoint turns up in the dataset.""")
 
-code("""import torch, glob, json
+code("""import torch, json
 from pathlib import Path
+from collections import Counter
 
 def load_ckpt(p):
     try:
@@ -154,7 +175,26 @@ def load_ckpt(p):
     except TypeError:
         return torch.load(p, map_location='cpu')
 
-found = sorted(glob.glob(f'{KAGGLE_INPUT}/**/*.pt', recursive=True))
+CKPT_EXT = ('.pt', '.pth', '.ckpt')
+MIN_CKPT_MB = 5.0        # a yolo11l checkpoint is ~50 MB; nothing smaller is one
+
+# Inventory every file once: by extension, and every large file regardless of name.
+ext_hist, big_files, found = Counter(), [], []
+for d, files in _walk(KAGGLE_INPUT):
+    for f in files:
+        p = d/f
+        ext_hist[p.suffix.lower() or '(no extension)'] += 1
+        try: mb = p.stat().st_size/1e6
+        except OSError: continue
+        if mb >= MIN_CKPT_MB: big_files.append((mb, str(p)))
+        if f.lower().endswith(CKPT_EXT): found.append(str(p))
+
+if CKPT_PATHS:
+    found = [str(p) for p in CKPT_PATHS]
+    missing = [p for p in found if not Path(p).exists()]
+    assert not missing, f'CKPT_PATHS entries do not exist: {missing}'
+    print(f'using CKPT_PATHS override ({len(found)} file(s))')
+found = sorted(found)
 # drop last.pt when a sibling best.pt exists — otherwise every run is inferred twice
 _best_dirs = {str(Path(p).parent) for p in found if Path(p).name == 'best.pt'}
 _drop = [p for p in found if Path(p).name == 'last.pt' and str(Path(p).parent) in _best_dirs]
@@ -162,6 +202,20 @@ found = [p for p in found if p not in _drop]
 for p in _drop:
     print(f'  [skip] {p}  (sibling best.pt present)')
 print(f'found {len(found)} checkpoint file(s) under {KAGGLE_INPUT}\\n')
+
+if not found:
+    print('file types present:', dict(ext_hist.most_common(20)))
+    print(f'\\nfiles >= {MIN_CKPT_MB} MB (checkpoints are ~50 MB, whatever they are named):')
+    for mb, p in sorted(big_files, reverse=True)[:25]:
+        print(f'  {mb:8.1f} MB  {p}')
+    if not big_files:
+        print('  (none — no file under /kaggle/input is big enough to be a checkpoint,')
+        print('   so the runs dataset is almost certainly not attached)')
+    print('\\n=== full tree of /kaggle/input ===')
+    print_tree(KAGGLE_INPUT)
+    raise SystemExit(
+        'No checkpoints found. If a large file is listed above, set CKPT_PATHS in the '
+        'config cell to point at it. Otherwise attach the runs dataset via Add Input.')
 
 RUNS = []
 for p in found:
@@ -449,7 +503,9 @@ for r in sorted(rows, key=lambda x: x['tag']):
           f"{'MATCH' if hit else '<-- MISS'}")
 
 print(f'\\n{hits}/{checked} tight runs reproduced within {TOL}')
-if checked and hits == checked:
+if checked == 0:
+    print('No tight runs were produced, so there was nothing to gate.')
+elif hits == checked:
     print('GATE PASSED')
 elif hits:
     print('GATE PARTIAL — some runs reproduce, some do not. The diagnostics below are\\n'
