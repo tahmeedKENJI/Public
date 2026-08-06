@@ -73,9 +73,13 @@ code("!pip -q install ultralytics pycocotools")
 md("""## 1 · Discover the checkpoints and read what they were trained with
 
 Every ultralytics checkpoint stores its `train_args`. That resolves — without guesswork —
-the model family (YOLO vs RT-DETR), the `imgsz` inference must match, and crucially
-whether the run trained on `yolo_ds` (**plain RGB**) or `yolo_ds_comp` (**physics
-composite**), which determines how we must preprocess the val images.""")
+the model family, the `imgsz` inference must match, and crucially whether the run trained
+on `yolo_ds` (**plain RGB**) or `yolo_ds_comp` (**physics composite**), which determines
+how we must preprocess the val images.
+
+Expected here: **two YOLO runs**, `YOLO_Phase_01` on plain RGB (E01) and `Phase_02` on the
+physics composite (E04) — both `yolo11l.pt` at `imgsz=1024`. The RT-DETR branch is kept
+only as a fallback in case an older checkpoint turns up in the dataset.""")
 
 code("""import torch, glob, json
 from pathlib import Path
@@ -87,6 +91,12 @@ def load_ckpt(p):
         return torch.load(p, map_location='cpu')
 
 found = sorted(glob.glob(f'{RUNS_SEARCH}/**/*.pt', recursive=True))
+# drop last.pt when a sibling best.pt exists — otherwise every run is inferred twice
+_best_dirs = {str(Path(p).parent) for p in found if Path(p).name == 'best.pt'}
+_drop = [p for p in found if Path(p).name == 'last.pt' and str(Path(p).parent) in _best_dirs]
+found = [p for p in found if p not in _drop]
+for p in _drop:
+    print(f'  [skip] {p}  (sibling best.pt present)')
 print(f'found {len(found)} checkpoint file(s) under {RUNS_SEARCH}\\n')
 
 RUNS = []
@@ -299,7 +309,7 @@ def save_gz(dets, path):
     with gzip.open(path, 'wt') as f: json.dump(slim, f)
     return path.stat().st_size/1e6
 
-ALL = {}   # tag -> dets
+ALL, META = {}, {}   # tag -> dets  /  tag -> which reference it should reproduce
 for run in RUNS:
     src = (src_comp if run['composite'] else src_rgb)
     if src is None:
@@ -308,7 +318,8 @@ for run in RUNS:
     for setting, (iou, md_) in {'tight': (TIGHT_IOU, TIGHT_MAXDET),
                                 'loose': (LOOSE_IOU, LOOSE_MAXDET)}.items():
         for aug in ([False, True] if RUN_TTA else [False]):
-            tag = f"{run['name']}__{setting}__{'tta' if aug else 'plain'}"
+            aug_tag = 'tta' if aug else 'plain'
+            tag = f"{run['name']}__{setting}__{aug_tag}"
             t0 = time.time()
             try:
                 dets = predict(model, src, run['imgsz'], iou, md_, aug)
@@ -316,15 +327,27 @@ for run in RUNS:
                 print(f'[skip] {tag}: {type(e).__name__}: {e}'); continue
             mb = save_gz(dets, OUT/f'{tag}.json.gz')
             ALL[tag] = dets
+            META[tag] = dict(kind='comp' if run['composite'] else 'rgb',
+                             setting=setting, aug=aug_tag)
             print(f'{tag:<48} {len(dets):>7} dets  {mb:>6.1f} MB  {time.time()-t0:>5.0f}s')
 print('\\ndone:', len(ALL), 'prediction sets')""")
 
 md("""## 6 · Official metric — the gate
 
-The `tight / plain` row for the RGB run must come back at **mAP 0.3940, AP50 0.6782,
-AP75 0.4079**. If it does not, the checkpoint, the split, or the preprocessing does not
-match the published run, and every diagnostic below would be measuring the wrong thing.
-The cell says so explicitly rather than letting it slide.""")
+Every **tight** run must reproduce its published score, because `tight` is exactly the
+`iou=0.6, max_det=300` config those numbers came from:
+
+| | plain | TTA |
+|---|---|---|
+| E01 RGB | 0.3940 | 0.4014 |
+| E04 composite | 0.3837 | 0.3887 |
+
+Four independent checks, not one. The RGB rows verify the checkpoint and the val split;
+the composite rows additionally verify that the physics channels regenerated here are
+pixel-identical to the ones the run was trained and validated on — if `to_uint8`'s
+percentile normalisation drifts at all, the composite score will miss and its detections
+cannot be trusted. A miss on any row is worth knowing about before anything downstream
+is believed.""")
 
 code("""rows = []
 for tag, dets in ALL.items():
@@ -336,18 +359,38 @@ print('-'*(48+10*len(cols)))
 for r in sorted(rows, key=lambda x: x['tag']):
     print(f"{r['tag']:<48}" + ''.join(f"{r[c]:>10.4f}" for c in cols))
 
-REF = {'mAP': 0.3940, 'AP50': 0.6782, 'AP75': 0.4079}
-print('\\n--- gate: does any tight/plain run reproduce the published E01 baseline? ---')
-ok = False
-for r in rows:
-    if 'tight' in r['tag'] and 'plain' in r['tag']:
-        d = {k: r[k]-v for k, v in REF.items()}
-        hit = all(abs(v) < 0.002 for v in d.values())
-        ok |= hit
-        print(f"  {r['tag']:<48} dmAP={d['mAP']:+.4f} dAP50={d['AP50']:+.4f} "
-              f"dAP75={d['AP75']:+.4f}  {'MATCH' if hit else 'no match'}")
-print('\\nGATE PASSED' if ok else
-      '\\nGATE FAILED — no tight/plain run reproduces 0.3940. Send this output before proceeding.')""")
+# published reference scores, keyed by (input, augmentation)
+REF = {('rgb','plain'):  {'mAP':0.3940, 'AP50':0.6782, 'AP75':0.4079},
+       ('rgb','tta'):    {'mAP':0.4014, 'AP50':0.6820, 'AP75':0.4129},
+       ('comp','plain'): {'mAP':0.3837, 'AP50':0.6663, 'AP75':0.3889},
+       ('comp','tta'):   {'mAP':0.3887, 'AP50':0.6709, 'AP75':0.3993}}
+TOL = 0.002
+
+print('\\n--- gate: do the tight runs reproduce their published scores? ---')
+checked = hits = 0
+for r in sorted(rows, key=lambda x: x['tag']):
+    m = META.get(r['tag'])
+    if not m or m['setting'] != 'tight':
+        continue
+    ref = REF.get((m['kind'], m['aug']))
+    if ref is None:
+        print(f"  {r['tag']:<48} no published reference — skipped"); continue
+    checked += 1
+    d = {k: r[k]-v for k, v in ref.items()}
+    hit = all(abs(v) < TOL for v in d.values()); hits += hit
+    print(f"  {r['tag']:<48} exp mAP={ref['mAP']:.4f}  "
+          f"dmAP={d['mAP']:+.4f} dAP50={d['AP50']:+.4f} dAP75={d['AP75']:+.4f}  "
+          f"{'MATCH' if hit else '<-- MISS'}")
+
+print(f'\\n{hits}/{checked} tight runs reproduced within {TOL}')
+if checked and hits == checked:
+    print('GATE PASSED')
+elif hits:
+    print('GATE PARTIAL — some runs reproduce, some do not. The diagnostics below are\\n'
+          'trustworthy only for the runs that matched. Send this output.')
+else:
+    print('GATE FAILED — nothing reproduces. Stop here and send this output; the\\n'
+          'checkpoint, split, or preprocessing does not match the published runs.')""")
 
 md("## 7 · Diagnostics")
 
