@@ -40,11 +40,32 @@ Inference at `conf=0.001, iou=0.9, max_det=1000`, then soft-NMS offline.
 | 11 | WBF, iou 0.45–0.65, avg + max | done | **Refuted.** −0.0042 |
 | 12 | Soft-NMS, gaussian + linear | done | **+0.0035 cross-fold**, positive in all 8 fold-level measurements |
 | 13 | Size-prior re-rank | done | +0.0004 — within noise, optional |
-| 14 | **Test-set submission with winning config** | **open** | not started; unknown whether any submission has ever been made |
-| 15 | **P2 head (stride 4)** | **open** | highest-value remaining item |
-| 16 | **Loss reweight `box=10.0, dfl=2.5`** | **open** | AP50 to spare, AP75 to gain |
-| 17 | **Augmentation fix** `mosaic=0.5, scale=0.25, close_mosaic=30` | **open** | current config silently drops 6.5% of boxes |
+| 14 | Test-set submission | **descoped** | decision: val-fold scores only from here |
+| 15 | **P2 head (stride 4)** | **open — run first** | highest-value remaining item |
+| 16 | **Loss reweight `box=10.0, dfl=2.5`** | **open — run second** | AP50 to spare, AP75 to gain |
+| 17 | Augmentation change | open, low priority | **the bug claim does not hold — see below** |
 | 18 | 5-channel RGB + physics | open, low priority | predicted near-neutral for the same redundancy reason as #2 |
+| 19 | Phase-4 training notebook | done | one variable per run, reports raw and soft-NMS scores against both baselines |
+
+### Correction: the augmentation "bug" is not one
+
+The handoff claimed `mosaic=1.0, scale=0.5` silently discards 6.5% of boxes and crushes
+the median box to 4.9 px. Measured directly against the annotations:
+
+```
+box height at imgsz=1024, no scale aug : median 19.8 px, q05 8.0 px
+scale=0.5,  worst case s=0.5           : median  9.9 px, 0.44% below the 2px wh_thr
+scale=0.25, worst case s=0.75          : median 14.8 px, 0.02% below the 2px wh_thr
+```
+
+Worst case is 9.9 px, not 4.9. Only 0.44% of boxes fall below `wh_thr`, not 6.5%. And
+since `E[s] = 1.0` for any symmetric scale range, the *average* training box size is
+unchanged at 19.8 px — only the low tail differs. A mosaic simulation confirms that most
+box loss under mosaic is ordinary cropping, which is by design rather than a defect.
+
+Reducing `scale` to 0.25 is still defensible as a mild hyperparameter choice, since it
+stops shrinking already-tiny objects. It is not a bug fix and should not be prioritised
+over the P2 head or the loss reweight.
 
 ---
 
@@ -82,9 +103,15 @@ right one.
 
 ## Next
 
-1. **Bank the +0.0038** — test-set submission with RGB + TTA + linear soft-NMS 0.6.
-2. **P2 head retrain.** Median box is 19.8 px after letterbox to 1024: 2.5 cells
-   at stride 8, 5 cells at stride 4. Aimed straight at the localisation limit.
-3. **Loss reweight and augmentation fix**, one run each so the ablation stays clean.
+Run `notebooks/clearsar_phase4_training.ipynb`, one `EXPERIMENT` per run:
 
-Items 2 and 3 are GPU-hours; item 1 is minutes. They can run in parallel.
+1. **`p2`** — P2 detection head at stride 4. Median box is 19.8 px after letterbox
+   to 1024: 2.5 cells at stride 8, 5 cells at stride 4. Aimed straight at the
+   localisation limit the diagnosis identified.
+2. **`loss`** — `box=10.0, dfl=2.5`. Cheap, zero architectural risk, trades AP50
+   headroom for AP75.
+3. **`p2_loss`** — only if both win individually.
+
+**The bar is 0.4051, not 0.3940.** Soft-NMS is free, so a new model only counts if
+it beats the baseline *after* the same post-processing. The notebook applies
+soft-NMS to every result and prints both columns.
