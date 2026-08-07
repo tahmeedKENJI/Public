@@ -220,18 +220,23 @@ data_yaml = build_yolo_dataset(coco, IMAGES_TRAIN, train_ids, val_ids, YOLO_DS)"
 
 md("""## Model and config
 
-`p2` needs the P2 head yaml. Ultralytics resolves `yolo11l-p2.yaml` by stripping the scale
-letter and loading `yolo11-p2.yaml`, so the cell checks that file exists before relying on
-it, and prints what is available if it does not. Pretrained `yolo11l.pt` weights are
-transferred into the matching layers; the new stride-4 head trains from scratch.""")
+**ultralytics does not ship a P2 config for YOLO11** — 8.4.116 has only
+`yolo26-p2.yaml`, `yolov8-p2.yaml` and `yolov8-ghost-p2.yaml`. So the cell writes one,
+derived from `yolo11.yaml` by applying the `yolov8-p2.yaml` pattern: the neck is extended
+one level further up to the P2/4 backbone feature (index 2), and `Detect` consumes four
+scales instead of three.
 
-code("""import ultralytics
+Only the unscaled `yolo11-p2.yaml` needs to exist on disk; asking for `yolo11l-p2.yaml`
+makes ultralytics parse the `l` scale from the name and load the shared file. Verified to
+build at 26,116,368 parameters with strides `[4, 8, 16, 32]`, and to transfer 100% of the
+pretrained backbone from `yolo11l.pt`. The stride-4 branch and the later neck layers train
+from scratch, exactly as ultralytics' own `yolov8-p2` behaves.""")
+
+code('''import ultralytics
 from ultralytics import YOLO
 print('ultralytics', ultralytics.__version__)
 
-CFG_ROOT = Path(ultralytics.__file__).parent/'cfg'/'models'
-p2_yamls = sorted(p.name for p in CFG_ROOT.rglob('*p2*.yaml'))
-print('p2 configs available:', p2_yamls)
+P2_YAML = """__P2_YAML__"""
 
 # E01's config, unchanged. Each experiment edits exactly one group of keys.
 cfg = dict(epochs=EPOCHS, imgsz=1024, patience=30, cos_lr=True, single_cls=True,
@@ -241,10 +246,8 @@ cfg = dict(epochs=EPOCHS, imgsz=1024, patience=30, cos_lr=True, single_cls=True,
 weights, model_yaml = 'yolo11l.pt', None
 
 if EXPERIMENT in ('p2', 'p2_loss'):
-    assert 'yolo11-p2.yaml' in p2_yamls, (
-        f'yolo11-p2.yaml not in this ultralytics build; available: {p2_yamls}. '
-        'Upgrade ultralytics or pick another EXPERIMENT.')
-    model_yaml = 'yolo11l-p2.yaml'
+    (WORK/'yolo11-p2.yaml').write_text(P2_YAML)      # ultralytics strips the scale letter
+    model_yaml = str(WORK/'yolo11l-p2.yaml')         # ...and loads the file above
 if EXPERIMENT in ('loss', 'p2_loss'):
     cfg.update(box=10.0, dfl=2.5)
 if EXPERIMENT == 'aug':
@@ -256,7 +259,17 @@ print(f'\\nrun={RUN}  model={model_yaml or weights}  batch={cfg["batch"]}')
 print('changed vs E01:', {k: v for k, v in cfg.items()
                           if k in ('box','dfl','mosaic','scale','close_mosaic','batch')})
 
-model = YOLO(model_yaml).load(weights) if model_yaml else YOLO(weights)""")
+model = YOLO(model_yaml).load(weights) if model_yaml else YOLO(weights)
+
+# Fail here rather than an hour into training if the head is not what we asked for.
+strides = model.model.model[-1].stride.tolist()
+n_params = sum(p.numel() for p in model.model.parameters())
+print(f'strides={strides}  params={n_params:,}')
+if EXPERIMENT in ('p2', 'p2_loss'):
+    assert strides == [4.0, 8.0, 16.0, 32.0], f'expected a P2 head, got strides {strides}'
+    print('P2 head confirmed: 4 detection scales, finest at stride 4')
+else:
+    assert strides == [8.0, 16.0, 32.0], strides''')
 
 md("""### Train
 
@@ -323,6 +336,12 @@ The final score table, plus the `changed vs E01` line so the run is identifiable
 
 Then change `EXPERIMENT` and run again. Suggested order: **`p2`**, then **`loss`**, then
 `p2_loss` only if both won individually.""")
+
+p2_yaml_text = pathlib.Path(__file__).with_name("yolo11-p2.yaml").read_text()
+assert '"""' not in p2_yaml_text, 'yaml would break the embedded string literal'
+for c in cells:
+    if c["cell_type"] == "code" and "__P2_YAML__" in c["source"]:
+        c["source"] = c["source"].replace("__P2_YAML__", p2_yaml_text)
 
 nb = {"cells": cells,
       "metadata": {"kernelspec": {"display_name":"Python 3","language":"python","name":"python3"},
