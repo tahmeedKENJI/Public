@@ -88,8 +88,75 @@ needs a containment criterion (intersection over the *smaller* box), not IoU.
 - The composite remains worse than RGB (0.3837 vs 0.3940), reproducing exactly.
 - Detection counts: tight 28–30k, loose 80–92k, loose+TTA 157–168k over 631 images.
 
-## Validation available
+## Sweep results
 
-Applying NMS at 0.6 offline to a loose set should approximately reproduce the
-corresponding tight set. That is a free correctness check on the offline NMS
-implementation before any of its results are believed.
+All 8 uploaded detection sets reproduce the notebook scores to within 0.0001
+(residual is the 3-decimal bbox rounding used to shrink the files).
+
+Correctness check first: offline NMS at 0.6 applied to each loose set
+reproduces the corresponding tight set to within 0.0007, so the offline
+implementation matches ultralytics' inference-time NMS.
+
+Protocol: the 631 val images are split deterministically in half. Every
+configuration is scored on each half; the reported gain is held-out (tune on A,
+measure on B, and the reverse, averaged).
+
+| operator | cross-fold gain | verdict |
+|---|---|---|
+| NMS `iou` sweep, 0.30–0.75 | −0.0006 | dead — the curve peaks exactly at 0.60, already in use |
+| containment suppression, 0.70–0.95 | −0.0236 | dead — badly negative |
+| WBF, iou 0.45–0.65, avg and max | −0.0042 | dead |
+| soft-NMS, gaussian | +0.0027 | positive |
+| **soft-NMS, linear, iou 0.6** | **+0.0035** | **winner** |
+| size re-rank on top | +0.0004 | marginal, within noise |
+
+### Containment suppression was wrong
+
+Suppressing detections nested inside a higher-scoring one cost −0.0236, the
+worst result of the sweep. The nested boxes are not merely duplicate false
+positives: many are correct detections of genuinely distinct events, consistent
+with 13.8% of ground-truth boxes having a vertically adjacent same-x sibling.
+Removing them costs more true positives than it gains precision.
+
+### Why linear soft-NMS works, and it matches the diagnosis
+
+`yolo11_rfi__loose__tta`, linear soft-NMS iou=0.6 versus the tight baseline:
+
+```
+            baseline   soft-NMS    delta
+mAP           0.4013     0.4051   +0.0038
+AP50          0.6820     0.6807   -0.0013
+AP75          0.4114     0.4211   +0.0097
+AR100         0.6444     0.6873   +0.0429
+AP_large      0.3000     0.3008   +0.0008
+```
+
+The gain is concentrated in AP75 and AR100 while AP50 slightly drops. That is
+exactly what the diagnosis predicted. Hard NMS *deletes* the better-localised
+lower-scoring box; soft-NMS only *demotes* it, so it survives in the ranking and
+can still match at a high IoU threshold. The problem was never merging — it was
+that the right box was being thrown away.
+
+Generalisation across all four runs, linear soft-NMS iou=0.6:
+
+```
+run                        baseline  soft-NMS    delta       A        B
+yolo11_rfi__plain            0.3940    0.3965  +0.0025  +0.0023  +0.0031
+yolo11_rfi__tta              0.4013    0.4051  +0.0038  +0.0036  +0.0040
+yolo11_composite__plain      0.3837    0.3869  +0.0032  +0.0033  +0.0031
+yolo11_composite__tta        0.3888    0.3918  +0.0030  +0.0031  +0.0031
+```
+
+Positive in all 8 fold-level measurements. Best configuration overall:
+**yolo11_rfi (RGB) + TTA + linear soft-NMS iou=0.6 = 0.4051**.
+
+## Track A conclusion
+
+Net +0.0038 on the best pipeline, free at inference and requiring no retraining.
+Real but small: three of the five ideas were refuted, including both of the
+handoff's stated priorities. The remaining headroom is in training, not
+post-processing, and the diagnosis points at localisation confidence — which is
+what the P2 head and the `box=10.0` loss reweight target.
+
+To apply it: run test inference at `iou=0.9, max_det=1000`, then linear
+soft-NMS at 0.6 offline.
