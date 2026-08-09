@@ -152,6 +152,31 @@ code("""if MODE in ('resume', 'eval'):
     print(f"  has optimizer state  : {_ck.get('optimizer') is not None}")
     print(f"  box={_ta.get('box')} dfl={_ta.get('dfl')} batch={_ta.get('batch')} imgsz={_ta.get('imgsz')}")
 
+    # The checkpoint carries the metrics at the saved epoch and the whole
+    # results.csv of the run that produced it, so the original curve can be
+    # read straight out of the file rather than inferred from logs.
+    _tm = {k: v for k, v in (_ck.get('train_metrics') or {}).items()
+           if isinstance(v, (int, float))}
+    if _tm:
+        print('\\n  metrics recorded AT that epoch:')
+        for k, v in _tm.items(): print(f'    {k:<28}{v:.4f}')
+    _tr = _ck.get('train_results') or {}
+    if _tr:
+        _cols = list(_tr)
+        def _c(s): return next((c for c in _cols if s in c), None)
+        _ce, _c50, _c95, _clr = _c('epoch'), _c('mAP50(B)'), _c('mAP50-95(B)'), _c('lr/pg0')
+        _n = len(_tr[_ce]) if _ce else 0
+        print(f'\\n  the original run logged {_n} epochs; last 8:')
+        print(f"    {'epoch':>6}{'mAP50':>10}{'mAP50-95':>11}{'lr':>12}")
+        for _i in range(max(0, _n - 8), _n):
+            _row = [_tr[_ce][_i],
+                    _tr[_c50][_i] if _c50 else float('nan'),
+                    _tr[_c95][_i] if _c95 else float('nan'),
+                    _tr[_clr][_i] if _clr else float('nan')]
+            print(f'    {_row[0]:>6.0f}{_row[1]:>10.4f}{_row[2]:>11.4f}{_row[3]:>12.6f}')
+        print('\\n  ^ compare the last row against the first epoch of the resumed run.')
+        print('    A large drop means the resume did not restore what this file holds.')
+
     if MODE == 'resume':
         start = _ep + 1
         assert _ck.get('optimizer') is not None, (
