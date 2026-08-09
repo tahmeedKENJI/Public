@@ -48,14 +48,15 @@ the *average* training box size is unchanged. Most box loss under mosaic is ordi
 cropping, which is by design. Run `p2` and `loss` first.""")
 
 code("""# ============================== CONFIG ==============================
-MODE       = 'train'       # 'train' | 'resume' | 'eval'
+MODE       = 'resume'      # 'train' | 'resume' | 'eval'
 EXPERIMENT = 'p2'          # 'p2' | 'loss' | 'aug' | 'p2_loss' | 'baseline'
-EPOCHS     = 100           # 100 does NOT fit Kaggle's 12h limit for p2 (~491 s/epoch)
+EPOCHS     = 100           # ignored when MODE='resume' (target comes from the ckpt)
 BATCH      = None          # None = auto (4 for P2, else 8). Lower this on OOM.
 
-# 'resume' and 'eval' need a checkpoint. Leave None to auto-discover any
-# last.pt / best.pt under /kaggle/input, including ones Kaggle has unzipped
-# into a directory.
+# Leave None to auto-discover. Your last.pt was unpacked by Kaggle into
+#   /kaggle/input/clrsar4/archive/     (data.pkl + data/ + .data/)
+# which is exactly the shape the discovery below recognises and repacks, so
+# None is correct. Set it only if discovery picks the wrong file.
 CKPT = None
 # ====================================================================
 from pathlib import Path
@@ -133,11 +134,31 @@ if MODE in ('resume', 'eval'):
     import torch
     try: _ck = torch.load(CKPT, map_location='cpu', weights_only=False)
     except TypeError: _ck = torch.load(CKPT, map_location='cpu')
-    print(f"  trained epoch   : {_ck.get('epoch')}   (-1 means the run had finished)")
-    print(f"  best_fitness    : {_ck.get('best_fitness')}")
     _ta = _ck.get('train_args', {}) or {}
-    print(f"  epochs target   : {_ta.get('epochs')}   close_mosaic={_ta.get('close_mosaic')}")
+    _ep, _target = _ck.get('epoch', -1), _ta.get('epochs')
+    _cm = _ta.get('close_mosaic')
+    print(f"  last completed epoch : {_ep}   (-1 means the run had already finished)")
+    print(f"  best_fitness         : {_ck.get('best_fitness')}")
+    print(f"  epochs target        : {_target}   close_mosaic={_cm}")
+    print(f"  has optimizer state  : {_ck.get('optimizer') is not None}")
     print(f"  box={_ta.get('box')} dfl={_ta.get('dfl')} batch={_ta.get('batch')} imgsz={_ta.get('imgsz')}")
+
+    if MODE == 'resume':
+        start = _ep + 1
+        assert _ck.get('optimizer') is not None, (
+            'This checkpoint has no optimizer state, so it cannot be resumed. '
+            'Ultralytics strips the optimizer from best.pt/last.pt when a run '
+            'FINISHES — use the last.pt from the interrupted run, not a stripped one.')
+        assert 0 < start < _target, (
+            f'start_epoch={start} target={_target}: nothing to resume. '
+            'Ultralytics requires 0 < epoch+1 < epochs.')
+        left = _target - start
+        print(f"\\n  -> resumes at epoch {start+1}, runs {left} more to {_target}")
+        print(f"  -> ~{left*491/3600:.1f} h at the 491 s/epoch this run measured "
+              f"({'fits' if left*491 < 11*3600 else 'DOES NOT FIT'} in 12 h)")
+        if start > _target - (_cm or 0):
+            print(f"  -> past the close_mosaic boundary (epoch {_target-(_cm or 0)}), "
+                  "so mosaic is off for every remaining epoch")
     del _ck""")
 
 code("!pip -q install ultralytics pycocotools")
