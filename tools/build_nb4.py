@@ -48,13 +48,18 @@ the *average* training box size is unchanged. Most box loss under mosaic is ordi
 cropping, which is by design. Run `p2` and `loss` first.""")
 
 code("""# ============================== CONFIG ==============================
+MODE       = 'train'       # 'train' | 'resume' | 'eval'
 EXPERIMENT = 'p2'          # 'p2' | 'loss' | 'aug' | 'p2_loss' | 'baseline'
-EPOCHS     = 100
+EPOCHS     = 100           # 100 does NOT fit Kaggle's 12h limit for p2 (~491 s/epoch)
 BATCH      = None          # None = auto (4 for P2, else 8). Lower this on OOM.
-RESUME     = False
+
+# 'resume' and 'eval' need a checkpoint. Leave None to auto-discover any
+# last.pt / best.pt under /kaggle/input, including ones Kaggle has unzipped
+# into a directory.
+CKPT = None
 # ====================================================================
 from pathlib import Path
-import os, json
+import os, json, zipfile
 
 KAGGLE_INPUT = Path('/kaggle/input')
 WORK = Path('/kaggle/working'); WORK.mkdir(exist_ok=True)
@@ -74,7 +79,66 @@ IMAGES_TRAIN = next((p for p, f in _walk(KAGGLE_INPUT)
 assert IMAGES_TRAIN, 'train images not found'
 print('annotations :', ANNOTATIONS)
 print('train images:', IMAGES_TRAIN, len(list(IMAGES_TRAIN.glob('*.png'))), 'png')
-print('experiment  :', EXPERIMENT)""")
+print('mode        :', MODE, '| experiment:', EXPERIMENT)
+
+# --- checkpoint discovery, incl. archives Kaggle unpacked into directories ---
+_HEAD = ['data.pkl', 'byteorder', 'version', '.format_version',
+         '.storage_alignment', '.data/serialization_id']
+
+def repack_pt(src, out):
+    src, out = Path(src), Path(out)
+    missing = [n for n in ('data.pkl', 'version') if not (src/n).is_file()]
+    if not (src/'data').is_dir(): missing.append('data/')
+    if missing: raise FileNotFoundError(f'{src} missing {missing}')
+    out.parent.mkdir(parents=True, exist_ok=True)
+    members = [(src/n, n) for n in _HEAD if (src/n).is_file()]
+    for f in sorted((src/'data').iterdir(),
+                    key=lambda q: (not q.name.isdigit(),
+                                   int(q.name) if q.name.isdigit() else q.name)):
+        if f.is_file(): members.append((f, f'data/{f.name}'))
+    known = {m[1] for m in members}
+    for r, _d, fs in os.walk(src, followlinks=True):
+        for f in fs:
+            p = Path(r)/f; rel = str(p.relative_to(src))
+            if rel not in known: members.append((p, rel))
+    with zipfile.ZipFile(out, 'w', zipfile.ZIP_STORED) as z:
+        for p, rel in members: z.write(p, str(Path(out.stem)/rel))
+    return out
+
+def find_checkpoints():
+    found = []
+    for d, files in _walk(KAGGLE_INPUT):
+        for f in files:
+            if f.lower().endswith(('.pt', '.pth')): found.append(Path(d)/f)
+        if 'data.pkl' in files and (d/'data').is_dir():           # Kaggle unzipped it
+            out = WORK/'repacked'/f'{d.parent.name}_{d.name}.pt'
+            if not out.exists():
+                repack_pt(d, out); print(f'repacked {d} -> {out}')
+            found.append(out)
+    return sorted(found)
+
+if MODE in ('resume', 'eval'):
+    if CKPT:
+        CKPT = Path(CKPT)
+    else:
+        cands = find_checkpoints()
+        assert cands, ('No checkpoint found under /kaggle/input. Attach the dataset '
+                       'containing your run\\'s weights/last.pt.')
+        print('checkpoints found:')
+        for c in cands: print('   ', c, f'{c.stat().st_size/1e6:.1f} MB')
+        pref = [c for c in cands if c.stem.endswith('last') or 'last' in c.name]
+        CKPT = (pref or cands)[0]
+    print(f'\\nusing checkpoint: {CKPT}')
+
+    import torch
+    try: _ck = torch.load(CKPT, map_location='cpu', weights_only=False)
+    except TypeError: _ck = torch.load(CKPT, map_location='cpu')
+    print(f"  trained epoch   : {_ck.get('epoch')}   (-1 means the run had finished)")
+    print(f"  best_fitness    : {_ck.get('best_fitness')}")
+    _ta = _ck.get('train_args', {}) or {}
+    print(f"  epochs target   : {_ta.get('epochs')}   close_mosaic={_ta.get('close_mosaic')}")
+    print(f"  box={_ta.get('box')} dfl={_ta.get('dfl')} batch={_ta.get('batch')} imgsz={_ta.get('imgsz')}")
+    del _ck""")
 
 code("!pip -q install ultralytics pycocotools")
 
@@ -259,7 +323,10 @@ print(f'\\nrun={RUN}  model={model_yaml or weights}  batch={cfg["batch"]}')
 print('changed vs E01:', {k: v for k, v in cfg.items()
                           if k in ('box','dfl','mosaic','scale','close_mosaic','batch')})
 
-model = YOLO(model_yaml).load(weights) if model_yaml else YOLO(weights)
+if MODE == 'train':
+    model = YOLO(model_yaml).load(weights) if model_yaml else YOLO(weights)
+else:
+    model = YOLO(str(CKPT))          # resume / eval: architecture comes from the ckpt
 
 # Fail here rather than an hour into training if the head is not what we asked for.
 strides = model.model.model[-1].stride.tolist()
@@ -271,21 +338,43 @@ if EXPERIMENT in ('p2', 'p2_loss'):
 else:
     assert strides == [8.0, 16.0, 32.0], strides''')
 
-md("""### Train
+md("""### Train / resume
 
-If this OOMs — most likely for `p2`, whose stride-4 grid is 256x256 at `imgsz=1024` — set
-`BATCH = 2` in the config cell and re-run. Ultralytics accumulates to a nominal batch of
-64 either way, so the effective optimisation is unchanged.""")
+**Kaggle kills a session at 12 hours.** For `p2` at ~491 s/epoch that caps a fresh run at
+roughly 85 epochs, so `EPOCHS = 100` cannot finish in one session. Either set `EPOCHS`
+low enough to fit, or run to the limit and continue with `MODE = 'resume'`.
 
-code("""model.train(data=str(data_yaml), project=str(WORK/'runs'), name=RUN,
-            resume=RESUME, **cfg)""")
+`last.pt` is written **every epoch** (`trainer.save_model` calls
+`self.last.write_bytes(...)` unconditionally), and `best.pt` only when fitness improves,
+so a killed run always leaves a checkpoint at its last completed epoch.
+
+On resume ultralytics restores the training arguments from the checkpoint and only allows
+a small whitelist to be overridden — `imgsz`, `batch`, `device`, `close_mosaic`,
+`patience`, `save_dir` and a few others. **`epochs` is not on that list**, so a resumed run
+always continues to the original target.""")
+
+code("""if MODE == 'train':
+    model.train(data=str(data_yaml), project=str(WORK/'runs'), name=RUN, **cfg)
+elif MODE == 'resume':
+    model.train(resume=str(CKPT), data=str(data_yaml))
+else:
+    print('MODE=eval — skipping training')""")
 
 md("""## Score — raw and after soft-NMS, against both baselines
 
 Predictions are made twice: at `iou=0.6` (comparable to the published baselines) and at
 `iou=0.9, max_det=1000` (which soft-NMS then reduces offline, the Track-A winner).""")
 
-code("""best = WORK/'runs'/RUN/'weights'/'best.pt'
+code("""if MODE == 'eval':
+    best = Path(CKPT)
+else:
+    best = Path(getattr(model, 'trainer', None) and model.trainer.save_dir
+                or WORK/'runs'/RUN)/'weights'/'best.pt'
+    if not best.exists():                      # resume may write to the ckpt's save_dir
+        cands = sorted(WORK.rglob('weights/best.pt'), key=lambda p: p.stat().st_mtime)
+        assert cands, 'no best.pt found after training'
+        best = cands[-1]
+print('scoring checkpoint:', best)
 m = YOLO(str(best))
 OUT = WORK/'phase4'; OUT.mkdir(exist_ok=True)
 
