@@ -129,9 +129,18 @@ if MODE in ('resume', 'eval'):
         for c in cands: print('   ', c, f'{c.stat().st_size/1e6:.1f} MB')
         pref = [c for c in cands if c.stem.endswith('last') or 'last' in c.name]
         CKPT = (pref or cands)[0]
-    print(f'\\nusing checkpoint: {CKPT}')
+    print(f'\\nusing checkpoint: {CKPT}')""")
 
-    import torch
+code("!pip -q install ultralytics pycocotools")
+
+md("""## Inspect the checkpoint
+
+This has to run **after** the install above: the checkpoint pickle references
+`ultralytics.nn.tasks`, so `torch.load` raises `ModuleNotFoundError: No module named
+'ultralytics'` if the package is not importable yet.""")
+
+code("""if MODE in ('resume', 'eval'):
+    import torch, ultralytics
     try: _ck = torch.load(CKPT, map_location='cpu', weights_only=False)
     except TypeError: _ck = torch.load(CKPT, map_location='cpu')
     _ta = _ck.get('train_args', {}) or {}
@@ -159,9 +168,9 @@ if MODE in ('resume', 'eval'):
         if start > _target - (_cm or 0):
             print(f"  -> past the close_mosaic boundary (epoch {_target-(_cm or 0)}), "
                   "so mosaic is off for every remaining epoch")
-    del _ck""")
-
-code("!pip -q install ultralytics pycocotools")
+    del _ck
+else:
+    print('MODE=train — no checkpoint to inspect')""")
 
 md("## Helpers — identical split and metric to every previous phase")
 
