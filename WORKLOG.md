@@ -46,6 +46,8 @@ Inference at `conf=0.001, iou=0.9, max_det=1000`, then soft-NMS offline.
 | 17 | Augmentation change | open, low priority | **the bug claim does not hold — see below** |
 | 18 | 5-channel RGB + physics | open, low priority | predicted near-neutral for the same redundancy reason as #2 |
 | 19 | Phase-4 training notebook | done | one variable per run, reports raw and soft-NMS scores against both baselines |
+| 20 | Two-model ensemble (E01 + E04) | done | **refuted** — −0.0007 cross-fold, folds disagree in sign (+0.0023 / −0.0036) |
+| 21 | P2 run | **abandoned** | hit the 12h limit at ~epoch 85; resume audited against 5 mechanisms, none faulty, dip unexplained |
 
 ### Correction: the augmentation "bug" is not one
 
@@ -92,6 +94,7 @@ right one.
 | NMS threshold tuning | already optimal at 0.60 |
 | Containment suppression | −0.0236; nested boxes are often correct detections of distinct events |
 | WBF | −0.0042 both score modes |
+| Two-model ensembling | −0.0007, folds disagree in sign — E04 is worse and too correlated to add anything |
 | Physics composite input | −0.0103, reproduced twice |
 | Dropping the invisible boxes | they are real and in the official test GT; caps mAP near 0.31 |
 | dB / log domain | h-struct(dB) AUC 0.387, worse than chance |
