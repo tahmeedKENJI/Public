@@ -17,12 +17,31 @@ the untouched images are not byte-identical to the original.
 """
 import argparse
 import json
-from collections import defaultdict
-from pathlib import Path
+import re
+from collections import Counter, defaultdict
+from pathlib import Path, PurePosixPath
 
 
 def load(p):
     return json.loads(Path(p).read_text())
+
+
+def resolve_name(name, known):
+    """Map an exported file_name back to one in the original dataset.
+
+    Label Studio stores uploads as '<hash>-<original>.png' and may export a full
+    path; Roboflow appends its own suffixes. Try the exact name first, then the
+    basename, then strip a leading upload hash.
+    """
+    if name in known:
+        return name, None
+    base = PurePosixPath(name.replace('\\', '/')).name
+    if base in known:
+        return base, 'basename'
+    stripped = re.sub(r'^[0-9a-fA-F]{6,}-', '', base)
+    if stripped in known:
+        return stripped, 'stripped upload hash'
+    return None, None
 
 
 def norm_bbox(b, w, h, precision):
@@ -51,25 +70,40 @@ def main():
     orig, exp = load(a.original), load(a.export)
 
     orig_by_name = {im['file_name']: im for im in orig['images']}
-    unknown = [im['file_name'] for im in exp['images'] if im['file_name'] not in orig_by_name]
+
+    # exported name -> original name, tolerating Label Studio / Roboflow mangling
+    resolved, unknown, how = {}, [], Counter()
+    for im in exp['images']:
+        name, note = resolve_name(im['file_name'], orig_by_name)
+        if name is None:
+            unknown.append(im['file_name'])
+        else:
+            resolved[im['id']] = name
+            if note:
+                how[note] += 1
     if unknown:
         raise SystemExit(
-            f'{len(unknown)} exported images are not in the original file, e.g. '
-            f'{unknown[:5]}. CVAT renamed them, or this export is from another dataset.')
+            f'{len(unknown)} exported images could not be matched to the original '
+            f'file, e.g. {unknown[:5]}. The tool renamed them beyond recovery, or '
+            f'this export is from another dataset.')
+    for note, n in how.items():
+        print(f'[note] matched {n} images by {note}')
 
     # geometry must match, otherwise the tool resized the images and every
     # coordinate in the export is on a different scale
     resized = [(im['file_name'], (im.get('width'), im.get('height')),
-                (orig_by_name[im['file_name']]['width'], orig_by_name[im['file_name']]['height']))
+                (orig_by_name[resolved[im['id']]]['width'],
+                 orig_by_name[resolved[im['id']]]['height']))
                for im in exp['images']
                if im.get('width') and (im['width'], im['height']) !=
-               (orig_by_name[im['file_name']]['width'], orig_by_name[im['file_name']]['height'])]
+               (orig_by_name[resolved[im['id']]]['width'],
+                orig_by_name[resolved[im['id']]]['height'])]
     if resized:
         raise SystemExit(f'{len(resized)} images changed size, e.g. {resized[:3]}. '
                          'The export is not on the original pixel grid.')
 
     # export image_id -> original image id
-    exp_id_to_orig = {im['id']: orig_by_name[im['file_name']]['id'] for im in exp['images']}
+    exp_id_to_orig = {eid: orig_by_name[name]['id'] for eid, name in resolved.items()}
     edited = set(exp_id_to_orig.values())
 
     dims = {im['id']: (im['width'], im['height']) for im in orig['images']}
