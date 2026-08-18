@@ -10,8 +10,14 @@ Point it at a `.pt`, `.pth`, `.keras`, `.h5`, `.safetensors`, SavedModel or
 serves a page on `127.0.0.1`.
 
 ```
-python server.py path/to/model.pt
+python server.py path/to/model.pt                       # from a model file
+python server.py --code model_def.py --class MyNet      # from your class alone
 ```
+
+**If you have the model class in a `.py` file, that is all you need.** A
+checkpoint only carries trained numbers, and numbers do not change the
+architecture — pass one only if you want the diagram labelled with the real
+trained model.
 
 ---
 
@@ -43,7 +49,8 @@ python server.py model.pt  --standalone viz.html   # one portable HTML file
 | --- | --- |
 | `--input-shape 1,3,224,224` | the model's real input size. Without it the tool guesses from the first layer, which gets channel counts right but spatial sizes only approximately. |
 | `--standalone OUT.html` | bake the graph into a single self-contained HTML file. No server, no network, opens with a double-click, works forever. |
-| `--code model_def.py` | the Python file defining your model's classes. Only needed for `torch.save(model)` files when you want full-fidelity dataflow (see below). |
+| `--code model_def.py` | the Python file defining your model class. This is the best input there is: the class *is* the architecture, so no model file is needed at all. |
+| `--class MyNet` | which class in `--code` to use. Auto-detected when the file defines only one. Takes constructor arguments: `--class "MyNet(num_classes=7)"`. |
 | `--allow-unsafe-unpickle` | let `torch.load` execute the pickled file. Off by default. Gives the best result for saved `nn.Module` files. |
 | `--json OUT.json` | also dump the extracted graph. |
 | `--port`, `--no-browser` | server options. |

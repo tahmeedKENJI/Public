@@ -131,6 +131,8 @@ def parse_shape(text):
 
 def _is_weights_file(path):
     """True when the file is a plain state_dict rather than a pickled module."""
+    if not path:
+        return False
     try:
         import torch
         obj = torch.load(path, map_location="meta", weights_only=True)
@@ -180,7 +182,7 @@ def main(argv=None):
 
     shape = parse_shape(args.input_shape)
     try:
-        if args.code and (args.class_name or _is_weights_file(args.model)):
+        if args.code and (args.class_name or not args.model or _is_weights_file(args.model)):
             print(f"[netviz3d] building {args.class_name or 'the model class'} from {args.code}"
                   + (f", loading weights from {args.model}" if args.model else ""))
             graph = extract.from_class(args.code, args.class_name, weights=args.model,
