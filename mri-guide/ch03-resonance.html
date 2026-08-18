@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3 · Resonance and the Rotating Frame — MRI Visual Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="eyebrow">Part I · The Physics</p>
+<h1>Resonance: RF Excitation and the Rotating Frame</h1>
+<p class="dek">A 3 tesla magnet holds the magnetization along z. A transmit coil produces
+a field of maybe 20 microtesla — 150 000 times weaker — and yet it can tip that magnetization
+all the way into the transverse plane in under a millisecond. The reason is resonance, and the
+tool that makes it obvious is a change of coordinates.</p>
+
+<h2>3.1 &nbsp;The problem with the lab frame</h2>
+
+<p>In the laboratory frame, <b>M</b> is precessing about B₀ at 127 MHz. If you apply a small
+static field along x, it does essentially nothing: the magnetization sweeps past it 127 million
+times a second, and the tiny torque it feels reverses direction every half turn, averaging to zero.
+A constant push cannot move something that is spinning that fast.</p>
+
+<p>But if the small field <em>rotates with</em> the magnetization — if it stays on the same side of
+it, turn after turn — then its tiny torque accumulates instead of cancelling. That is what a
+resonant RF pulse is: a magnetic field, called <b>B₁</b>, rotating in the transverse plane at
+exactly the Larmor frequency.</p>
+
+<div class="note intuition">
+<span class="label">The playground-swing analogy, used properly</span>
+<p>Pushing a child on a swing works not because the push is strong but because it is
+<i>synchronised</i>. Push at the natural frequency and small pushes accumulate into a large
+amplitude. Push at any other frequency and the pushes fight each other. B₁ is the push; ω₀ is
+the natural frequency; the flip angle is the amplitude you build up. The analogy also gets the
+failure mode right — detune slightly and the excitation becomes partial and phase-shifted, which
+is precisely the off-resonance behaviour explored below.</p>
+</div>
+
+<h2>3.2 &nbsp;The rotating frame</h2>
+
+<p>Instead of tracking a vector that turns 127 million times a second, sit on a turntable that
+rotates about z at the RF frequency ω<sub>rf</sub>. In this frame the fast precession disappears.
+What remains is an <strong>effective field</strong>:</p>
+
+<div class="eq">
+  <span class="eq-name">3.1</span>
+  <b>B</b><sub>eff</sub> = (B₀ − ω<sub>rf</sub>/γ) <b>ẑ</b> + B₁ <b>x̂′</b>
+  <span class="where">The rotation subtracts a fictitious field ω<sub>rf</sub>/γ from the z axis —
+  exactly the same mathematical move as the centrifugal term in a rotating mechanical frame.
+  <b>On resonance</b>, ω<sub>rf</sub> = γB₀, the z term cancels <i>completely</i>, and the only
+  field left in the universe of this frame is the microtesla B₁ lying along x′.</span>
+</div>
+
+<p>That cancellation is the whole trick. In the rotating frame, a 3 T magnet is gone, and the
+magnetization simply precesses about B₁ at the modest rate ω₁ = γB₁ — a few kilohertz. Precessing
+about an axis in the transverse plane means tipping away from z. The angle swept is:</p>
+
+<div class="eq">
+  <span class="eq-name">3.2</span>
+  θ = γ B₁ τ &nbsp;&nbsp;<span style="color:var(--ink-faint)">(rectangular pulse)</span>
+  &nbsp;&nbsp;or&nbsp;&nbsp; θ = γ ∫₀<sup>τ</sup> B₁(<var>t</var>) d<var>t</var> &nbsp;<span style="color:var(--ink-faint)">(any shape)</span>
+  <span class="where">The flip angle is the <b>area under the B₁ envelope</b>, nothing more.
+  A 90° pulse needs γB₁τ = π/2. With B₁ = 20 μT, ω₁/2π = 851 Hz, so τ ≈ 294 μs. Halve B₁ and you
+  double the duration for the same flip — the trade that governs SAR, slice profile and pulse
+  design forever after.</span>
+</div>
+
+<figure class="wide">
+<div class="widget">
+  <div class="canvas-row">
+    <div class="canvas-cell">
+      <div class="cname">Laboratory frame — what really happens</div>
+      <canvas id="lab" width="360" height="320"></canvas>
+    </div>
+    <div class="canvas-cell">
+      <div class="cname">Rotating frame — what we think about</div>
+      <canvas id="rot" width="360" height="320"></canvas>
+    </div>
+  </div>
+  <div class="controls">
+    <label><span class="cap">B₁ amplitude (ω₁) <output id="w1-out"></output></span>
+      <input id="w1" type="range" min="0" max="100" step="1" value="45"></label>
+    <label><span class="cap">Off-resonance Δf <output id="dw-out"></output></span>
+      <input id="dw" type="range" min="-100" max="100" step="1" value="0"></label>
+    <label><span class="cap">Larmor speed shown <output id="w0-out"></output></span>
+      <input id="w0" type="range" min="0" max="100" step="1" value="55"></label>
+    <div class="btnrow">
+      <button id="rf-on">RF on</button><button id="rf-off">RF off</button><button id="rf-reset">Reset M</button>
+    </div>
+  </div>
+  <div class="readout" id="rf-out"></div>
+</div>
+<figcaption><b>Interactive 3.1 — The same motion in two coordinate systems.</b> Turn the RF on and
+watch: in the lab frame (left) the magnetization spirals down the surface of a sphere in a
+complicated helix; in the rotating frame (right) it does the simplest thing imaginable — it
+rotates in a plane about B₁. Now drag the off-resonance slider away from zero. The effective
+field tilts out of the transverse plane, M precesses about a cone that no longer reaches the
+equator, and the maximum achievable flip angle collapses. That failure is the mechanism behind
+slice selection (Chapter 7), spectral fat saturation (Chapter 11) and off-resonance artifacts
+(Chapter 15).</figcaption>
+</figure>
+
+<h2>3.3 &nbsp;Off resonance, and the tilted effective field</h2>
+
+<p>When ω<sub>rf</sub> ≠ γB₀, the z-component does not cancel. Writing Δω = ω₀ − ω<sub>rf</sub>,
+the effective field in the rotating frame has magnitude and tilt:</p>
+
+<div class="eq">
+  <span class="eq-name">3.3</span>
+  ω<sub>eff</sub> = √(ω₁² + Δω²) &nbsp;&nbsp;&nbsp; tan α = ω₁ / Δω
+  <span class="where">M precesses about that tilted axis. The maximum angle it can reach from z
+  is 2α, so far off resonance (Δω ≫ ω₁) the spins barely move at all — they are simply not
+  excited. The transition from “fully excited” to “untouched” happens over a bandwidth of
+  roughly ω₁, which is why a stronger, shorter pulse excites a wider band of frequencies.</span>
+</div>
+
+<figure class="wide">
+<svg viewBox="0 0 860 280" width="860" height="280" role="img" aria-label="Effective field tilt with off-resonance">
+  <defs>
+    <marker id="e1" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="var(--accent4)"/></marker>
+    <marker id="e2" markerWidth="8" markerHeight="8" refX="6.4" refY="2.9" orient="auto"><path d="M0,0 L6.4,2.9 L0,5.8 z" fill="var(--ink-faint)"/></marker>
+    <marker id="e3" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="var(--accent)"/></marker>
+  </defs>
+  <g class="lbl-b"><text x="20" y="24">Effective field in the rotating frame, for three offsets</text></g>
+
+  <!-- panel maker -->
+  <g transform="translate(120,160)">
+    <line x1="-90" y1="0" x2="110" y2="0" class="axis" marker-end="url(#e2)"/><text x="112" y="18" class="lbl-sm">x′ (B₁)</text>
+    <line x1="0" y1="80" x2="0" y2="-100" class="axis" marker-end="url(#e2)"/><text x="6" y="-92" class="lbl-sm">z (Δω/γ)</text>
+    <line x1="0" y1="0" x2="80" y2="0" stroke="var(--accent4)" stroke-width="3" marker-end="url(#e1)"/>
+    <text x="30" y="-10" class="lbl-b" style="fill:var(--accent4)">B_eff</text>
+    <path d="M0,0 A 78 78 0 0 0 0 0" fill="none"/>
+    <!-- M path: full circle to -z -->
+    <path d="M 0,-70 A 70 70 0 0 1 0 70" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="5 4"/>
+    <line x1="0" y1="0" x2="0" y2="-70" stroke="var(--accent)" stroke-width="2.4" marker-end="url(#e3)"/>
+    <text x="-100" y="-84" class="lbl-b">Δf = 0 · on resonance</text>
+    <text x="-100" y="102" class="lbl-sm">M sweeps the full 180°: any flip angle reachable</text>
+  </g>
+
+  <g transform="translate(420,160)">
+    <line x1="-90" y1="0" x2="110" y2="0" class="axis" marker-end="url(#e2)"/><text x="112" y="18" class="lbl-sm">x′</text>
+    <line x1="0" y1="80" x2="0" y2="-100" class="axis" marker-end="url(#e2)"/><text x="6" y="-92" class="lbl-sm">z</text>
+    <line x1="0" y1="0" x2="62" y2="-62" stroke="var(--accent4)" stroke-width="3" marker-end="url(#e1)"/>
+    <text x="52" y="-70" class="lbl-b" style="fill:var(--accent4)">B_eff</text>
+    <path d="M 0,-70 A 70 70 0 0 1 99 1" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="5 4"/>
+    <line x1="0" y1="0" x2="0" y2="-70" stroke="var(--accent)" stroke-width="2.4" marker-end="url(#e3)"/>
+    <path d="M 26,-26 A 37 37 0 0 1 0 -37" fill="none" stroke="var(--ink-faint)" stroke-width="1"/>
+    <text x="18" y="-40" class="lbl-sm">α</text>
+    <text x="-100" y="-84" class="lbl-b">Δf ≈ ω₁ · partially excited</text>
+    <text x="-100" y="102" class="lbl-sm">reaches only 2α from z, and with a phase error</text>
+  </g>
+
+  <g transform="translate(710,160)">
+    <line x1="-90" y1="0" x2="90" y2="0" class="axis" marker-end="url(#e2)"/><text x="92" y="18" class="lbl-sm">x′</text>
+    <line x1="0" y1="80" x2="0" y2="-100" class="axis" marker-end="url(#e2)"/><text x="6" y="-92" class="lbl-sm">z</text>
+    <line x1="0" y1="0" x2="16" y2="-84" stroke="var(--accent4)" stroke-width="3" marker-end="url(#e1)"/>
+    <text x="20" y="-88" class="lbl-b" style="fill:var(--accent4)">B_eff</text>
+    <path d="M 0,-70 A 70 70 0 0 1 27 -64" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="5 4"/>
+    <line x1="0" y1="0" x2="0" y2="-70" stroke="var(--accent)" stroke-width="2.4" marker-end="url(#e3)"/>
+    <text x="-90" y="-84" class="lbl-b">Δf ≫ ω₁ · effectively untouched</text>
+    <text x="-90" y="102" class="lbl-sm">B_eff ≈ B₀ again; the pulse is invisible to these spins</text>
+  </g>
+</svg>
+<figcaption><b>Figure 3.1 — Selectivity is a geometry problem.</b> The RF pulse does not “find”
+the right nuclei; it simply cannot move the wrong ones, because for them the effective field is
+still pointing along z. Everything selective in MRI — which slice, which chemical species, which
+band of k-space — is engineered by controlling how far off resonance a spin is when the pulse
+arrives.</figcaption>
+</figure>
+
+<h2>3.4 &nbsp;Pulse shapes: the Fourier view of excitation</h2>
+
+<p>To a very good approximation (valid for small flip angles, and used well beyond that in
+practice), the <strong>excitation profile in frequency is the Fourier transform of the B₁ envelope
+in time</strong>. This is the single most useful design rule in RF pulse engineering.</p>
+
+<figure class="wide">
+<svg viewBox="0 0 860 400" width="860" height="400" role="img" aria-label="Pulse envelopes and their excitation profiles">
+  <g class="lbl-b"><text x="20" y="22">B₁(t) envelope</text><text x="470" y="22">resulting excitation profile M_xy(f)</text></g>
+
+  <!-- row 1: hard pulse -->
+  <g transform="translate(60,90)">
+    <line x1="0" y1="40" x2="330" y2="40" class="axis"/>
+    <path d="M120,40 L120,-10 L210,-10 L210,40" fill="var(--accent4)" fill-opacity=".25" stroke="var(--accent4)" stroke-width="2"/>
+    <text x="165" y="-20" text-anchor="middle" class="lbl-sm">“hard” rectangular pulse, ~0.5 ms</text>
+    <text x="340" y="44" class="lbl-sm">t</text>
+  </g>
+  <g transform="translate(500,90)">
+    <line x1="0" y1="40" x2="330" y2="40" class="axis"/>
+    <!-- sinc -->
+    <path d="M0,40 C10,40 14,34 20,34 C30,34 34,46 44,46 C56,46 58,30 70,30 C84,30 86,52 100,52
+             C116,52 118,20 134,16 C150,12 152,-38 165,-38 C178,-38 180,12 196,16 C212,20 214,52 230,52
+             C244,52 246,30 260,30 C272,30 274,46 286,46 C296,46 300,34 310,34 C316,34 320,40 330,40"
+          fill="none" stroke="var(--accent)" stroke-width="2"/>
+    <text x="165" y="-48" text-anchor="middle" class="lbl-sm">sinc profile — wide band, ripply edges</text>
+    <text x="340" y="44" class="lbl-sm">f</text>
+  </g>
+
+  <!-- row 2: sinc pulse -->
+  <g transform="translate(60,250)">
+    <line x1="0" y1="40" x2="330" y2="40" class="axis"/>
+    <path d="M0,40 C10,40 14,34 20,34 C30,34 34,46 44,46 C56,46 58,30 70,30 C84,30 86,52 100,52
+             C116,52 118,20 134,16 C150,12 152,-40 165,-40 C178,-40 180,12 196,16 C212,20 214,52 230,52
+             C244,52 246,30 260,30 C272,30 274,46 286,46 C296,46 300,34 310,34 C316,34 320,40 330,40"
+          fill="none" stroke="var(--accent4)" stroke-width="2"/>
+    <text x="165" y="-50" text-anchor="middle" class="lbl-sm">apodised sinc, 3 lobes, ~3 ms</text>
+    <text x="340" y="44" class="lbl-sm">t</text>
+  </g>
+  <g transform="translate(500,250)">
+    <line x1="0" y1="40" x2="330" y2="40" class="axis"/>
+    <path d="M0,40 L118,40 C126,40 128,-30 140,-30 L192,-30 C204,-30 206,40 214,40 L330,40"
+          fill="var(--accent)" fill-opacity=".18" stroke="var(--accent)" stroke-width="2"/>
+    <text x="165" y="-42" text-anchor="middle" class="lbl-sm">near-rectangular slice profile — this is what we want</text>
+    <text x="340" y="44" class="lbl-sm">f</text>
+    <line x1="140" y1="46" x2="192" y2="46" stroke="var(--accent3)" stroke-width="1.4"/>
+    <text x="166" y="62" text-anchor="middle" class="lbl-sm" style="fill:var(--accent3)">bandwidth BW</text>
+  </g>
+</svg>
+<figcaption><b>Figure 3.2 — A Fourier pair you will meet again in every chapter.</b> A short
+rectangular pulse excites a wide, ragged band; a long sinc-shaped pulse excites a clean
+rectangular band. Real pulses truncate the sinc after 2–4 lobes and apodise it (Hamming or
+Hanning window), trading a little edge sharpness for a much shorter pulse. The same rectangle↔sinc
+relationship reappears as the point spread function of a finite k-space window in Chapter 10 —
+it is the same mathematics wearing a different hat.</figcaption>
+</figure>
+
+<h3>The pulse designer's trade-offs</h3>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Pulse</th><th>Envelope</th><th>Used for</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>Hard (non-selective)</td><td>Rectangle, 100–500 μs</td><td>Whole-volume excitation in 3D sequences, inversion of everything</td><td>No spatial selectivity; needs high peak B₁</td></tr>
+<tr><td>Sinc (selective)</td><td>Truncated, windowed sinc, 1–5 ms</td><td>Slice selection with a gradient on</td><td>Long; truncation ripples; more T2 loss during the pulse</td></tr>
+<tr><td>SLR / Shinnar–Le Roux</td><td>Numerically optimised</td><td>Sharp profiles at large flip angles where the Fourier approximation fails</td><td>Design complexity; still bounded by peak B₁ and SAR</td></tr>
+<tr><td>Gaussian</td><td>Gaussian, 5–20 ms</td><td>Spectrally selective saturation (fat sat, CHESS)</td><td>Soft edges in frequency</td></tr>
+<tr><td>Adiabatic (hyperbolic secant)</td><td>Amplitude <em>and</em> frequency swept</td><td>Uniform inversion despite B₁ inhomogeneity — surface coils, 7 T</td><td>Very high SAR; long duration</td></tr>
+<tr><td>Composite</td><td>e.g. 90°<sub>x</sub>–180°<sub>y</sub>–90°<sub>x</sub></td><td>Compensating B₁ or off-resonance error</td><td>Longer, sensitive to a different error instead</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>3.5 &nbsp;Adiabatic pulses: sweeping the field instead of hitting it</h2>
+
+<p>Ordinary pulses depend on B₁ being the value you assumed — if the transmit coil is 30% weaker
+at the edge of its reach, you get a 63° pulse where you wanted 90°. <strong>Adiabatic</strong> pulses
+escape this entirely with a beautiful idea: sweep the RF frequency from far below resonance to
+far above it while ramping B₁. In the rotating frame, B<sub>eff</sub> starts pointing along +z,
+tips through the transverse plane, and ends pointing along −z. If the sweep is slow enough that
+M can keep up — the <em>adiabatic condition</em>, |dα/dt| ≪ ω<sub>eff</sub> — then M is dragged
+along with B<sub>eff</sub> and ends up inverted, regardless of exactly how strong B₁ was, as long
+as it exceeded a threshold.</p>
+
+<div class="note">
+<span class="label">Where you meet this in the wild</span>
+<p>Adiabatic inversion (hyperbolic secant) is the default for inversion-recovery prep on 3 T and
+above, for arterial spin labelling (Chapter 13), and for anything using a surface transmit coil
+whose B₁ falls off dramatically with depth. The price is SAR: an adiabatic pulse can deposit an
+order of magnitude more energy than a conventional inversion.</p>
+</div>
+
+<h2>3.6 &nbsp;What the pulse costs: a first look at SAR</h2>
+
+<p>B₁ is delivered as an electromagnetic wave into a conductive, salty body. Some of it induces
+eddy currents and dissipates as heat. Specific Absorption Rate, in W/kg, scales as:</p>
+
+<div class="eq">
+  <span class="eq-name">3.4</span>
+  SAR ∝ σ B₀² B₁² · <var>D</var> &nbsp;&nbsp;∝&nbsp;&nbsp; θ² · BW · <var>D</var> / τ
+  <span class="where">σ is tissue conductivity and D the duty cycle. The B₀² term is the reason
+  3 T scanners spend so much of their life waiting: the same TSE train that is comfortable at
+  1.5 T is four times hotter at 3 T. Practical responses: lower refocusing flip angles
+  (Chapter 11), longer TR, fewer slices per TR, or hyperecho/variable-flip trains.</span>
+</div>
+
+<div class="keypoints">
+<h3>Key points</h3>
+<ul>
+<li><b>Resonance is synchronisation.</b> B₁ works because it rotates with M, not because it is strong.</li>
+<li><b>The rotating frame cancels B₀ exactly on resonance</b>, leaving only B₁ — this is why a microtesla field beats a tesla field.</li>
+<li><b>Flip angle = γ × area under the B₁ envelope.</b> Amplitude and duration trade off freely.</li>
+<li><b>Off resonance, B<sub>eff</sub> tilts</b>, the achievable flip collapses, and selectivity is born.</li>
+<li><b>Excitation profile ≈ Fourier transform of the pulse envelope</b> — sinc in time gives a rectangle in frequency.</li>
+<li><b>Adiabatic pulses trade energy for immunity to B₁ error.</b></li>
+<li><b>SAR ∝ B₀²θ²</b>, which is why high-field protocols are constrained by heating, not by physics.</li>
+</ul>
+</div>
+
+<h2>Going deeper</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://mriquestions.com/" target="_blank" rel="noopener">
+    <span class="k">Reference site</span><span class="t">Q&amp;A in MRI — “RF pulses” and “Rotating frame”</span>
+    <span class="d">Includes the clearest picture of the adiabatic sweep as a slowly turning effective field.</span></a>
+  <a class="linkcard" href="https://en.wikipedia.org/wiki/Rabi_cycle" target="_blank" rel="noopener">
+    <span class="k">Reference</span><span class="t">Rabi cycle</span>
+    <span class="d">The same physics from the quantum side: the flip angle is the Rabi oscillation of a two-level system driven at resonance.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=MRI+rotating+frame+B1+flip+angle+explained" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Rotating frame and flip angle</span>
+    <span class="d">Look for the ones that show the lab-frame spiral and the rotating-frame arc side by side — the comparison is what makes it click.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=adiabatic+inversion+pulse+hyperbolic+secant+MRI" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Adiabatic inversion pulses</span>
+    <span class="d">Search for animations of B_eff sweeping from +z to −z while M follows it around.</span></a>
+</div>
+
+<div class="refs">
+<h3>References</h3>
+<ol>
+<li>Bernstein, M. A., King, K. F., Zhou, X. J. <i>Handbook of MRI Pulse Sequences</i>. Elsevier, 2004. — Part I is an encyclopaedia of RF pulse types; the reference every sequence programmer keeps open.</li>
+<li>Pauly, J., Le Roux, P., Nishimura, D., Macovski, A. “Parameter relations for the Shinnar–Le Roux selective excitation pulse design algorithm.” <i>IEEE TMI</i> 10(1):53–65, 1991.</li>
+<li>Silver, M. S., Joseph, R. I., Hoult, D. I. “Highly selective π/2 and π pulse generation.” <i>J. Magn. Reson.</i> 59:347–351, 1984. — The hyperbolic-secant adiabatic pulse.</li>
+<li>Hoult, D. I. “The principle of reciprocity in signal strength calculations — a mathematical guide.” <i>Concepts in Magnetic Resonance</i> 12:173–187, 2000.</li>
+<li>Haacke et al., <i>MRI: Physical Principles and Sequence Design</i>, Ch. 16 (RF pulse shapes and selective excitation).</li>
+</ol>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+<script>
+/* ---------- Interactive 3.1 : lab vs rotating frame ---------- */
+(function () {
+  const cL = document.getElementById("lab"), cR = document.getElementById("rot");
+  const ctxL = hidpi(cL, 360, 320), ctxR = hidpi(cR, 360, 320);
+  const out = document.getElementById("rf-out");
+
+  let w1 = 45, dw = 0, w0 = 55, rfOn = false;
+  let M = [0, 0, 1];        // rotating-frame magnetization
+  let phi = 0;              // accumulated RF-frame phase for the lab view
+  let flip = 0, last = performance.now();
+  const trailL = [], trailR = [];
+
+  function rodrigues(v, k, ang) {          // rotate v about unit k by ang
+    const c = Math.cos(ang), s = Math.sin(ang);
+    const kd = k[0]*v[0] + k[1]*v[1] + k[2]*v[2];
+    const cr = [k[1]*v[2]-k[2]*v[1], k[2]*v[0]-k[0]*v[2], k[0]*v[1]-k[1]*v[0]];
+    return [ v[0]*c + cr[0]*s + k[0]*kd*(1-c),
+             v[1]*c + cr[1]*s + k[1]*kd*(1-c),
+             v[2]*c + cr[2]*s + k[2]*kd*(1-c) ];
+  }
+
+  // camera: elevation foreshortening EL, plus an azimuth so that rotation about
+  // the x' axis (which happens in the y–z plane) is not viewed edge-on
+  const EL = 0.40, AZ = 0.62, cA = Math.cos(AZ), sA = Math.sin(AZ);
+  function proj(x, y, z, cx, cy, s) {
+    const X = x * cA - y * sA, Y = x * sA + y * cA;
+    return [cx + X * s, cy - z * s + Y * s * EL];
+  }
+  function arrow(ctx, x0, y0, x1, y1, col, w) {
+    ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    const a = Math.atan2(y1-y0, x1-x0), h = 4 + w*1.7;
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x1, y1);
+    ctx.lineTo(x1 - h*Math.cos(a-0.4), y1 - h*Math.sin(a-0.4));
+    ctx.lineTo(x1 - h*Math.cos(a+0.4), y1 - h*Math.sin(a+0.4));
+    ctx.closePath(); ctx.fill();
+  }
+  function stage(ctx, cx, cy, s, xlabel) {
+    ctx.clearRect(0, 0, 360, 320);
+    ctx.strokeStyle = cssv("--rule"); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(cx, cy, s, s*EL, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(cx, cy, s, s, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = cssv("--ink-faint"); ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(cx, cy+s*0.6); ctx.lineTo(cx, cy-s*1.2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = cssv("--ink-faint"); ctx.font = "11px ui-sans-serif, system-ui";
+    ctx.fillText("z", cx + 6, cy - s*1.16);
+    // axis stubs, drawn in the same projection so the labels sit where the axes are
+    for (const [vx, vy, lab] of [[1, 0, xlabel], [0, 1, xlabel === "x′" ? "y′" : "y"]]) {
+      const [ax, ay] = proj(vx, vy, 0, cx, cy, s);
+      ctx.strokeStyle = cssv("--rule"); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ax, ay); ctx.stroke();
+      ctx.fillText(lab, ax + 5, ay + 4);
+    }
+  }
+  function drawTrail(ctx, trail, cx, cy, s) {
+    if (trail.length < 2) return;
+    ctx.strokeStyle = cssv("--accent3"); ctx.lineWidth = 1.2; ctx.globalAlpha = .75;
+    ctx.beginPath();
+    for (let i = 0; i < trail.length; i++) {
+      const [px, py] = proj(trail[i][0], trail[i][1], trail[i][2], cx, cy, s);
+      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    ctx.stroke(); ctx.globalAlpha = 1;
+  }
+
+  function frame() {
+    const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
+
+    // --- physics in the rotating frame ---
+    const W1 = rfOn ? w1 * 0.045 : 0;          // rad/s in display units
+    const DW = dw * 0.045;
+    const wmag = Math.hypot(W1, DW);
+    if (wmag > 1e-9) {
+      const k = [W1 / wmag, 0, DW / wmag];
+      M = rodrigues(M, k, wmag * dt);
+      if (rfOn) flip += W1 * dt * 180 / Math.PI;
+    }
+    phi += (w0 * 0.06) * dt * 2 * Math.PI * 0.35;
+
+    // --- rotating frame view ---
+    stage(ctxR, 180, 160, 105, "x′");
+    trailR.push(M.slice()); if (trailR.length > 260) trailR.shift();
+    drawTrail(ctxR, trailR, 180, 160, 105);
+    if (rfOn) {                                     // draw B_eff
+      const s = 62 / Math.max(wmag, 1e-9);
+      const [bx, by] = proj(W1 * s / 62 * 0.62, 0, DW * s / 62 * 0.62, 180, 160, 105);
+      arrow(ctxR, 180, 160, bx, by, cssv("--accent4"), 2.4);
+      ctxR.fillStyle = cssv("--accent4"); ctxR.font = "11px ui-sans-serif, system-ui";
+      ctxR.fillText("B_eff", bx + 5, by - 5);
+    }
+    let [px, py] = proj(M[0], M[1], M[2], 180, 160, 105);
+    arrow(ctxR, 180, 160, px, py, cssv("--accent"), 3.2);
+
+    // --- lab frame view: rotate about z by phi ---
+    stage(ctxL, 180, 160, 105, "x");
+    const c = Math.cos(phi), s2 = Math.sin(phi);
+    const lab = [M[0]*c - M[1]*s2, M[0]*s2 + M[1]*c, M[2]];
+    trailL.push(lab); if (trailL.length > 260) trailL.shift();
+    drawTrail(ctxL, trailL, 180, 160, 105);
+    [px, py] = proj(lab[0], lab[1], lab[2], 180, 160, 105);
+    arrow(ctxL, 180, 160, px, py, cssv("--accent"), 3.2);
+
+    const mxy = Math.hypot(M[0], M[1]);
+    const tilt = Math.abs(dw) < 1e-6 ? 90 : Math.atan2(Math.abs(W1), DW) * 180 / Math.PI;
+    out.textContent =
+      `RF ${rfOn ? "ON " : "OFF"}   accumulated flip ${flip.toFixed(0)}°   ` +
+      `M_z = ${M[2].toFixed(3)}   |M_xy| = ${mxy.toFixed(3)}\n` +
+      `B_eff tilt from z: ${rfOn ? tilt.toFixed(1) + "°" : "—"}   ` +
+      `max reachable flip: ${rfOn ? (2 * tilt).toFixed(0) + "°" : "0°"}   ` +
+      (Math.abs(dw) > 60 ? "→ far off resonance: this spin is essentially unexcited"
+        : Math.abs(dw) > 5 ? "→ partial excitation with a phase error"
+        : "→ on resonance: clean rotation about B₁");
+  }
+
+  slider("w1", v => (w1 = v, v === 0 ? "0 (no pulse)" : v + " (arb.)"), null);
+  slider("dw", v => (dw = v, (v > 0 ? "+" : "") + v + " (arb.)"), null);
+  slider("w0", v => (w0 = v, v === 0 ? "frozen" : v + " (arb.)"), null);
+  document.getElementById("rf-on").onclick  = () => { rfOn = true; };
+  document.getElementById("rf-off").onclick = () => { rfOn = false; };
+  document.getElementById("rf-reset").onclick = () => {
+    M = [0, 0, 1]; flip = 0; rfOn = false; trailL.length = 0; trailR.length = 0;
+  };
+  animate(frame);
+})();
+</script>
+</body>
+</html>

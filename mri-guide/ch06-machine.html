@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6 · The Machine — MRI Visual Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="eyebrow">Part II · The Instrument</p>
+<h1>The Machine: Magnet, Gradients, RF Chain, Shields</h1>
+<p class="dek">Everything so far has been physics on paper. This chapter is what is actually in
+the room: seven tonnes of superconducting magnet, a kilolitre of liquid helium, three gradient coils
+driven by amplifiers the size of a wardrobe, and a copper cage keeping the local FM station out of
+your images. If you have never stood next to one, this is the chapter to read slowly.</p>
+
+<h2>6.1 &nbsp;What a scanner actually is, layer by layer</h2>
+
+<p>A cylindrical-bore scanner is a set of nested tubes. From the outside in, each layer solves one
+problem, and each layer takes space away from the patient — which is why the bore ends up being
+only 60–70 cm across in a machine that is nearly 2 m in diameter.</p>
+
+<figure class="wide">
+<div class="widget">
+<svg id="cut" viewBox="0 0 860 470" width="860" height="470" role="img" aria-label="Cross-section of a cylindrical MRI scanner">
+  <defs>
+    <marker id="lead" markerWidth="7" markerHeight="7" refX="3" refY="3" orient="auto">
+      <circle cx="3" cy="3" r="2.4" fill="var(--ink-faint)"/>
+    </marker>
+  </defs>
+
+  <text class="lbl-b" x="20" y="24">Cross-section, looking down the bore</text>
+  <text class="lbl-sm" x="20" y="42">Click a layer name to highlight it. Everything is concentric; the patient gets whatever is left.</text>
+
+  <g transform="translate(300,265)">
+    <!-- outer cover -->
+    <g class="layer" data-k="cover">
+      <circle r="196" fill="var(--bg-sunken)" stroke="var(--rule)" stroke-width="2"/>
+      <circle r="196" fill="none" stroke="var(--ink-faint)" stroke-width="1" stroke-dasharray="2 3"/>
+    </g>
+    <!-- vacuum vessel / cryostat outer -->
+    <g class="layer" data-k="cryo">
+      <circle r="185" fill="none" stroke="var(--accent2)" stroke-width="9" opacity=".22"/>
+      <circle r="185" fill="none" stroke="var(--accent2)" stroke-width="1.4"/>
+    </g>
+    <!-- thermal shield -->
+    <g class="layer" data-k="shield">
+      <circle r="170" fill="none" stroke="var(--accent2)" stroke-width="5" opacity=".35"/>
+    </g>
+    <!-- helium vessel + main coils -->
+    <g class="layer" data-k="magnet">
+      <circle r="152" fill="none" stroke="var(--accent2)" stroke-width="24" opacity=".30"/>
+      <circle r="152" fill="none" stroke="var(--accent2)" stroke-width="1.4"/>
+      <g fill="var(--accent2)">
+        <circle cx="0" cy="-152" r="7"/><circle cx="0" cy="152" r="7"/>
+        <circle cx="-152" cy="0" r="7"/><circle cx="152" cy="0" r="7"/>
+        <circle cx="107" cy="-107" r="7"/><circle cx="-107" cy="-107" r="7"/>
+        <circle cx="107" cy="107" r="7"/><circle cx="-107" cy="107" r="7"/>
+      </g>
+    </g>
+    <!-- passive shim trays -->
+    <g class="layer" data-k="shim">
+      <circle r="126" fill="none" stroke="var(--accent4)" stroke-width="7" opacity=".45" stroke-dasharray="12 6"/>
+    </g>
+    <!-- gradient coil -->
+    <g class="layer" data-k="grad">
+      <circle r="110" fill="none" stroke="var(--accent3)" stroke-width="18" opacity=".35"/>
+      <circle r="110" fill="none" stroke="var(--accent3)" stroke-width="1.4"/>
+      <path d="M -78 -78 A 110 110 0 0 1 78 -78" fill="none" stroke="var(--accent3)" stroke-width="3"/>
+      <path d="M -78 78 A 110 110 0 0 0 78 78" fill="none" stroke="var(--accent3)" stroke-width="3"/>
+    </g>
+    <!-- RF body coil -->
+    <g class="layer" data-k="rf">
+      <circle r="90" fill="none" stroke="var(--accent)" stroke-width="8" opacity=".35"/>
+      <g stroke="var(--accent)" stroke-width="2" fill="none">
+        <circle r="90" stroke-width="1.2"/>
+        <line x1="90" y1="0" x2="90" y2="0"/>
+      </g>
+      <g fill="var(--accent)">
+        <circle cx="90" cy="0" r="4"/><circle cx="-90" cy="0" r="4"/>
+        <circle cx="0" cy="90" r="4"/><circle cx="0" cy="-90" r="4"/>
+        <circle cx="64" cy="64" r="4"/><circle cx="-64" cy="64" r="4"/>
+        <circle cx="64" cy="-64" r="4"/><circle cx="-64" cy="-64" r="4"/>
+        <circle cx="35" cy="83" r="4"/><circle cx="-35" cy="83" r="4"/>
+        <circle cx="35" cy="-83" r="4"/><circle cx="-35" cy="-83" r="4"/>
+        <circle cx="83" cy="35" r="4"/><circle cx="-83" cy="35" r="4"/>
+        <circle cx="83" cy="-35" r="4"/><circle cx="-83" cy="-35" r="4"/>
+      </g>
+    </g>
+    <!-- bore liner -->
+    <g class="layer" data-k="bore">
+      <circle r="78" fill="var(--bg-panel)" stroke="var(--rule)" stroke-width="3"/>
+    </g>
+    <!-- patient -->
+    <g class="layer" data-k="patient">
+      <ellipse cx="0" cy="14" rx="56" ry="40" fill="var(--ink-faint)" opacity=".28"/>
+      <ellipse cx="0" cy="14" rx="56" ry="40" fill="none" stroke="var(--ink-faint)" stroke-width="1.4"/>
+      <rect x="-64" y="52" width="128" height="8" rx="3" fill="var(--ink-faint)" opacity=".5"/>
+      <path d="M -50 -6 a 50 34 0 0 1 100 0" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="5 4"/>
+    </g>
+    <!-- centre marker -->
+    <line x1="-8" y1="0" x2="8" y2="0" stroke="var(--ink)" stroke-width="1.4"/>
+    <line x1="0" y1="-8" x2="0" y2="8" stroke="var(--ink)" stroke-width="1.4"/>
+    <text x="13" y="5" class="lbl-sm">isocentre</text>
+    <text x="0" y="-46" text-anchor="middle" class="lbl-sm" style="fill:var(--accent)">local receive array</text>
+  </g>
+
+  <!-- legend -->
+  <g transform="translate(540,70)" font-family="ui-sans-serif, system-ui">
+    <g class="leg" data-k="cover"   ><rect x="0" y="0"   width="290" height="26" rx="4"/><text x="10" y="17" class="lbl-b">Cosmetic cover &amp; bore lighting/fan</text></g>
+    <g class="leg" data-k="cryo"    ><rect x="0" y="30"  width="290" height="26" rx="4"/><text x="10" y="47" class="lbl-b">Vacuum vessel (cryostat wall)</text></g>
+    <g class="leg" data-k="shield"  ><rect x="0" y="60"  width="290" height="26" rx="4"/><text x="10" y="77" class="lbl-b">Thermal radiation shield, ~40 K</text></g>
+    <g class="leg" data-k="magnet"  ><rect x="0" y="90"  width="290" height="26" rx="4"/><text x="10" y="107" class="lbl-b">Helium vessel + superconducting coils</text></g>
+    <g class="leg" data-k="shim"    ><rect x="0" y="120" width="290" height="26" rx="4"/><text x="10" y="137" class="lbl-b">Passive shim trays + active shim coils</text></g>
+    <g class="leg" data-k="grad"    ><rect x="0" y="150" width="290" height="26" rx="4"/><text x="10" y="167" class="lbl-b">Gradient coil assembly (X, Y, Z + shields)</text></g>
+    <g class="leg" data-k="rf"      ><rect x="0" y="180" width="290" height="26" rx="4"/><text x="10" y="197" class="lbl-b">RF body transmit coil (birdcage)</text></g>
+    <g class="leg" data-k="bore"    ><rect x="0" y="210" width="290" height="26" rx="4"/><text x="10" y="227" class="lbl-b">Bore liner — 60 or 70 cm</text></g>
+    <g class="leg" data-k="patient" ><rect x="0" y="240" width="290" height="26" rx="4"/><text x="10" y="257" class="lbl-b">Patient, table, local receive coils</text></g>
+  </g>
+  <foreignObject x="540" y="345" width="300" height="110">
+    <div xmlns="http://www.w3.org/1999/xhtml" id="layerinfo"
+         style="font-family:ui-sans-serif,system-ui;font-size:12.5px;line-height:1.45;color:var(--ink-soft)">
+      Hover or click a layer to read what it does.
+    </div>
+  </foreignObject>
+</svg>
+<style>
+  #cut .leg rect { fill: transparent; stroke: var(--rule); }
+  #cut .leg:hover rect, #cut .leg.on rect { fill: var(--bg-sunken); stroke: var(--accent2); }
+  #cut .leg { cursor: pointer; }
+  #cut .layer { transition: opacity .18s; }
+  #cut.dim .layer { opacity: .18; }
+  #cut.dim .layer.on { opacity: 1; }
+</style>
+</div>
+<figcaption><b>Figure 6.1 — Concentric compromise.</b> Every millimetre of radius spent on
+cryogenics, shim trays or gradient windings is a millimetre the patient does not get. This is why
+gradient performance, bore size, and magnet homogeneity are permanently in tension: a wide-bore
+70 cm system has less room for the gradient coil, so it generally has weaker gradients than a
+60 cm system on the same platform.</figcaption>
+</figure>
+
+<h2>6.2 &nbsp;The magnet</h2>
+
+<p>Clinical field strengths of 1.5 T and above are only achievable with superconductivity. The coil
+is niobium–titanium wire embedded in copper, wound into solenoids, and cooled to about 4.2 K by
+liquid helium. Below its critical temperature the wire has literally zero resistance, so once the
+current is established — typically 400–800 A — the power supply is disconnected and a
+<strong>persistent-mode switch</strong> closes the loop on itself. The current then circulates for
+years, decaying by less than 0.1 ppm per hour. A scanner's magnet is not switched off at night;
+it is on continuously from installation until decommissioning.</p>
+
+<div class="note warn">
+<span class="label">Quench</span>
+<p>If any part of the winding warms above its critical temperature, it becomes resistive. That
+resistance dissipates heat, which spreads the normal zone, which dissipates more heat — a runaway
+that dumps the entire stored magnetic energy (megajoules) into the helium bath in seconds. The
+helium boils and expands roughly 750-fold, and must leave through the <b>quench pipe</b> to the
+outside air; if that pipe is blocked, the magnet room fills with helium and becomes an asphyxiation
+hazard. A quench is loud, expensive (tens of thousands in helium and days of downtime), and is also
+the emergency stop: the <b>Emergency Run Down Unit</b> deliberately triggers one when a person is
+pinned by a ferromagnetic object. Modern “sealed” magnets use only 5–20 litres of helium with a
+cryocooler, which changes this risk profile substantially.</p>
+</div>
+
+<h3>Homogeneity and shimming</h3>
+<p>The Larmor equation says frequency is field. If the field varies across the imaging volume, then
+position and frequency are no longer the clean relationship that Chapter 7 depends on. Specifications
+are quoted as peak-to-peak variation over a <strong>diameter of spherical volume</strong> (DSV):
+typically <b>&lt; 1 ppm over 40 cm DSV</b>, which at 3 T means holding 3 teslas constant to within
+3 microtesla across a volume the size of a basketball.</p>
+
+<ul>
+<li><strong>Passive shimming</strong> — small steel plates slid into trays in the bore during
+installation, correcting the effect of the building's steel and the magnet's own manufacturing
+tolerances. Done once, iteratively, over hours.</li>
+<li><strong>Active shimming</strong> — dedicated resistive coils generating specific spherical-harmonic
+field terms (Z, Z², ZX, X²−Y², …), adjusted per patient and even per slice. Modern systems shim
+automatically before each acquisition, because the patient's own body — especially air in sinuses
+and bowel — distorts the field significantly.</li>
+<li><strong>Higher-order / dynamic shimming</strong> — updating shim currents per slice during the
+scan. Essential for EPI at 7 T, where the field over the frontal lobes is hopeless otherwise.</li>
+</ul>
+
+<h3>Fringe field: the part that reaches outside the room</h3>
+<p>The field does not stop at the cover. Every scanner is specified by its <strong>5 gauss line</strong>
+(0.5 mT) — the contour outside which pacemakers and other implants are considered safe, and which
+must be contained within the controlled area. Unshielded, that contour would reach ten metres or
+more; <em>active shielding</em> (a second, counter-wound superconducting coil outside the main one)
+pulls it in to typically 2.5–4 m axially, which is what makes siting a scanner in an ordinary
+hospital possible at all.</p>
+
+<figure class="wide">
+<svg viewBox="0 0 860 340" width="860" height="340" role="img" aria-label="Fringe field contours and scanner room layout">
+  <text class="lbl-b" x="20" y="24">Fringe field and room layout — plan view</text>
+  <g transform="translate(60,50)">
+    <!-- room -->
+    <rect x="0" y="0" width="420" height="250" fill="none" stroke="var(--ink)" stroke-width="2.5"/>
+    <rect x="0" y="0" width="420" height="250" fill="var(--accent2)" opacity=".04"/>
+    <text x="10" y="-8" class="lbl-b">Magnet room — RF-shielded (Faraday cage), Zone IV</text>
+    <!-- copper hatch -->
+    <g stroke="var(--accent4)" stroke-width="1" opacity=".5">
+      <line x1="0" y1="6" x2="420" y2="6"/><line x1="0" y1="244" x2="420" y2="244"/>
+      <line x1="6" y1="0" x2="6" y2="250"/><line x1="414" y1="0" x2="414" y2="250"/>
+    </g>
+
+    <!-- contours -->
+    <ellipse cx="210" cy="125" rx="196" ry="112" fill="none" stroke="var(--accent)" stroke-width="1.4" stroke-dasharray="6 4"/>
+    <ellipse cx="210" cy="125" rx="140" ry="82" fill="none" stroke="var(--accent)" stroke-width="1.4" stroke-dasharray="6 4"/>
+    <ellipse cx="210" cy="125" rx="92" ry="56" fill="none" stroke="var(--accent)" stroke-width="1.6"/>
+    <text x="210" y="26" text-anchor="middle" class="lbl-sm" style="fill:var(--accent)">5 gauss (0.5 mT) — implant exclusion line</text>
+    <text x="292" y="86" class="lbl-sm" style="fill:var(--accent)">10 G</text>
+    <text x="248" y="118" class="lbl-sm" style="fill:var(--accent)">30 G</text>
+
+    <!-- magnet -->
+    <rect x="150" y="88" width="120" height="74" rx="8" fill="var(--bg-sunken)" stroke="var(--accent2)" stroke-width="2"/>
+    <ellipse cx="210" cy="125" rx="22" ry="22" fill="var(--bg-panel)" stroke="var(--accent2)" stroke-width="2"/>
+    <text x="210" y="130" text-anchor="middle" class="lbl-sm">bore</text>
+    <rect x="270" y="112" width="86" height="26" rx="4" fill="var(--ink-faint)" opacity=".3"/>
+    <text x="313" y="152" text-anchor="middle" class="lbl-sm">table</text>
+    <!-- quench pipe -->
+    <line x1="210" y1="88" x2="210" y2="10" stroke="var(--accent3)" stroke-width="5"/>
+    <text x="216" y="52" class="lbl-sm" style="fill:var(--accent3)">quench pipe → outside</text>
+    <!-- waveguide / penetration panel -->
+    <rect x="0" y="190" width="10" height="34" fill="var(--accent4)"/>
+    <text x="14" y="212" class="lbl-sm">penetration panel — every cable enters through a filter</text>
+    <!-- door -->
+    <path d="M0,60 a 34 34 0 0 0 34 -34" fill="none" stroke="var(--ink-faint)" stroke-width="1.4"/>
+    <rect x="-4" y="26" width="8" height="34" fill="var(--ink-faint)" opacity=".5"/>
+    <text x="-52" y="46" class="lbl-sm" text-anchor="end">RF door</text>
+  </g>
+
+  <g transform="translate(530,50)">
+    <rect x="0" y="0" width="140" height="118" fill="none" stroke="var(--ink)" stroke-width="2"/>
+    <text x="70" y="56" text-anchor="middle" class="lbl-b">Equipment</text>
+    <text x="70" y="74" text-anchor="middle" class="lbl-sm">room</text>
+    <text x="70" y="-8" class="lbl-sm">Zone III</text>
+    <text x="8" y="94" class="lbl-sm">gradient amplifiers</text>
+    <text x="8" y="108" class="lbl-sm">RF amp, spectrometer, recon PC</text>
+
+    <rect x="0" y="132" width="140" height="118" fill="none" stroke="var(--ink)" stroke-width="2"/>
+    <text x="70" y="186" text-anchor="middle" class="lbl-b">Control</text>
+    <text x="70" y="204" text-anchor="middle" class="lbl-sm">room</text>
+    <text x="8" y="228" class="lbl-sm">operator console, window,</text>
+    <text x="8" y="242" class="lbl-sm">intercom, patient monitor</text>
+  </g>
+  <text class="lbl-sm" x="530" y="290">Zones I–IV (ACR): I public, II supervised reception,</text>
+  <text class="lbl-sm" x="530" y="306">III restricted (fringe field), IV the magnet room itself.</text>
+  <text class="lbl-sm" x="530" y="322">Screening happens between II and III. See Chapter 15.</text>
+</svg>
+<figcaption><b>Figure 6.2 — The three-room layout that every MRI suite shares.</b> The magnet room
+is a sealed copper box: continuous shielding on all six surfaces, an RF door with finger stock
+contacts, waveguides instead of open holes, and a penetration panel where every electrical service
+enters through a low-pass filter. Without it, the local FM transmitter and every switching power
+supply in the hospital would land squarely in your receive bandwidth (Chapter 15's zipper artifact).</figcaption>
+</figure>
+
+<h2>6.3 &nbsp;The gradient system</h2>
+
+<p>Three coils produce fields whose <em>z-component</em> varies linearly with position along x, y and
+z respectively. Note the wording carefully: a gradient coil does not produce a field pointing along
+x; it produces a field pointing along z whose <em>strength</em> depends on x. Only the z-component
+matters, because it adds to a 3 T field and everything perpendicular is negligible by comparison.</p>
+
+<div class="eq">
+  <span class="eq-name">6.1</span>
+  B<sub>z</sub>(<b>r</b>) = B₀ + G<sub>x</sub>x + G<sub>y</sub>y + G<sub>z</sub>z
+  &nbsp;&nbsp;⟹&nbsp;&nbsp; ω(<b>r</b>) = γ(B₀ + <b>G</b>·<b>r</b>)
+  <span class="where">Position becomes frequency. This one line is the entire basis of imaging,
+  and Chapter 7 is devoted to exploiting it.</span>
+</div>
+
+<figure class="wide">
+<svg viewBox="0 0 860 300" width="860" height="300" role="img" aria-label="Gradient coil geometries">
+  <text class="lbl-b" x="20" y="24">The three gradient coils, and why they look different</text>
+
+  <!-- Z gradient: Maxwell pair -->
+  <g transform="translate(120,150)">
+    <text x="0" y="-96" text-anchor="middle" class="lbl-b">G_z — Maxwell pair</text>
+    <ellipse cx="-60" cy="0" rx="14" ry="52" fill="none" stroke="var(--accent3)" stroke-width="3"/>
+    <ellipse cx="60" cy="0" rx="14" ry="52" fill="none" stroke="var(--accent3)" stroke-width="3"/>
+    <line x1="-100" y1="0" x2="100" y2="0" stroke="var(--ink-faint)" stroke-dasharray="4 4"/>
+    <text x="-60" y="72" text-anchor="middle" class="lbl-sm">current →</text>
+    <text x="60" y="72" text-anchor="middle" class="lbl-sm">← current</text>
+    <text x="0" y="94" text-anchor="middle" class="lbl-sm">opposed loops: field adds on one side,</text>
+    <text x="0" y="108" text-anchor="middle" class="lbl-sm">subtracts on the other → linear in z</text>
+  </g>
+
+  <!-- X/Y gradient: Golay saddle -->
+  <g transform="translate(400,150)">
+    <text x="0" y="-96" text-anchor="middle" class="lbl-b">G_x , G_y — Golay saddles</text>
+    <ellipse cx="0" cy="0" rx="70" ry="46" fill="none" stroke="var(--rule)" stroke-width="1.5"/>
+    <path d="M -52 -30 C -30 -46 30 -46 52 -30 L 52 -12 C 30 -28 -30 -28 -52 -12 Z"
+          fill="var(--accent3)" opacity=".3" stroke="var(--accent3)" stroke-width="2"/>
+    <path d="M -52 30 C -30 46 30 46 52 30 L 52 12 C 30 28 -30 28 -52 12 Z"
+          fill="var(--accent3)" opacity=".3" stroke="var(--accent3)" stroke-width="2"/>
+    <text x="0" y="80" text-anchor="middle" class="lbl-sm">saddle-shaped windings on the cylinder,</text>
+    <text x="0" y="94" text-anchor="middle" class="lbl-sm">rotated 90° for the two transverse axes</text>
+    <text x="0" y="108" text-anchor="middle" class="lbl-sm">B_z varies across the diameter</text>
+  </g>
+
+  <!-- resulting field -->
+  <g transform="translate(700,150)">
+    <text x="0" y="-96" text-anchor="middle" class="lbl-b">The resulting field</text>
+    <line x1="-80" y1="60" x2="80" y2="60" class="axis"/>
+    <line x1="-80" y1="60" x2="-80" y2="-60" class="axis"/>
+    <line x1="-80" y1="20" x2="80" y2="-40" stroke="var(--accent3)" stroke-width="2.6"/>
+    <line x1="-80" y1="-10" x2="80" y2="-10" stroke="var(--accent2)" stroke-width="1.6" stroke-dasharray="5 4"/>
+    <text x="86" y="-40" class="lbl-sm" style="fill:var(--accent3)">with G</text>
+    <text x="86" y="-6" class="lbl-sm" style="fill:var(--accent2)">B₀ only</text>
+    <text x="0" y="82" text-anchor="middle" class="lbl-sm">position along the gradient axis</text>
+    <text x="-96" y="0" class="lbl-sm" transform="rotate(-90,-96,0)" text-anchor="middle">B_z</text>
+  </g>
+</svg>
+<figcaption><b>Figure 6.3 — Gradient coil geometry.</b> The z gradient is easy: two opposed loops
+(a Maxwell pair). The transverse gradients need saddle coils (Golay geometry) wound on the cylinder
+surface. Real coils are far more complex — dozens of turns computed by stream-function optimisation,
+plus a co-wound <em>active shield</em> layer whose job is to cancel the field outside the coil so it
+does not induce eddy currents in the cold cryostat wall.</figcaption>
+</figure>
+
+<h3>The numbers that limit your sequences</h3>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Parameter</th><th>Typical clinical</th><th>High-performance / research</th><th>What it limits</th></tr></thead>
+<tbody>
+<tr><td>Maximum amplitude</td><td class="num">33–45 mT/m</td><td class="num">80–300 mT/m</td><td>Minimum voxel size, maximum diffusion b-value, minimum FOV</td></tr>
+<tr><td>Slew rate</td><td class="num">120–200 T/m/s</td><td class="num">up to 600 T/m/s</td><td>Minimum TE and echo spacing, EPI readout speed</td></tr>
+<tr><td>Rise time to full amplitude</td><td class="num">~200–300 μs</td><td class="num">&lt; 100 μs</td><td>Dead time in every sequence</td></tr>
+<tr><td>Peak current</td><td class="num">~500 A</td><td class="num">&gt; 900 A</td><td>Amplifier size, cooling</td></tr>
+<tr><td>Peak amplifier power</td><td class="num">~500 kW per axis</td><td class="num">&gt; 1 MW</td><td>Electrical service to the equipment room</td></tr>
+<tr><td>Acoustic noise</td><td class="num">95–110 dB(A)</td><td class="num">up to 130 dB(A)</td><td>Hearing protection is mandatory, not optional</td></tr>
+</tbody>
+</table>
+</div>
+
+<figure>
+<div class="widget">
+  <div class="controls">
+    <label><span class="cap">Gradient amplitude G <output id="gamp-out"></output></span>
+      <input id="gamp" type="range" min="5" max="300" step="1" value="40"></label>
+    <label><span class="cap">Slew rate <output id="gsr-out"></output></span>
+      <input id="gsr" type="range" min="20" max="600" step="5" value="180"></label>
+    <label><span class="cap">Field of view <output id="gfov-out"></output></span>
+      <input id="gfov" type="range" min="80" max="500" step="5" value="240"></label>
+    <label><span class="cap">Readout matrix <output id="gmtx-out"></output></span>
+      <input id="gmtx" type="range" min="64" max="512" step="32" value="256"></label>
+  </div>
+  <div class="readout" id="gout"></div>
+</div>
+<figcaption><b>Interactive 6.1 — What gradient hardware buys you.</b> Push the amplitude up and the
+achievable resolution improves and the minimum FOV shrinks; push the slew rate up and echo spacing
+falls, which is what makes EPI and fast TSE possible. But watch the peripheral-nerve-stimulation
+figure: above roughly 60–80 T/m/s of effective dB/dt at the body surface, patients feel twitching,
+and regulators cap it. Gradient performance in modern scanners is limited by human nerves, not by
+engineering.</figcaption>
+</figure>
+
+<div class="note">
+<span class="label">Why the scanner is so loud</span>
+<p>A gradient coil carries hundreds of amperes inside a 3 T field. The Lorentz force on a
+current-carrying wire in a field is F = I L × B, which here amounts to tonnes of force trying to
+push the coil apart, reversing polarity thousands of times per second. The coil former flexes; the
+flexing radiates sound. That is all the knocking is. Quiet sequences work by making the gradient
+waveforms smooth (sinusoidal rather than trapezoidal), reducing dB/dt and therefore the impulsive
+force — at the cost of longer readouts.</p>
+</div>
+
+<h3>Eddy currents and pre-emphasis</h3>
+<p>A switching gradient induces currents in every conducting surface nearby — the cryostat bore
+tube above all. Those eddy currents produce their own decaying fields that distort the intended
+waveform, causing image distortion, ghosting and shifted slices. Two fixes are used together:
+<strong>active shielding</strong> (extra windings that null the field outside the gradient coil) and
+<strong>pre-emphasis</strong> (deliberately over-driving the amplifier with an exponentially decaying
+correction so that the <em>net</em> field is the rectangle you wanted). Pre-emphasis constants are
+measured at installation and are part of routine service calibration.</p>
+
+<h2>6.4 &nbsp;The RF chain</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Stage</th><th>Component</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Generate</td><td>Frequency synthesiser + waveform generator</td><td>Produces the shaped envelope at the Larmor frequency with controlled phase; phase coherence across the whole scan is what makes k-space work</td></tr>
+<tr><td>Amplify</td><td>RF power amplifier, 8–35 kW</td><td>Lives in the equipment room; peak power, not average, is the specification</td></tr>
+<tr><td>Transmit</td><td>Body coil — a <b>birdcage</b> resonator</td><td>Built into the bore; produces a remarkably uniform circularly-polarised B₁ over a large volume</td></tr>
+<tr><td>Isolate</td><td>T/R switch, PIN diode detuning</td><td>Kilowatts out, microvolts in, on the same frequency — the receive path must be protected and the transmit coil must be detuned during reception</td></tr>
+<tr><td>Receive</td><td>Local coil array, 8–128 elements</td><td>Small coils close to the anatomy: much better SNR, and the spatial variation between elements is what parallel imaging exploits (Chapter 14)</td></tr>
+<tr><td>Pre-amplify</td><td>Low-noise preamplifier at the coil</td><td>Noise figure here sets the noise figure of the whole system; often cooled or mounted directly on the coil former</td></tr>
+<tr><td>Digitise</td><td>Receiver, mixer, ADC</td><td>Covered in detail in Chapter 9</td></tr>
+</tbody>
+</table>
+</div>
+
+<figure class="wide">
+<svg viewBox="0 0 860 280" width="860" height="280" role="img" aria-label="Birdcage coil and receive array">
+  <text class="lbl-b" x="20" y="24">Transmit uniformly, receive locally</text>
+  <g transform="translate(180,150)">
+    <text x="0" y="-104" text-anchor="middle" class="lbl-b">Birdcage body coil (transmit)</text>
+    <ellipse cx="0" cy="-46" rx="96" ry="26" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+    <ellipse cx="0" cy="46" rx="96" ry="26" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+    <g stroke="var(--accent)" stroke-width="2">
+      <line x1="-96" y1="-46" x2="-96" y2="46"/><line x1="96" y1="-46" x2="96" y2="46"/>
+      <line x1="-68" y1="-64" x2="-68" y2="28"/><line x1="68" y1="-64" x2="68" y2="28"/>
+      <line x1="-34" y1="-71" x2="-34" y2="21"/><line x1="34" y1="-71" x2="34" y2="21"/>
+      <line x1="0" y1="-72" x2="0" y2="20"/>
+    </g>
+    <g fill="var(--accent4)">
+      <rect x="-72" y="-14" width="8" height="12" rx="2"/><rect x="-38" y="-20" width="8" height="12" rx="2"/>
+      <rect x="-4" y="-22" width="8" height="12" rx="2"/><rect x="30" y="-20" width="8" height="12" rx="2"/>
+      <rect x="64" y="-14" width="8" height="12" rx="2"/>
+    </g>
+    <text x="0" y="92" text-anchor="middle" class="lbl-sm">“rungs” with capacitors, driven in quadrature</text>
+    <text x="0" y="106" text-anchor="middle" class="lbl-sm">→ near-uniform rotating B₁ over 40–50 cm</text>
+  </g>
+
+  <g transform="translate(560,150)">
+    <text x="0" y="-104" text-anchor="middle" class="lbl-b">Local receive array (receive)</text>
+    <ellipse cx="0" cy="10" rx="86" ry="58" fill="var(--ink-faint)" opacity=".18" stroke="var(--ink-faint)"/>
+    <g fill="none" stroke="var(--accent2)" stroke-width="2.2">
+      <ellipse cx="-56" cy="-26" rx="26" ry="18" transform="rotate(-28,-56,-26)"/>
+      <ellipse cx="0" cy="-42" rx="26" ry="18"/>
+      <ellipse cx="56" cy="-26" rx="26" ry="18" transform="rotate(28,56,-26)"/>
+      <ellipse cx="-74" cy="20" rx="26" ry="18" transform="rotate(-70,-74,20)"/>
+      <ellipse cx="74" cy="20" rx="26" ry="18" transform="rotate(70,74,20)"/>
+      <ellipse cx="-34" cy="54" rx="26" ry="18" transform="rotate(-16,-34,54)"/>
+      <ellipse cx="34" cy="54" rx="26" ry="18" transform="rotate(16,34,54)"/>
+    </g>
+    <text x="0" y="98" text-anchor="middle" class="lbl-sm">overlapping loops, each with its own preamp and ADC chain</text>
+    <text x="0" y="112" text-anchor="middle" class="lbl-sm">each sees a different part of the body → sensitivity encoding</text>
+  </g>
+</svg>
+<figcaption><b>Figure 6.4 — The transmit/receive asymmetry.</b> Transmit wants uniformity, so it uses
+a large coil far from the body. Receive wants sensitivity, so it uses many small coils pressed
+against the body — a small loop sees less noise-generating tissue volume and therefore has a much
+better SNR, at the cost of a sensitivity that falls off with depth. Combining many such loops gives
+both coverage and SNR, and their differing sensitivity maps are the extra information that parallel
+imaging turns into speed.</figcaption>
+</figure>
+
+<h2>6.5 &nbsp;Scanner types you will encounter</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Type</th><th>Field</th><th>Character</th></tr></thead>
+<tbody>
+<tr><td>Superconducting cylindrical</td><td>0.55–3 T clinical, 7–11.7 T research</td><td>The default. Best homogeneity, best gradients, closed bore</td></tr>
+<tr><td>Wide-bore (70 cm)</td><td>1.5–3 T</td><td>Bariatric and claustrophobic patients, interventional access; slightly weaker gradients</td></tr>
+<tr><td>Open / C-shaped permanent</td><td>0.2–0.5 T</td><td>Vertical field, permanent magnets, no helium; poor SNR but very tolerant patients</td></tr>
+<tr><td>Extremity / dedicated</td><td>0.2–1.5 T</td><td>Small bore for a knee or wrist; excellent gradient performance in a tiny volume</td></tr>
+<tr><td>Point-of-care low field</td><td>0.05–0.1 T</td><td>Wheeled to the bedside, mains-powered; deep-learning reconstruction is essential to usability</td></tr>
+<tr><td>MR-Linac / PET-MR</td><td>0.35–3 T</td><td>Hybrid systems with severe mutual-interference engineering constraints</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="keypoints">
+<h3>Key points</h3>
+<ul>
+<li><b>A scanner is nested cylinders</b>: cryostat, shim, gradients, RF body coil, bore. Radius is a zero-sum resource.</li>
+<li><b>The magnet is always on</b>, running in persistent mode; a quench is both a failure mode and the emergency stop.</li>
+<li><b>Homogeneity of ~1 ppm over 40 cm</b> is achieved by passive plus active shimming, re-optimised per patient.</li>
+<li><b>Gradients make B<sub>z</sub> vary with position</b> — amplitude sets resolution, slew rate sets speed, and human nerves set the ceiling.</li>
+<li><b>Acoustic noise is Lorentz force</b> on the gradient windings, nothing more exotic.</li>
+<li><b>Transmit big and uniform; receive small and close.</b> That asymmetry is the design of the whole RF chain.</li>
+<li><b>The room is a Faraday cage</b> because the signal is microvolts at broadcast-radio frequencies.</li>
+</ul>
+</div>
+
+<h2>Going deeper</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=inside+an+MRI+scanner+teardown+how+it+is+built" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">MRI scanner teardowns and factory tours</span>
+    <span class="d">The single best cure for the “I have never seen one” problem. Manufacturer factory tours show the coil winding and the cryostat assembly directly.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=MRI+quench+liquid+helium+release+demonstration" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Deliberate quench demonstrations</span>
+    <span class="d">Several decommissioning videos show a controlled quench with the helium plume. Watch one; it makes the safety chapter concrete.</span></a>
+  <a class="linkcard" href="https://mriquestions.com/" target="_blank" rel="noopener">
+    <span class="k">Reference site</span><span class="t">Q&amp;A in MRI — “Hardware” section</span>
+    <span class="d">Detailed and honest about engineering trade-offs: shielding, gradient design, coil types, cryogenics.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=gradient+coil+acoustic+noise+lorentz+force+MRI" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Why MRI is loud — gradient acoustics</span>
+    <span class="d">Look for demonstrations that play the same sequence with and without acoustic optimisation.</span></a>
+</div>
+
+<div class="refs">
+<h3>References</h3>
+<ol>
+<li>Turner, R. “Gradient coil design: a review of methods.” <i>Magnetic Resonance Imaging</i> 11:903–920, 1993.</li>
+<li>Hayes, C. E. et al. “An efficient, highly homogeneous radiofrequency coil for whole-body NMR imaging at 1.5 T.” <i>J. Magn. Reson.</i> 63:622–628, 1985. — The birdcage coil paper.</li>
+<li>Roemer, P. B. et al. “The NMR phased array.” <i>Magnetic Resonance in Medicine</i> 16:192–225, 1990. — The origin of multi-element receive arrays.</li>
+<li>Bernstein, King, Zhou, <i>Handbook of MRI Pulse Sequences</i>, Ch. 7 (gradients, eddy currents, pre-emphasis).</li>
+<li>American College of Radiology. <i>ACR Manual on MR Safety</i> (current edition). — Source of the four-zone model in Figure 6.2.</li>
+<li>Schenck, J. F. “The role of magnetic susceptibility in magnetic resonance imaging.” <i>Medical Physics</i> 23:815–850, 1996.</li>
+</ol>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+<script>
+/* ---------- Figure 6.1 : layer highlighting ---------- */
+(function () {
+  const svg = document.getElementById("cut");
+  const info = document.getElementById("layerinfo");
+  const TEXT = {
+    cover:  "<b>Cosmetic cover.</b> Plastic shell, bore lighting, ventilation fan, and the patient-facing display. Nothing magnetic — but it hides how thick everything behind it really is.",
+    cryo:   "<b>Vacuum vessel.</b> The outer wall of a giant thermos. High vacuum between walls kills conduction and convection so the helium boil-off stays near zero.",
+    shield: "<b>Thermal radiation shield.</b> An intermediate-temperature (~40 K) shell, usually cooled by the cryocooler's first stage, that intercepts room-temperature infrared before it reaches the helium vessel.",
+    magnet: "<b>Superconducting coils in liquid helium at 4.2 K.</b> NbTi wire in a copper matrix, several hundred amperes, closed into a persistent loop. Stores megajoules; this is what quenches.",
+    shim:   "<b>Shim system.</b> Trays of small steel plates set at installation (passive) plus resistive coils generating spherical-harmonic corrections (active), re-optimised for each patient's own susceptibility.",
+    grad:   "<b>Gradient coil assembly.</b> Three independent windings plus their active shields, potted in epoxy, water-cooled. Hundreds of amperes switching in microseconds — the source of both the imaging capability and the noise.",
+    rf:     "<b>RF body coil.</b> A birdcage resonator tuned to the Larmor frequency, driven in quadrature to make a rotating B₁. Detuned by PIN diodes while local coils receive.",
+    bore:   "<b>Bore liner.</b> 60 cm on a standard system, 70 cm on wide-bore. Everything above had to fit outside this tube.",
+    patient:"<b>Patient and local coils.</b> Receive arrays are placed directly on the anatomy. The patient's own body distorts B₀ (susceptibility) and loads the RF coil, which is why calibration runs before every exam.",
+  };
+  const layers = [...svg.querySelectorAll(".layer")];
+  const legs = [...svg.querySelectorAll(".leg")];
+  function show(k) {
+    svg.classList.add("dim");
+    layers.forEach(l => l.classList.toggle("on", l.dataset.k === k));
+    legs.forEach(l => l.classList.toggle("on", l.dataset.k === k));
+    info.innerHTML = TEXT[k] || "";
+  }
+  function clear() {
+    svg.classList.remove("dim");
+    layers.forEach(l => l.classList.remove("on"));
+    legs.forEach(l => l.classList.remove("on"));
+    info.innerHTML = "Hover or click a layer to read what it does.";
+  }
+  legs.forEach(l => {
+    l.addEventListener("mouseenter", () => show(l.dataset.k));
+    l.addEventListener("click", () => show(l.dataset.k));
+  });
+  svg.addEventListener("mouseleave", clear);
+})();
+
+/* ---------- Interactive 6.1 : gradient performance ---------- */
+(function () {
+  const out = document.getElementById("gout");
+  let G = 40, SR = 180, FOV = 240, MTX = 256;
+  const GAMMA = 42.577e6;                    // Hz/T
+
+  function refresh() {
+    const fovM = FOV / 1000;                 // m
+    const res = FOV / MTX;                   // mm
+    // readout: to encode MTX samples across FOV, need k-space extent kmax = MTX/(2*FOV)
+    const rise = G / SR * 1000;              // ms to reach full amplitude
+    // minimum readout duration for a given receive bandwidth choice: use BW/pixel = gamma*G*FOV/MTX
+    const bwPixel = GAMMA * (G / 1000) * fovM / MTX;   // Hz per pixel
+    const roDur = 1000 / bwPixel;            // ms for full readout (= 1/BW_pixel)
+    // diffusion b-value for a simple Stejskal-Tanner pair, delta=20ms, Delta=30ms
+    const d = 0.020, D = 0.030, g = G / 1000;
+    const b = Math.pow(2 * Math.PI * GAMMA * g * d, 2) * (D - d / 3) / 1e6;  // s/mm^2
+    // PNS proxy: effective dB/dt at 20 cm from isocentre
+    const dBdt = SR * 0.20;                  // T/s at r = 20 cm
+    const pnsFrac = dBdt / 60;               // ~60 T/s typical threshold scale
+
+    out.textContent =
+`gradient amplitude     ${G} mT/m          slew rate  ${SR} T/m/s
+rise time to full G    ${rise.toFixed(3)} ms
+in-plane resolution    ${res.toFixed(2)} mm  (FOV ${FOV} mm ÷ matrix ${MTX})
+bandwidth per pixel    ${bwPixel.toFixed(0)} Hz/px   →  readout lasts ${roDur.toFixed(2)} ms
+                       (reading out at FULL gradient amplitude — the fastest, noisiest option.
+                        Real protocols use a fraction of it: narrow bandwidth = better SNR
+                        but more chemical-shift displacement and more distortion.)
+achievable b-value     ~${b.toFixed(0)} s/mm²  (δ=20 ms, Δ=30 ms Stejskal–Tanner pair)
+                       clinical DWI needs 1000; tractography and IVIM want far more
+dB/dt at 20 cm         ${dBdt.toFixed(1)} T/s   →  ${(pnsFrac * 100).toFixed(0)} % of a typical PNS threshold
+                       ${pnsFrac > 1 ? "⚠ above threshold: patients report twitching; the scanner would refuse this"
+                                     : pnsFrac > 0.8 ? "near the limit — the sequence would be de-rated automatically"
+                                     : "comfortably within limits"}
+acoustic character     ${SR > 350 ? "harsh, high-pitched — impulsive Lorentz forces"
+                                  : SR > 150 ? "typical clinical knocking"
+                                  : "soft, low-frequency — the quiet-sequence regime"}`;
+  }
+  slider("gamp", v => (G = v, v + " mT/m"), refresh);
+  slider("gsr", v => (SR = v, v + " T/m/s"), refresh);
+  slider("gfov", v => (FOV = v, v + " mm"), refresh);
+  slider("gmtx", v => (MTX = v, v + " × " + v), refresh);
+  refresh();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1 · Nuclear Spin and the Magnetic Moment — MRI Visual Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="eyebrow">Part I · The Physics</p>
+<h1>Nuclear Spin and the Magnetic Moment</h1>
+<p class="dek">Every MRI image is, at bottom, a map of hydrogen nuclei that were briefly
+persuaded to broadcast radio waves. Before any of that can happen, a proton has to be a
+magnet. This chapter is about why it is one, and why hydrogen in particular.</p>
+
+<h2>1.1 &nbsp;The one property that makes MRI possible</h2>
+
+<p>A proton has three properties that matter here: it has charge, it has mass, and it has
+<strong>spin</strong> — an intrinsic angular momentum that it carries the way it carries its charge,
+as an unchangeable fact about what it is. Spin is not rotation. Nothing is going around.
+A point particle with no measurable radius still has spin ½ ℏ, which rules out any picture
+of a small ball turning. But the <em>consequences</em> of spin are exactly the consequences you would
+get from a spinning charged ball, and that is why the classical picture survives in every
+textbook including this one.</p>
+
+<p>The consequence we care about: a particle with spin angular momentum <var>J</var> and charge
+has a <strong>magnetic dipole moment</strong> <var>μ</var> pointing along the same axis, proportional to it.</p>
+
+<div class="eq">
+  <span class="eq-name">1.1</span>
+  <b>μ</b> = γ <b>J</b>
+  <span class="where">The constant γ is the <b>gyromagnetic ratio</b> — a fixed number for each
+  nuclear species, measured in rad·s⁻¹·T⁻¹, and almost always quoted in the divided form
+  γ̄ = γ/2π in MHz per tesla. It is the single number that converts magnetic field into
+  frequency, and it will follow you through this entire guide.</span>
+</div>
+
+<p>For a proton, γ/2π = <b>42.577 MHz/T</b>. At 1.5 T that is 63.87 MHz; at 3 T, 127.7 MHz.
+Those are FM-radio and VHF-television frequencies, which is not a coincidence you should
+ignore — it dictates the size of the antennas, the shielding of the room, and the fact that
+the whole scanner sits inside a copper box.</p>
+
+<figure class="wide">
+<svg viewBox="0 0 860 300" width="860" height="300" role="img" aria-label="Three views of nuclear magnetism">
+  <defs>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4 z" fill="var(--accent)"/>
+    </marker>
+    <marker id="ahb" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4 z" fill="var(--accent2)"/>
+    </marker>
+    <marker id="ahf" markerWidth="8" markerHeight="8" refX="6.5" refY="2.8" orient="auto">
+      <path d="M0,0 L6.5,2.8 L0,5.6 z" fill="var(--ink-faint)"/>
+    </marker>
+  </defs>
+
+  <!-- (a) classical spinning charge -->
+  <text class="lbl-b" x="20" y="26">(a) The classical cartoon</text>
+  <g transform="translate(150,165)">
+    <ellipse cx="0" cy="0" rx="46" ry="46" fill="none" stroke="var(--rule)" stroke-width="1.5"/>
+    <circle cx="0" cy="0" r="30" fill="var(--accent2)" opacity=".18"/>
+    <circle cx="0" cy="0" r="30" fill="none" stroke="var(--accent2)" stroke-width="1.5"/>
+    <text x="0" y="5" text-anchor="middle" class="lbl-b" style="font-size:14px">+</text>
+    <!-- rotation arc -->
+    <path d="M -44 -14 A 46 46 0 0 1 -14 -44" fill="none" stroke="var(--ink-faint)"
+          stroke-width="1.6" marker-end="url(#ahf)"/>
+    <path d="M 44 14 A 46 46 0 0 1 14 44" fill="none" stroke="var(--ink-faint)"
+          stroke-width="1.6" marker-end="url(#ahf)"/>
+    <!-- moment -->
+    <line x1="0" y1="10" x2="0" y2="-88" stroke="var(--accent)" stroke-width="2.5" marker-end="url(#ah)"/>
+    <text x="10" y="-80" class="lbl-b" style="fill:var(--accent)">μ</text>
+    <text x="0" y="82" text-anchor="middle" class="lbl-sm">circulating charge → current loop → dipole</text>
+  </g>
+
+  <!-- (b) dipole field -->
+  <text class="lbl-b" x="310" y="26">(b) What it looks like from outside</text>
+  <g transform="translate(440,165)">
+    <g stroke="var(--accent2)" fill="none" stroke-width="1.2" opacity=".8">
+      <path d="M0,-14 C 34,-46 34,46 0,14 C -34,46 -34,-46 0,-14"/>
+      <path d="M0,-16 C 66,-84 66,84 0,16 C -66,84 -66,-84 0,-16"/>
+      <path d="M0,-18 C 104,-124 104,124 0,18 C -104,124 -104,-124 0,-18"/>
+    </g>
+    <line x1="0" y1="14" x2="0" y2="-42" stroke="var(--accent)" stroke-width="2.5" marker-end="url(#ah)"/>
+    <text x="8" y="-38" class="lbl-b" style="fill:var(--accent)">μ</text>
+    <text x="0" y="128" text-anchor="middle" class="lbl-sm">a dipole field — the thing another spin can feel</text>
+  </g>
+
+  <!-- (c) quantum -->
+  <text class="lbl-b" x="640" y="26">(c) What quantum mechanics allows</text>
+  <g transform="translate(740,150)">
+    <line x1="0" y1="105" x2="0" y2="-105" stroke="var(--ink-faint)" stroke-width="1" stroke-dasharray="4 4"/>
+    <text x="6" y="-98" class="lbl-sm">B₀</text>
+    <!-- up cone -->
+    <ellipse cx="0" cy="-58" rx="34" ry="11" fill="none" stroke="var(--accent2)" stroke-width="1.2"/>
+    <line x1="0" y1="0" x2="-32" y2="-56" stroke="var(--rule)" stroke-width="1"/>
+    <line x1="0" y1="0" x2="32" y2="-56"  stroke="var(--rule)" stroke-width="1"/>
+    <line x1="0" y1="0" x2="26" y2="-62" stroke="var(--accent2)" stroke-width="2.2" marker-end="url(#ahb)"/>
+    <text x="42" y="-58" class="lbl-sm">m = +½ &nbsp;(“up”)</text>
+    <!-- down cone -->
+    <ellipse cx="0" cy="58" rx="34" ry="11" fill="none" stroke="var(--accent)" stroke-width="1.2"/>
+    <line x1="0" y1="0" x2="-32" y2="56" stroke="var(--rule)" stroke-width="1"/>
+    <line x1="0" y1="0" x2="32" y2="56"  stroke="var(--rule)" stroke-width="1"/>
+    <line x1="0" y1="0" x2="-26" y2="62" stroke="var(--accent)" stroke-width="2.2" marker-end="url(#ah)"/>
+    <text x="-120" y="70" class="lbl-sm">m = −½ &nbsp;(“down”)</text>
+    <circle cx="0" cy="0" r="3" fill="var(--ink)"/>
+  </g>
+</svg>
+<figcaption><b>Figure 1.1 — Three pictures of the same fact.</b> (a) The classical cartoon:
+circulating charge makes a current loop, which makes a magnetic dipole. It is wrong in
+detail and right in every prediction we need. (b) The dipole field that neighbouring nuclei,
+electrons and the receive coil actually experience — this field is the reason relaxation
+happens at all (Chapter 4). (c) The quantum statement: a spin-½ nucleus in a field has
+exactly two measurable orientations of its z-component, but its transverse component is
+undetermined, so it is drawn as a <i>cone</i> of possibility, not an arrow. Note that “up”
+is not fully aligned — the tilt is real and is set by the ratio of √(s(s+1))ℏ to (½)ℏ.</figcaption>
+</figure>
+
+<div class="note intuition">
+<span class="label">The trap to avoid early</span>
+<p>Almost every confusion in early MRI study comes from mixing picture (c) with picture (a).
+The two-state quantum picture is correct for a <em>single</em> nucleus and is genuinely needed to
+explain relaxation and chemical shift. But MRI never measures a single nucleus — it measures
+the sum over roughly 10<sup>21</sup> of them per voxel, and that sum behaves exactly like one
+classical vector obeying classical equations. Use (c) to reason about energy and populations;
+use (a) to reason about anything that moves. Chapter 2 makes that transition explicit.</p>
+</div>
+
+<h2>1.2 &nbsp;Which nuclei can do this at all</h2>
+
+<p>Not every nucleus has spin. Protons and neutrons pair off inside the nucleus with opposite
+spins, so a nucleus with an even number of both has zero net spin, zero magnetic moment, and
+is completely invisible to MRI. That immediately eliminates the two most abundant elements in
+tissue after hydrogen: <sup>12</sup>C and <sup>16</sup>O.</p>
+
+<div class="tablewrap">
+<table>
+<caption>Nuclear spin follows from parity of the proton and neutron counts. Odd mass number → half-integer spin; odd–odd → integer spin; even–even → no spin at all.</caption>
+<thead><tr><th>Protons</th><th>Neutrons</th><th>Net spin <var>I</var></th><th>Example</th><th>MR-visible?</th></tr></thead>
+<tbody>
+<tr><td>even</td><td>even</td><td class="num">0</td><td><sup>12</sup>C, <sup>16</sup>O, <sup>32</sup>S</td><td>No — invisible</td></tr>
+<tr><td>odd</td><td>even</td><td class="num">½, 3/2, 5/2 …</td><td><sup>1</sup>H, <sup>19</sup>F, <sup>23</sup>Na, <sup>31</sup>P</td><td>Yes</td></tr>
+<tr><td>even</td><td>odd</td><td class="num">½, 3/2 …</td><td><sup>13</sup>C, <sup>17</sup>O, <sup>129</sup>Xe</td><td>Yes</td></tr>
+<tr><td>odd</td><td>odd</td><td class="num">1, 3 …</td><td><sup>2</sup>H, <sup>14</sup>N</td><td>Yes, but quadrupolar</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Among the visible nuclei, hydrogen wins by an enormous margin, and it wins for three
+separate reasons that multiply together.</p>
+
+<figure class="wide">
+<svg viewBox="0 0 860 340" width="860" height="340" role="img" aria-label="Relative MR sensitivity of nuclei">
+  <g transform="translate(160,40)">
+    <!-- axis -->
+    <line x1="0" y1="0" x2="0" y2="250" class="axis"/>
+    <line x1="0" y1="250" x2="640" y2="250" class="axis"/>
+    <text x="320" y="288" text-anchor="middle" class="lbl">relative signal available in tissue = (natural abundance × concentration) × γ³-weighted sensitivity, log scale</text>
+
+    <!-- gridlines: log decades -->
+    <g class="grid">
+      <line x1="0" y1="250" x2="640" y2="250"/>
+      <line x1="0" y1="200" x2="640" y2="200"/>
+      <line x1="0" y1="150" x2="640" y2="150"/>
+      <line x1="0" y1="100" x2="640" y2="100"/>
+      <line x1="0" y1="50"  x2="640" y2="50"/>
+      <line x1="0" y1="0"   x2="640" y2="0"/>
+    </g>
+    <g class="lbl-sm" text-anchor="end">
+      <text x="-8" y="254">10⁻⁵</text><text x="-8" y="204">10⁻⁴</text>
+      <text x="-8" y="154">10⁻³</text><text x="-8" y="104">10⁻²</text>
+      <text x="-8" y="54">10⁻¹</text><text x="-8" y="4">1</text>
+    </g>
+
+    <!-- bars: value = log10(rel sensitivity in vivo), mapped 1 -> y=0, 1e-5 -> y=250 -->
+    <g>
+      <!-- 1H: 1.0 -->
+      <rect x="30"  y="0"   width="60" height="250" fill="var(--accent)" opacity=".85"/>
+      <text x="60"  y="-10" text-anchor="middle" class="lbl-b">¹H</text>
+      <text x="60"  y="268" text-anchor="middle" class="lbl-sm">42.58</text>
+      <!-- 23Na: ~9.3e-5 -> log ~ -4.03 -->
+      <rect x="130" y="201" width="60" height="49" fill="var(--accent2)" opacity=".85"/>
+      <text x="160" y="192" text-anchor="middle" class="lbl-b">²³Na</text>
+      <text x="160" y="268" text-anchor="middle" class="lbl-sm">11.26</text>
+      <!-- 31P: ~6.6e-5 -->
+      <rect x="230" y="213" width="60" height="37" fill="var(--accent2)" opacity=".85"/>
+      <text x="260" y="204" text-anchor="middle" class="lbl-b">³¹P</text>
+      <text x="260" y="268" text-anchor="middle" class="lbl-sm">17.24</text>
+      <!-- 13C natural abundance: ~1.8e-5 -->
+      <rect x="330" y="238" width="60" height="12" fill="var(--accent2)" opacity=".85"/>
+      <text x="360" y="229" text-anchor="middle" class="lbl-b">¹³C</text>
+      <text x="360" y="268" text-anchor="middle" class="lbl-sm">10.71</text>
+      <!-- 19F in tissue: essentially absent, drawn as trace -->
+      <rect x="430" y="247" width="60" height="3" fill="var(--ink-faint)" opacity=".6"/>
+      <text x="460" y="240" text-anchor="middle" class="lbl-b">¹⁹F</text>
+      <text x="460" y="268" text-anchor="middle" class="lbl-sm">40.05</text>
+      <!-- 17O: 1e-5 or below -->
+      <rect x="530" y="249" width="60" height="1.5" fill="var(--ink-faint)" opacity=".6"/>
+      <text x="560" y="242" text-anchor="middle" class="lbl-b">¹⁷O</text>
+      <text x="560" y="268" text-anchor="middle" class="lbl-sm">5.77</text>
+    </g>
+    <text x="620" y="290" text-anchor="end" class="lbl-sm">γ/2π in MHz/T shown under each bar</text>
+  </g>
+  <text class="lbl-b" x="20" y="26">Why every clinical scanner images hydrogen and nothing else</text>
+</svg>
+<figcaption><b>Figure 1.2 — The sensitivity gap is five orders of magnitude.</b> Hydrogen has
+the largest gyromagnetic ratio of any stable nucleus except tritium, and signal scales
+roughly as γ³ (γ for the moment size, γ for the Boltzmann polarisation, γ for the Faraday
+induction in the coil — see Chapter 9). Multiply that by the fact that the body is ~60% water
+and you get a signal advantage that no amount of hardware can close. Sodium and phosphorus
+imaging are real research modalities, but they need high field, dedicated coils, and minutes
+of averaging for what proton imaging does in seconds.</figcaption>
+</figure>
+
+<h3>The three reasons hydrogen wins</h3>
+<ol>
+<li><strong>Abundance.</strong> Soft tissue is 60–80% water by mass, and every water molecule
+carries two hydrogen nuclei. Fat adds many more. A voxel of brain contains on the order of
+10<sup>21</sup> protons — the statistics are so good that a signal from a one-in-a-million
+population imbalance is still measurable.</li>
+<li><strong>The largest useful γ.</strong> 42.58 MHz/T, versus 11.26 for sodium. Higher γ means
+a bigger energy split (more polarisation), a bigger moment, and a faster-changing flux in the
+receive coil. All three help.</li>
+<li><strong>Spin ½.</strong> Nuclei with <var>I</var> &gt; ½ have an electric quadrupole moment that couples
+to local electric field gradients and relaxes them viciously fast — sodium's T2 has a component
+of a few milliseconds, so the signal is gone before most sequences can read it. Spin-½ nuclei
+have no quadrupole moment and stay coherent long enough to be imaged comfortably.</li>
+</ol>
+
+<h2>1.3 &nbsp;How much magnetism is actually there?</h2>
+
+<p>It is worth internalising how weak this effect is, because it explains every design decision
+in the rest of the guide — the superconducting magnet, the shielded room, the long scan times,
+the obsession with SNR.</p>
+
+<p>The nuclear magneton is about 5.05 × 10<sup>−27</sup> J/T. The proton's moment is about 1.41 ×
+10<sup>−26</sup> J/T — roughly <b>1/658</b> of the electron's magnetic moment, which is itself
+microscopic. In a 1.5 T field at body temperature, the energy difference between the two proton
+states is around 10<sup>−7</sup> eV, while the ambient thermal energy <var>kT</var> is about 2.6 ×
+10<sup>−2</sup> eV. Thermal agitation beats the magnetic ordering by a factor of ~10<sup>5</sup>.</p>
+
+<div class="note warn">
+<span class="label">The number that should shock you</span>
+<p>At 1.5 T and 37 °C, only about <b>5 protons in every million</b> constitute the excess in the
+lower energy state. Every MR image you have ever seen was made from that fraction; the other
+999 995 cancel exactly. Chapter 2 derives this number, and it is the reason field strength
+matters so much commercially — the excess scales linearly with B₀.</p>
+</div>
+
+<h2>1.4 &nbsp;Where the hydrogen actually is</h2>
+
+<p>MRI does not see “tissue”; it sees mobile hydrogen. That qualifier does real work. Protons
+locked into a rigid crystal lattice — cortical bone, tooth enamel, tendon collagen — have
+T2 values on the order of tens of <em>microseconds</em>, so their signal decays before a conventional
+sequence can even switch its receiver on. That is why bone is black on MRI and brilliant on CT:
+not because the hydrogen is absent, but because it dephases instantly. Ultrashort-echo-time
+(UTE) and zero-echo-time (ZTE) sequences exist precisely to catch it (Chapter 11).</p>
+
+<div class="tablewrap">
+<table>
+<caption>Approximate mobile-proton density, expressed relative to pure water. These numbers set
+the ceiling on signal; T1 and T2 then decide how much of that ceiling a given sequence reaches.</caption>
+<thead><tr><th>Tissue</th><th>Water content</th><th>Relative proton density</th><th>Appearance driver</th></tr></thead>
+<tbody>
+<tr><td>Cerebrospinal fluid</td><td class="num">~99%</td><td class="num">1.00</td><td>Highest PD, very long T1 and T2</td></tr>
+<tr><td>Grey matter</td><td class="num">~82%</td><td class="num">0.85</td><td>More water than white matter</td></tr>
+<tr><td>White matter</td><td class="num">~70%</td><td class="num">0.75</td><td>Myelin lipid shortens T1</td></tr>
+<tr><td>Fat</td><td class="num">~10% water</td><td class="num">~1.00</td><td>Protons on lipid chains, very short T1</td></tr>
+<tr><td>Muscle</td><td class="num">~79%</td><td class="num">0.80</td><td>Short T2 from macromolecular coupling</td></tr>
+<tr><td>Cortical bone</td><td class="num">~10%</td><td class="num">&lt;0.1 usable</td><td>T2 of tens of μs — effectively invisible</td></tr>
+<tr><td>Air / lung parenchyma</td><td class="num">—</td><td class="num">~0.05</td><td>No protons plus severe susceptibility loss</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>1.5 &nbsp;Chemical shift: the nucleus does not feel the field you applied</h2>
+
+<p>One refinement that becomes a whole imaging problem later. The nucleus sits inside an electron
+cloud, and those electrons circulate in response to B₀, generating a small opposing field. The
+nucleus therefore experiences <var>B</var><sub>local</sub> = B₀(1 − σ), where σ is the <strong>shielding
+constant</strong>, on the order of parts per million and dependent on the chemical bond.</p>
+
+<div class="eq">
+  <span class="eq-name">1.2</span>
+  <var>f</var><sub>local</sub> = (γ/2π) · B₀ · (1 − σ)
+  <span class="where">Protons in the −CH₂− chains of triglycerides resonate about
+  <b>3.5 ppm</b> lower than protons in water. At 1.5 T that is 3.5 × 63.87 ≈ <b>220 Hz</b>;
+  at 3 T it doubles to ~440 Hz.</span>
+</div>
+
+<p>That 3.5 ppm gap is responsible for: the black-and-white edge line at every fat–water boundary
+(chemical shift artifact of the first kind, Chapter 15), all fat-suppression techniques
+(Chapter 11), Dixon water–fat separation, and the entire field of MR spectroscopy (Chapter 13).
+A parts-per-million effect becomes a first-order clinical concern because we measure frequency
+with astonishing precision.</p>
+
+<div class="keypoints">
+<h3>Key points</h3>
+<ul>
+<li><b>μ = γJ.</b> Spin is intrinsic angular momentum; the magnetic moment is proportional to it, and γ is the conversion constant that runs through the entire subject.</li>
+<li><b>γ/2π for ¹H is 42.58 MHz/T</b> — memorise it. 1.5 T → 63.9 MHz, 3 T → 127.7 MHz.</li>
+<li><b>Even–even nuclei are invisible.</b> Hydrogen dominates clinical MRI by abundance, by γ, and by being spin-½ (no quadrupolar broadening).</li>
+<li><b>The effect is astonishingly weak</b> — a few parts per million of the spins contribute — which is why the machine is built the way it is.</li>
+<li><b>MRI sees mobile protons only.</b> Rigidly bound hydrogen dephases in microseconds and is effectively absent.</li>
+<li><b>Electron shielding shifts frequencies by ppm</b>, and that ppm is the basis of fat suppression, chemical shift artifact and spectroscopy.</li>
+</ul>
+</div>
+
+<h2>Going deeper</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://mriquestions.com/" target="_blank" rel="noopener">
+    <span class="k">Reference site</span><span class="t">Elster — Questions and Answers in MRI</span>
+    <span class="d">The single best free MRI resource that exists. Start in “Basic Physics → Spin and Magnetic Moment”. Written by a radiologist who actually enjoys the physics.</span></a>
+  <a class="linkcard" href="https://en.wikipedia.org/wiki/Gyromagnetic_ratio" target="_blank" rel="noopener">
+    <span class="k">Reference</span><span class="t">Gyromagnetic ratio — Wikipedia</span>
+    <span class="d">Has the full table of γ for every NMR-active nucleus, plus the electron value for comparison.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=nuclear+spin+magnetic+moment+NMR+explained" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Nuclear spin and the magnetic moment</span>
+    <span class="d">Look for the lecture-style explanations that draw the two-cone diagram; treat any video that says “spins align with the field” as a simplification you have already outgrown.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=Paul+Callaghan+magnetic+resonance+lecture" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Paul Callaghan’s MR lectures</span>
+    <span class="d">A physicist’s treatment, unusually clear on why the classical and quantum pictures agree. Worth the whole series if you want the subject rather than the exam.</span></a>
+</div>
+
+<div class="refs">
+<h3>References</h3>
+<ol>
+<li>Levitt, M. H. <i>Spin Dynamics: Basics of Nuclear Magnetic Resonance</i>, 2nd ed. Wiley, 2008. — Chapters 1–3 are the definitive careful treatment of what spin is and is not.</li>
+<li>Haacke, E. M., Brown, R. W., Thompson, M. R., Venkatesan, R. <i>Magnetic Resonance Imaging: Physical Principles and Sequence Design</i>, 2nd ed. Wiley, 2014. — Ch. 2–4.</li>
+<li>Nishimura, D. G. <i>Principles of Magnetic Resonance Imaging</i>. Stanford University, 1996. — The most economical derivation-per-page of any MRI text.</li>
+<li>McRobbie, D. W., Moore, E. A., Graves, M. J., Prince, M. R. <i>MRI from Picture to Proton</i>, 3rd ed. Cambridge University Press, 2017. — Reverses the usual order: starts with the image, ends with the physics.</li>
+<li>Bloch, F. “Nuclear Induction.” <i>Physical Review</i> 70:460–474, 1946. — The original. Short, readable, and the source of the equations in Chapter 4.</li>
+</ol>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+</body>
+</html>

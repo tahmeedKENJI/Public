@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10 · From Signal to Image — MRI Visual Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="eyebrow">Part III · Making an Image</p>
+<h1>From Signal to Image: Reconstruction and its Consequences</h1>
+<p class="dek">The core of MRI reconstruction is a single inverse FFT — a few milliseconds of
+arithmetic. Everything else in the pipeline exists because the data you actually collected is not
+quite what the FFT assumes: it is truncated, sampled on the wrong grid, phase-corrupted, spread
+across many coils, and incomplete. This chapter is about the gap between the ideal and the real.</p>
+
+<h2>10.1 &nbsp;The ideal case, in one line</h2>
+
+<p>Given a fully-sampled Cartesian k-space matrix S[k<sub>x</sub>, k<sub>y</sub>], the image is</p>
+
+<div class="eq">
+  <span class="eq-name">10.1</span>
+  ρ[<var>x</var>, <var>y</var>] = FFT<sup>−1</sup>{ S[<var>k<sub>x</sub></var>, <var>k<sub>y</sub></var>] }
+  <span class="where">Complexity N²log N for an N×N image. On modern hardware a 256² slice
+  reconstructs in well under a millisecond, which is why the interesting engineering has moved
+  entirely to the cases where this formula does <i>not</i> directly apply.</span>
+</div>
+
+<h2>10.2 &nbsp;The point spread function: what a single point becomes</h2>
+
+<p>An ideal imaging system would map a point source to a point. Ours maps it to the inverse Fourier
+transform of the k-space sampling window — the <strong>point spread function</strong>. Because we
+acquire a finite rectangular region of k-space, that PSF is a two-dimensional sinc: a central lobe
+whose width sets the true resolution, surrounded by oscillating side lobes that never quite vanish.</p>
+
+<p>Those side lobes are visible at any sharp, high-contrast boundary as a series of parallel bright
+and dark bands — <strong>Gibbs ringing</strong>, also called truncation artifact. It is not noise, not
+a hardware fault, and not removable by averaging. It is the direct consequence of having stopped
+sampling k-space at a finite k<sub>max</sub>.</p>
+
+<figure class="wide">
+<div class="widget">
+  <div class="canvas-row">
+    <div class="canvas-cell"><div class="cname">reconstructed image</div>
+      <canvas id="rimg" width="128" height="128" style="width:250px;height:250px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">k-space window applied</div>
+      <canvas id="rwin" width="128" height="128" style="width:250px;height:250px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">profile through the marked line</div>
+      <canvas id="rprof" width="280" height="250"></canvas></div>
+  </div>
+  <div class="controls">
+    <label><span class="cap">Acquired matrix (k<sub>max</sub>) <output id="rn-out"></output></span>
+      <input id="rn" type="range" min="16" max="128" step="8" value="128"></label>
+    <label style="min-width:13rem"><span class="cap">k-space filter</span>
+      <select id="rwinf">
+        <option value="rect" selected>None (sharp truncation)</option>
+        <option value="hann">Hann window</option>
+        <option value="hamming">Hamming window</option>
+        <option value="fermi">Fermi / soft roll-off</option>
+      </select></label>
+    <label><span class="cap">Zero-fill to 128²</span>
+      <select id="rzf"><option value="1" selected>Yes — interpolated display</option><option value="0">No — native pixels</option></select></label>
+  </div>
+  <div class="readout" id="rout"></div>
+</div>
+<figcaption><b>Interactive 10.1 — Truncation, ringing and the filtering compromise.</b> Reduce the
+acquired matrix and watch two things happen at once: the image gets blurrier <em>and</em> ripples
+appear beside every sharp edge — look at the ventricle borders and the fat rim in the profile plot.
+Now apply a Hann window: the ripples disappear almost completely, but the edge becomes visibly
+softer. That is the entire trade. Every vendor applies some mild k-space filtering by default, which
+is why raw research reconstructions often look sharper and ringier than the clinical images from the
+same scan.</figcaption>
+</figure>
+
+<div class="note">
+<span class="label">Zero filling does not add resolution</span>
+<p>Padding k-space with zeros before the FFT produces a smoothly interpolated image on a finer
+pixel grid. It genuinely helps — small structures are easier to see when they are not
+pixel-quantised, and partial-volume steps look less blocky — but it adds no information. The width
+of the point spread function is set by k<sub>max</sub>, and zero filling does not change
+k<sub>max</sub>. A 256² image zero-filled to 512² has 512² pixels and 256² worth of resolution.
+Manufacturers make heavy use of this; it is legitimate, and it is also why "matrix size" on a
+report is not the same as "resolution".</p>
+</div>
+
+<h2>10.3 &nbsp;Magnitude, phase, and the noise you can see</h2>
+
+<p>Reconstruction yields a complex image. Clinical viewing almost always uses the magnitude, because
+phase is corrupted by B₀ inhomogeneity, coil geometry and eddy currents in ways that carry no
+anatomical meaning. But discarding phase has costs and consequences:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Image type</th><th>Content</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td>Magnitude</td><td>√(I² + Q²)</td><td>Everything routine. Noise becomes <b>Rician</b>, not Gaussian: in low-signal regions the mean is biased upward, so background is never truly zero and SNR estimates made naively are wrong.</td></tr>
+<tr><td>Phase</td><td>atan2(Q, I), wrapped to ±π</td><td>Susceptibility mapping (QSM), flow velocity encoding, temperature mapping, B₀ field mapping, fat–water separation. Requires unwrapping and background-field removal.</td></tr>
+<tr><td>Real</td><td>I after phase correction</td><td>Inversion recovery, where the <em>sign</em> of M<sub>z</sub> matters — a real-reconstructed IR image distinguishes tissue above and below the null instead of folding both to positive.</td></tr>
+<tr><td>Complex</td><td>Both channels retained</td><td>Averaging (complex averaging cancels noise better but requires phase stability), parallel imaging, compressed sensing, all quantitative work.</td></tr>
+</tbody>
+</table>
+</div>
+
+<figure class="wide">
+<svg viewBox="0 0 860 250" width="860" height="250" role="img" aria-label="Rician noise floor and magnitude reconstruction">
+  <text class="lbl-b" x="20" y="24">Why background never reaches zero: magnitude of complex noise</text>
+  <g transform="translate(70,50)">
+    <text x="0" y="0" class="lbl-b">complex plane, no signal</text>
+    <circle cx="90" cy="90" r="66" fill="none" stroke="var(--rule)"/>
+    <line x1="10" y1="90" x2="170" y2="90" class="axis"/>
+    <line x1="90" y1="10" x2="90" y2="170" class="axis"/>
+    <g fill="var(--accent2)" opacity=".75">
+      <circle cx="102" cy="76" r="2.4"/><circle cx="78" cy="96" r="2.4"/><circle cx="96" cy="104" r="2.4"/>
+      <circle cx="72" cy="80" r="2.4"/><circle cx="110" cy="94" r="2.4"/><circle cx="84" cy="70" r="2.4"/>
+      <circle cx="98" cy="88" r="2.4"/><circle cx="66" cy="102" r="2.4"/><circle cx="112" cy="72" r="2.4"/>
+    </g>
+    <text x="0" y="196" class="lbl-sm">samples scatter around the origin;</text>
+    <text x="0" y="210" class="lbl-sm">the mean is zero but |z| is always positive</text>
+  </g>
+  <g transform="translate(330,50)">
+    <text x="0" y="0" class="lbl-b">distribution of |z|</text>
+    <line x1="0" y1="150" x2="220" y2="150" class="axis"/>
+    <line x1="0" y1="150" x2="0" y2="20" class="axis"/>
+    <path d="M0,150 C 18,150 30,60 56,52 C 82,44 96,86 130,116 C 160,140 190,148 220,150"
+          fill="var(--accent)" fill-opacity=".2" stroke="var(--accent)" stroke-width="2"/>
+    <line x1="0" y1="150" x2="0" y2="160" stroke="var(--ink-faint)"/>
+    <text x="-4" y="174" class="lbl-sm">0</text>
+    <text x="52" y="174" class="lbl-sm" style="fill:var(--accent)">mean ≈ 0.66 σ</text>
+    <text x="0" y="200" class="lbl-sm">Rayleigh in pure noise, Rician where signal exists</text>
+  </g>
+  <g transform="translate(600,50)">
+    <text x="0" y="0" class="lbl-b">practical consequences</text>
+    <text x="0" y="24" class="lbl-sm">• “SNR = signal ÷ background SD” overestimates;</text>
+    <text x="0" y="40" class="lbl-sm">  the correct correction factor is 0.655 for magnitude data</text>
+    <text x="0" y="60" class="lbl-sm">• diffusion at high b-values sits near the noise floor,</text>
+    <text x="0" y="76" class="lbl-sm">  which biases ADC and kurtosis estimates upward</text>
+    <text x="0" y="96" class="lbl-sm">• parallel-imaging noise is spatially varying, so a single</text>
+    <text x="0" y="112" class="lbl-sm">  background ROI is not representative at all</text>
+    <text x="0" y="132" class="lbl-sm">• denoising methods that assume Gaussian noise need</text>
+    <text x="0" y="148" class="lbl-sm">  a variance-stabilising transform first</text>
+  </g>
+</svg>
+<figcaption><b>Figure 10.1 — The magnitude operation is not innocent.</b> Taking |I + iQ| rectifies
+the noise, producing a positive bias that matters most exactly where signal is weakest — which is
+where quantitative methods like diffusion and relaxometry do their most delicate work.</figcaption>
+</figure>
+
+<h2>10.4 &nbsp;When the samples are not on a grid</h2>
+
+<p>Radial, spiral and PROPELLER acquisitions sample k-space on trajectories that do not land on the
+Cartesian grid the FFT requires. The standard solution is <strong>gridding</strong>:</p>
+
+<ol>
+<li><strong>Density compensation.</strong> Radial and spiral trajectories oversample the centre
+massively — every spoke passes through it. Each sample is weighted by the inverse of the local
+sampling density, otherwise the reconstruction is dominated by the centre and looks hopelessly blurred.</li>
+<li><strong>Convolution onto the grid.</strong> Each sample is spread onto nearby Cartesian points
+with a compact kernel — a Kaiser–Bessel window is the standard choice because it concentrates
+energy well in both domains.</li>
+<li><strong>Inverse FFT</strong>, usually onto an oversampled grid (typically 2×) to keep aliased
+side lobes of the kernel away from the field of view.</li>
+<li><strong>Deapodisation.</strong> Divide the image by the transform of the gridding kernel to undo
+the shading it introduced.</li>
+</ol>
+
+<p>Modern implementations wrap this into a <strong>non-uniform FFT (NUFFT)</strong> operator and use
+it inside an iterative reconstruction, which handles undersampling and coil sensitivities at the
+same time (Chapter 14).</p>
+
+<figure class="wide">
+<svg viewBox="0 0 860 240" width="860" height="240" role="img" aria-label="Gridding steps for non-Cartesian data">
+  <text class="lbl-b" x="20" y="24">Gridding a radial acquisition</text>
+  <g transform="translate(50,44)">
+    <rect x="0" y="0" width="150" height="150" fill="var(--bg-sunken)" stroke="var(--rule)"/>
+    <g stroke="var(--accent2)" stroke-width="1.2" opacity=".85">
+      <line x1="10" y1="75" x2="140" y2="75"/><line x1="75" y1="10" x2="75" y2="140"/>
+      <line x1="24" y1="24" x2="126" y2="126"/><line x1="126" y1="24" x2="24" y2="126"/>
+      <line x1="16" y1="50" x2="134" y2="100"/><line x1="16" y1="100" x2="134" y2="50"/>
+      <line x1="50" y1="16" x2="100" y2="134"/><line x1="100" y1="16" x2="50" y2="134"/>
+    </g>
+    <text x="75" y="170" text-anchor="middle" class="lbl-sm">1 · samples on spokes</text>
+    <text x="75" y="184" text-anchor="middle" class="lbl-sm">dense at the centre</text>
+  </g>
+  <g transform="translate(240,44)">
+    <rect x="0" y="0" width="150" height="150" fill="var(--bg-sunken)" stroke="var(--rule)"/>
+    <radialGradient id="dens"><stop offset="0%" stop-color="var(--accent)" stop-opacity=".55"/><stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/></radialGradient>
+    <circle cx="75" cy="75" r="70" fill="url(#dens)"/>
+    <text x="75" y="170" text-anchor="middle" class="lbl-sm">2 · density compensation</text>
+    <text x="75" y="184" text-anchor="middle" class="lbl-sm">down-weight the centre</text>
+  </g>
+  <g transform="translate(430,44)">
+    <rect x="0" y="0" width="150" height="150" fill="var(--bg-sunken)" stroke="var(--rule)"/>
+    <g stroke="var(--rule)">
+      <path d="M25,0 V150 M50,0 V150 M75,0 V150 M100,0 V150 M125,0 V150
+               M0,25 H150 M0,50 H150 M0,75 H150 M0,100 H150 M0,125 H150"/>
+    </g>
+    <g fill="var(--accent3)" opacity=".8">
+      <circle cx="62" cy="62" r="9"/><circle cx="86" cy="74" r="7"/><circle cx="50" cy="96" r="7"/>
+      <circle cx="104" cy="46" r="6"/><circle cx="34" cy="52" r="5"/>
+    </g>
+    <text x="75" y="170" text-anchor="middle" class="lbl-sm">3 · convolve onto the grid</text>
+    <text x="75" y="184" text-anchor="middle" class="lbl-sm">Kaiser–Bessel kernel</text>
+  </g>
+  <g transform="translate(620,44)">
+    <rect x="0" y="0" width="150" height="150" fill="var(--bg-sunken)" stroke="var(--rule)"/>
+    <ellipse cx="75" cy="72" rx="46" ry="54" fill="var(--ink-faint)" opacity=".35"/>
+    <ellipse cx="62" cy="66" rx="9" ry="18" fill="var(--bg-sunken)"/>
+    <ellipse cx="90" cy="66" rx="9" ry="18" fill="var(--bg-sunken)"/>
+    <text x="75" y="170" text-anchor="middle" class="lbl-sm">4 · inverse FFT + deapodise</text>
+    <text x="75" y="184" text-anchor="middle" class="lbl-sm">image</text>
+  </g>
+</svg>
+<figcaption><b>Figure 10.2 — Gridding.</b> Steps 1 and 2 are where non-Cartesian reconstructions
+usually go wrong: if the density weights are even slightly off, the image acquires a broad shading
+or a halo. Gradient timing errors — the trajectory not being quite where you calculated — cause
+streaks, and are corrected by measuring the actual trajectory during calibration.</figcaption>
+</figure>
+
+<h2>10.5 &nbsp;The corrections a scanner applies before you ever see the image</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Correction</th><th>Fixes</th><th>How</th></tr></thead>
+<tbody>
+<tr><td>Nyquist / N-2 ghost correction</td><td>EPI's alternating-line phase mismatch</td><td>A reference scan without phase blips measures the odd/even phase difference; it is subtracted line by line</td></tr>
+<tr><td>Partial Fourier synthesis</td><td>Missing half of k-space</td><td>Homodyne filtering, Margosian, or POCS iteration using a low-resolution phase estimate</td></tr>
+<tr><td>Coil combination</td><td>Many channels, one image</td><td>Root sum of squares, or sensitivity-weighted adaptive combination</td></tr>
+<tr><td>Intensity / bias correction</td><td>Surface-coil shading</td><td>Divide by a smooth sensitivity map from a body-coil pre-scan (vendors call it PURE, CLEAR, Prescan Normalise)</td></tr>
+<tr><td>Gradient non-linearity correction</td><td>Geometric distortion at the edges of a large FOV</td><td>Warp the image by the known spherical-harmonic model of the gradient field</td></tr>
+<tr><td>k-space filtering</td><td>Gibbs ringing</td><td>Mild apodisation, as in Interactive 10.1</td></tr>
+<tr><td>Interpolation / zero fill</td><td>Blocky display</td><td>Zero padding before the FFT</td></tr>
+<tr><td>Scaling &amp; windowing</td><td>Display range</td><td>Map floating-point recon values into 12–16 bit DICOM integers — after which absolute intensity is no longer comparable between scans (Chapter 16)</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note warn">
+<span class="label">The point where physics hands off to image processing</span>
+<p>By the time an image reaches a PACS workstation it has been filtered, normalised, interpolated,
+warped and rescaled. For diagnosis that is all appropriate. For quantitative image processing it is
+a serious problem: intensities are not physical units, they are not comparable between scanners or
+even between sequences on the same scanner, and some of the operations are not documented. If you
+are building algorithms on MRI data, read Chapter 16 before trusting a single pixel value.</p>
+</div>
+
+<h2>10.6 &nbsp;What reconstruction can and cannot fix</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Problem</th><th>Fixable in recon?</th><th>Comment</th></tr></thead>
+<tbody>
+<tr><td>Aliasing from undersampling</td><td>Yes, with extra information</td><td>Parallel imaging uses coil sensitivities; compressed sensing uses sparsity priors</td></tr>
+<tr><td>Gibbs ringing</td><td>Partially</td><td>Filtering trades it for blur; subvoxel-shift methods do better</td></tr>
+<tr><td>Rigid motion between shots</td><td>Often</td><td>Navigators, PROPELLER, or retrospective registration of shots</td></tr>
+<tr><td>Motion during a single readout</td><td>No</td><td>The data is internally inconsistent; nothing recovers it</td></tr>
+<tr><td>Geometric distortion from B₀</td><td>Yes, with a field map</td><td>Standard practice in EPI-based diffusion and fMRI</td></tr>
+<tr><td>Signal that never existed (T2* dephased)</td><td>No</td><td>You cannot reconstruct what was never encoded — the sequence has to change</td></tr>
+<tr><td>Low SNR</td><td>Cosmetically</td><td>Denoising and learned reconstruction improve appearance; whether they preserve small lesions is an active and serious research question</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="keypoints">
+<h3>Key points</h3>
+<ul>
+<li><b>Reconstruction is an inverse FFT</b> plus a long list of corrections for the ways reality violates its assumptions.</li>
+<li><b>The PSF is the transform of the k-space window.</b> Finite k<sub>max</sub> ⇒ sinc PSF ⇒ Gibbs ringing.</li>
+<li><b>Filtering trades ringing for blur</b>; zero filling interpolates but adds no resolution.</li>
+<li><b>Magnitude images have Rician noise</b> with a positive bias that matters for quantitation.</li>
+<li><b>Non-Cartesian data needs gridding</b>: density compensation, kernel convolution, FFT, deapodisation.</li>
+<li><b>Displayed intensities are not physical units</b> — a fact that dominates Chapter 16.</li>
+</ul>
+</div>
+
+<h2>Going deeper</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://mriquestions.com/" target="_blank" rel="noopener">
+    <span class="k">Reference site</span><span class="t">Q&amp;A in MRI — reconstruction &amp; artifacts</span>
+    <span class="d">Short pages on Gibbs ringing, zero filling and filtering, each with worked image examples.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=gridding+non-cartesian+MRI+reconstruction+tutorial" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Gridding and NUFFT tutorials</span>
+    <span class="d">ISMRM educational sessions on non-Cartesian reconstruction are freely available and are the best starting point.</span></a>
+  <a class="linkcard" href="https://mrirecon.github.io/bart/" target="_blank" rel="noopener">
+    <span class="k">Software</span><span class="t">BART — Berkeley Advanced Reconstruction Toolbox</span>
+    <span class="d">Open-source, research-grade reconstruction. If you want to actually run parallel imaging and compressed sensing on real raw data, this is where to start.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=gibbs+ringing+truncation+artifact+MRI" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Gibbs / truncation artifact</span>
+    <span class="d">Useful for seeing how it mimics pathology — the classic trap is mistaking ringing in the spinal cord for a syrinx.</span></a>
+</div>
+
+<div class="refs">
+<h3>References</h3>
+<ol>
+<li>Jackson, J. I., Meyer, C. H., Nishimura, D. G., Macovski, A. “Selection of a convolution function for Fourier inversion using gridding.” <i>IEEE TMI</i> 10:473–478, 1991.</li>
+<li>Fessler, J. A., Sutton, B. P. “Nonuniform fast Fourier transforms using min-max interpolation.” <i>IEEE Trans. Signal Processing</i> 51:560–574, 2003.</li>
+<li>Gudbjartsson, H., Patz, S. “The Rician distribution of noisy MRI data.” <i>Magnetic Resonance in Medicine</i> 34:910–914, 1995.</li>
+<li>Noll, D. C., Nishimura, D. G., Macovski, A. “Homodyne detection in magnetic resonance imaging.” <i>IEEE TMI</i> 10:154–163, 1991. — Partial-Fourier reconstruction.</li>
+<li>Kellner, E. et al. “Gibbs-ringing artifact removal based on local subvoxel-shifts.” <i>Magnetic Resonance in Medicine</i> 76:1574–1581, 2016.</li>
+<li>Uecker, M. et al. “Berkeley Advanced Reconstruction Toolbox.” <i>Proc. ISMRM</i> 23:2486, 2015.</li>
+</ol>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+<script src="assets/fft.js"></script>
+<script src="assets/phantom.js"></script>
+<script>
+/* ---------- Interactive 10.1 : truncation, windows, zero filling ---------- */
+(function () {
+  const N = 128;
+  const cI = document.getElementById("rimg"), cW = document.getElementById("rwin");
+  const cP = document.getElementById("rprof");
+  const ctxP = hidpi(cP, 280, 250);
+  const out = document.getElementById("rout");
+  const lbl = buildPhantom(N);
+
+  const base = new Float64Array(N * N);
+  {
+    const lut = TISSUE_KEYS.map(k => signalSE(TISSUES[k], 3000, 90));   // T2-ish, bright CSF
+    let mx = 0; for (const v of lut) mx = Math.max(mx, v);
+    for (let i = 0; i < N * N; i++) base[i] = lut[lbl[i]] / mx;
+  }
+  const RE0 = Float64Array.from(base), IM0 = new Float64Array(N * N);
+  fft2d(RE0, IM0, N, N, false);
+  const REc = fftshift(RE0, N, N), IMc = fftshift(IM0, N, N);
+
+  let acq = 128, win = "rect", zf = 1;
+  const PROFROW = 62;
+
+  function winVal(x, y, half) {
+    const r = Math.max(Math.abs(x), Math.abs(y)) / half;      // rectangular support
+    if (r > 1) return 0;
+    const u = Math.hypot(x, y) / half;
+    switch (win) {
+      case "rect": return 1;
+      case "hann": return u > 1 ? 0 : 0.5 * (1 + Math.cos(Math.PI * u));
+      case "hamming": return u > 1 ? 0 : 0.54 + 0.46 * Math.cos(Math.PI * u);
+      case "fermi": return 1 / (1 + Math.exp((u - 0.85) / 0.05));
+      default: return 1;
+    }
+  }
+
+  function render() {
+    const half = acq / 2;
+    const re = new Float64Array(N * N), im = new Float64Array(N * N), vis = new Float64Array(N * N);
+    for (let j = 0; j < N; j++) {
+      const y = j - N / 2;
+      for (let i = 0; i < N; i++) {
+        const x = i - N / 2, o = j * N + i;
+        const w = winVal(x, y, half);
+        re[o] = REc[o] * w; im[o] = IMc[o] * w;
+        vis[o] = w * Math.hypot(REc[o], IMc[o]);
+      }
+    }
+    paint(cW, vis, N, N, { log: true, logGain: 0.02, gamma: 0.8, tint: [1, .8, .6] });
+
+    const ri = fftshift(re, N, N), ii = fftshift(im, N, N);
+    fft2d(ri, ii, N, N, true);
+    let img = magnitude(ri, ii);
+
+    if (!zf) {
+      // emulate native pixel size: block-average to acq, then nearest-neighbour back up
+      const blk = Math.max(1, Math.round(N / acq));
+      const small = new Float64Array(N * N);
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const jj = Math.floor(j / blk) * blk, ii2 = Math.floor(i / blk) * blk;
+        small[j * N + i] = img[jj * N + ii2];
+      }
+      img = small;
+    }
+    paint(cI, img, N, N, { gamma: 0.9 });
+
+    // draw the profile marker on the image canvas
+    const ctxI = cI.getContext("2d");
+    ctxI.strokeStyle = "rgba(226,114,110,.9)"; ctxI.lineWidth = 1;
+    ctxI.beginPath(); ctxI.moveTo(0, PROFROW + .5); ctxI.lineTo(N, PROFROW + .5); ctxI.stroke();
+
+    /* profile plot */
+    ctxP.clearRect(0, 0, 280, 250);
+    ctxP.fillStyle = cssv("--bg-sunken"); ctxP.fillRect(0, 0, 280, 250);
+    const L = 30, R = 268, T = 20, B = 210;
+    let mx = 1e-9; for (let i = 0; i < N; i++) mx = Math.max(mx, img[PROFROW * N + i]);
+    // full-k, unwindowed reference, computed once and cached
+    if (!render.ref) {
+      const a = fftshift(Float64Array.from(REc), N, N), b = fftshift(Float64Array.from(IMc), N, N);
+      fft2d(a, b, N, N, true);
+      render.ref = magnitude(a, b);
+    }
+    let rmx = 1e-9; for (let i = 0; i < N; i++) rmx = Math.max(rmx, render.ref[PROFROW * N + i]);
+
+    ctxP.strokeStyle = cssv("--rule");
+    ctxP.beginPath(); ctxP.moveTo(L, B); ctxP.lineTo(R, B); ctxP.stroke();
+    ctxP.strokeStyle = cssv("--ink-faint"); ctxP.lineWidth = 1.2; ctxP.setLineDash([4, 3]);
+    ctxP.beginPath();
+    for (let i = 0; i < N; i++) {
+      const x = L + (R - L) * i / (N - 1), y = B - (B - T) * render.ref[PROFROW * N + i] / rmx;
+      i ? ctxP.lineTo(x, y) : ctxP.moveTo(x, y);
+    }
+    ctxP.stroke(); ctxP.setLineDash([]);
+    ctxP.strokeStyle = cssv("--accent"); ctxP.lineWidth = 1.8;
+    ctxP.beginPath();
+    for (let i = 0; i < N; i++) {
+      const x = L + (R - L) * i / (N - 1), y = B - (B - T) * img[PROFROW * N + i] / mx;
+      i ? ctxP.lineTo(x, y) : ctxP.moveTo(x, y);
+    }
+    ctxP.stroke();
+    ctxP.font = "11px ui-sans-serif, system-ui"; ctxP.fillStyle = cssv("--ink-faint");
+    ctxP.fillText("dashed: full 128² reference", L, 232);
+    ctxP.fillStyle = cssv("--accent");
+    ctxP.fillText("solid: current settings", L, 246);
+
+    const pctK = (acq / N) ** 2 * 100;
+    const NOTE = {
+      rect: "Sharp truncation. Maximum sharpness for the k-space you have, and maximum ringing — count the ripples beside the fat rim in the profile.",
+      hann: "Hann window: ringing essentially eliminated, effective resolution reduced by roughly 1.6×. The most aggressive of the common choices.",
+      hamming: "Hamming: slightly less blur than Hann, a small residual side lobe remains.",
+      fermi: "Fermi / soft roll-off: a gentle compromise, close to what several vendors apply silently by default.",
+    };
+    out.textContent =
+`acquired ${acq}² of a possible 128²  (${pctK.toFixed(0)} % of k-space, ≈${pctK.toFixed(0)} % of the scan time)
+nominal resolution ${(240 / acq).toFixed(2)} mm at a 240 mm FOV${zf ? ", displayed zero-filled to 128²" : ", displayed at native pixel size"}
+filter: ${NOTE[win]}
+${zf ? "Zero filling smooths the display but the point spread function — and therefore the true resolution — is unchanged."
+     : "Native pixels: the blockiness you see is honest. Compare with zero filling to see how much of 'resolution' is presentation."}`;
+  }
+
+  slider("rn", v => (acq = Math.max(2, 2 * Math.round(v / 2)), acq + " × " + acq), render);
+  document.getElementById("rwinf").addEventListener("change", e => { win = e.target.value; render(); });
+  document.getElementById("rzf").addEventListener("change", e => { zf = +e.target.value; render(); });
+  window.addEventListener("themechange", render);
+  render();
+})();
+</script>
+</body>
+</html>

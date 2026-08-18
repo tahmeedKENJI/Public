@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5 · Echoes — MRI Visual Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="eyebrow">Part I · The Physics</p>
+<h1>Echoes: Recovering Phase You Thought You Had Lost</h1>
+<p class="dek">Erwin Hahn discovered in 1950 that dephased spins can be brought back into
+step, producing a signal out of what looked like noise. That discovery is why MRI exists in its
+present form: essentially every clinical sequence measures an echo, never a raw FID.</p>
+
+<h2>5.1 &nbsp;The problem an echo solves</h2>
+
+<p>Chapter 4 left us with an awkward situation. The free induction decay dies with T2*, which is
+dominated by static field inhomogeneity — imperfect shim, air–tissue interfaces, the patient's own
+susceptibility variations. That is <em>equipment and anatomy</em>, not tissue biology. If we measured
+only FIDs, our images would be maps of how badly the magnet was shimmed.</p>
+
+<p>The saving grace is that static dephasing is <strong>deterministic</strong>. A spin sitting in a
+field 0.1 μT above nominal accumulates phase at a constant excess rate. It is not random; it is
+just ahead. And anything that is merely ahead can be made to be behind.</p>
+
+<div class="note intuition">
+<span class="label">The runners analogy — the one worth memorising</span>
+<p>Fire a starting gun and a hundred runners set off around a track at different speeds. After
+30 seconds they are spread all around the loop: the crowd's “centre of mass” is at the middle of
+the track, i.e. zero net signal. Now blow a whistle and order everyone to <b>turn around and run
+back at the same speed</b>. After another 30 seconds every single runner — fast or slow — arrives
+back at the start line simultaneously. That instant of re-gathering is the echo. The whistle is
+the 180° pulse; the time from gun to whistle is TE/2.</p>
+<p>What the trick cannot fix: runners who randomly change speed. Those never re-gather, and their
+loss is exactly T2. This is why a spin echo restores T2* losses but not T2 losses.</p>
+</div>
+
+<h2>5.2 &nbsp;The spin echo</h2>
+
+<p>The 180° refocusing pulse rotates the whole transverse plane about an axis in it (conventionally
+x′ or y′). A spin that had accumulated phase +φ finds itself at −φ, while its <em>rate</em> of phase
+accumulation is unchanged, because it is still sitting in the same slightly-wrong field. So it
+keeps accumulating +φ per unit time from a starting point of −φ, and reaches zero exactly one
+interval later.</p>
+
+<div class="eq">
+  <span class="eq-name">5.1</span>
+  TE = 2τ &nbsp;&nbsp;&nbsp; S(TE) = M₀ e<sup>−TE/T2</sup> &nbsp;<span style="color:var(--ink-faint)">— the echo peak follows the true T2 envelope</span>
+  <span class="where">τ is the 90°→180° interval. The echo forms at the same distance <i>after</i>
+  the refocusing pulse as the excitation was <i>before</i> it. Play with the timing and the echo
+  moves with it; this is the knob called TE, and Chapter 12 is about what you buy with it.</span>
+</div>
+
+<figure class="wide">
+<div class="widget">
+  <div class="canvas-row">
+    <div class="canvas-cell">
+      <div class="cname">Isochromats (rotating frame)</div>
+      <canvas id="efan" width="320" height="300"></canvas>
+    </div>
+    <div class="canvas-cell">
+      <div class="cname">Signal timeline</div>
+      <canvas id="esig" width="480" height="300"></canvas>
+    </div>
+  </div>
+  <div class="controls">
+    <label><span class="cap">Echo mode</span>
+      <select id="emode">
+        <option value="se" selected>Spin echo — 180° refocusing pulse</option>
+        <option value="gre">Gradient echo — reversed gradient</option>
+        <option value="none">No refocusing — plain FID</option>
+      </select></label>
+    <label><span class="cap">TE <output id="ete-out"></output></span>
+      <input id="ete" type="range" min="20" max="180" step="2" value="80"></label>
+    <label><span class="cap">Static inhomogeneity <output id="einh-out"></output></span>
+      <input id="einh" type="range" min="0" max="100" step="1" value="55"></label>
+    <label><span class="cap">Intrinsic T2 <output id="et2-out"></output></span>
+      <input id="et2" type="range" min="30" max="400" step="5" value="150"></label>
+    <div class="btnrow"><button id="epulse">Restart sequence</button><button id="epause">Pause / run</button></div>
+  </div>
+  <div class="readout" id="eout"></div>
+</div>
+<figcaption><b>Interactive 5.1 — Watch an echo form.</b> In spin-echo mode the fan spreads, the
+180° pulse mirrors it (the fast spins are now behind), and the fan re-converges into a peak at TE.
+The peak height sits on the true T2 envelope, not the T2* one. Switch to gradient echo: the same
+refocusing happens for gradient-induced dephasing, but the static field errors are <em>not</em>
+reversed, so the echo peak lands on the lower T2* envelope. Switch to “no refocusing” and you get
+the bare FID for comparison. Push inhomogeneity to zero and all three become identical — which
+tells you exactly what an echo is for.</figcaption>
+</figure>
+
+<h2>5.3 &nbsp;The gradient echo, and why it is a different animal</h2>
+
+<p>You can also dephase spins deliberately, using an imaging gradient, and then rephase them by
+reversing that gradient's polarity. The area under the gradient waveform is the phase it imparts;
+make the negative area equal the positive area and the phase cancels. The echo forms at the moment
+of equal areas.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th></th><th>Spin echo (SE)</th><th>Gradient echo (GRE)</th></tr></thead>
+<tbody>
+<tr><td>Refocusing mechanism</td><td>180° RF pulse mirrors the phase</td><td>Gradient reversal cancels the phase area</td></tr>
+<tr><td>Compensates static ΔB₀?</td><td><b>Yes</b> — all of it</td><td><b>No</b> — only what the gradient itself caused</td></tr>
+<tr><td>Signal decays with</td><td>T2</td><td>T2*</td></tr>
+<tr><td>Sensitive to susceptibility</td><td>Minimally</td><td>Strongly — this is a feature for SWI, BOLD, iron</td></tr>
+<tr><td>Sensitive to chemical shift</td><td>No (refocused)</td><td>Yes — fat and water phase cycle in and out (Dixon)</td></tr>
+<tr><td>Flip angle</td><td>Usually 90°/180°</td><td>Usually small (5–40°) — enables very short TR</td></tr>
+<tr><td>SAR</td><td>High (180° pulses are expensive)</td><td>Low</td></tr>
+<tr><td>Minimum TE / TR</td><td>Long — must wait for the refocusing</td><td>Very short — 1–5 ms achievable</td></tr>
+<tr><td>Typical role</td><td>Anatomical T2, PD, FLAIR, TSE workhorses</td><td>Fast 3D, breath-hold, angiography, fMRI, SWI</td></tr>
+</tbody>
+</table>
+</div>
+
+<figure class="wide">
+<svg viewBox="0 0 860 420" width="860" height="420" role="img" aria-label="Spin echo and gradient echo timing diagrams">
+  <defs>
+    <marker id="t1a" markerWidth="8" markerHeight="8" refX="6" refY="2.8" orient="auto"><path d="M0,0 L6,2.8 L0,5.6 z" fill="var(--ink-faint)"/></marker>
+  </defs>
+
+  <!-- SPIN ECHO -->
+  <text class="lbl-b" x="20" y="24">Spin echo — the 180° pulse buys you true T2</text>
+  <g transform="translate(70,40)">
+    <!-- RF line -->
+    <line x1="0" y1="40" x2="740" y2="40" class="axis"/>
+    <text x="-52" y="44" class="lbl-b">RF</text>
+    <!-- 90 -->
+    <path d="M60,40 C68,40 70,4 78,4 C86,4 88,40 96,40" fill="none" stroke="var(--accent4)" stroke-width="2.2"/>
+    <text x="78" y="-6" text-anchor="middle" class="lbl-sm">90°</text>
+    <!-- 180 -->
+    <path d="M280,40 C288,40 290,-8 300,-8 C310,-8 312,40 320,40" fill="none" stroke="var(--accent4)" stroke-width="2.2"/>
+    <text x="300" y="-18" text-anchor="middle" class="lbl-sm">180°</text>
+
+    <!-- signal line -->
+    <line x1="0" y1="150" x2="740" y2="150" class="axis"/>
+    <text x="-58" y="154" class="lbl-b">signal</text>
+    <!-- FID decaying -->
+    <path d="M80,150 C 96,90 118,132 134,150" fill="none" stroke="var(--accent)" stroke-width="1.6"/>
+    <path d="M80,150 C 110,60 170,150 230,150" fill="none" stroke="var(--accent)" stroke-width="1.6" opacity=".55"/>
+    <!-- echo -->
+    <path d="M440,150 C 480,150 500,72 520,72 C 540,72 560,150 600,150" fill="none" stroke="var(--accent)" stroke-width="2"/>
+    <!-- T2 envelope -->
+    <path d="M80,86 C 260,100 420,118 700,140" fill="none" stroke="var(--accent2)" stroke-width="1.5" stroke-dasharray="6 4"/>
+    <text x="706" y="140" class="lbl-sm" style="fill:var(--accent2)">T2</text>
+    <!-- T2* envelope -->
+    <path d="M80,86 C 120,124 170,145 240,149" fill="none" stroke="var(--accent4)" stroke-width="1.5" stroke-dasharray="3 3"/>
+    <text x="246" y="146" class="lbl-sm" style="fill:var(--accent4)">T2*</text>
+
+    <!-- timing brackets -->
+    <line x1="78" y1="182" x2="300" y2="182" stroke="var(--ink-faint)" stroke-width="1"/>
+    <line x1="300" y1="182" x2="520" y2="182" stroke="var(--ink-faint)" stroke-width="1"/>
+    <line x1="78" y1="176" x2="78" y2="188" stroke="var(--ink-faint)"/>
+    <line x1="300" y1="176" x2="300" y2="188" stroke="var(--ink-faint)"/>
+    <line x1="520" y1="176" x2="520" y2="188" stroke="var(--ink-faint)"/>
+    <text x="189" y="198" text-anchor="middle" class="lbl-sm">τ = TE/2</text>
+    <text x="410" y="198" text-anchor="middle" class="lbl-sm">τ = TE/2</text>
+    <text x="520" y="216" text-anchor="middle" class="lbl-b" style="fill:var(--accent)">echo at TE</text>
+    <line x1="78" y1="228" x2="700" y2="228" stroke="var(--ink-faint)" stroke-width="1" marker-end="url(#t1a)"/>
+    <text x="380" y="244" text-anchor="middle" class="lbl-sm">TR — then repeat with the next phase-encoding step</text>
+  </g>
+</svg>
+<figcaption><b>Figure 5.1 — Spin echo timing.</b> Read every pulse sequence diagram this way:
+one row per hardware channel, time running left to right. The dashed envelopes show the crucial
+point — the FID dies at T2*, but the echo peak returns to the T2 line. Chapter 11 fills in the
+gradient rows that this diagram omits.</figcaption>
+</figure>
+
+<figure class="wide">
+<svg viewBox="0 0 860 300" width="860" height="300" role="img" aria-label="Gradient echo timing diagram">
+  <text class="lbl-b" x="20" y="24">Gradient echo — refocusing by area, not by RF</text>
+  <g transform="translate(70,40)">
+    <line x1="0" y1="30" x2="740" y2="30" class="axis"/>
+    <text x="-52" y="34" class="lbl-b">RF</text>
+    <path d="M60,30 C68,30 70,8 78,8 C86,8 88,30 96,30" fill="none" stroke="var(--accent4)" stroke-width="2.2"/>
+    <text x="78" y="0" text-anchor="middle" class="lbl-sm">α (5–40°)</text>
+
+    <line x1="0" y1="110" x2="740" y2="110" class="axis"/>
+    <text x="-58" y="114" class="lbl-b">G_read</text>
+    <!-- negative lobe -->
+    <rect x="120" y="110" width="110" height="34" fill="var(--accent3)" opacity=".35" stroke="var(--accent3)" stroke-width="1.6"/>
+    <text x="175" y="162" text-anchor="middle" class="lbl-sm">dephase</text>
+    <!-- positive lobe -->
+    <rect x="260" y="76" width="220" height="34" fill="var(--accent3)" opacity=".35" stroke="var(--accent3)" stroke-width="1.6"/>
+    <text x="370" y="68" text-anchor="middle" class="lbl-sm">rephase, then keep going to read out</text>
+
+    <line x1="0" y1="220" x2="740" y2="220" class="axis"/>
+    <text x="-58" y="224" class="lbl-b">signal</text>
+    <path d="M80,220 C 100,170 124,206 140,220" fill="none" stroke="var(--accent)" stroke-width="1.6"/>
+    <path d="M300,220 C 340,220 352,158 370,158 C 388,158 400,220 440,220" fill="none" stroke="var(--accent)" stroke-width="2"/>
+    <path d="M80,164 C 160,190 260,208 460,216" fill="none" stroke="var(--accent4)" stroke-width="1.5" stroke-dasharray="3 3"/>
+    <text x="466" y="216" class="lbl-sm" style="fill:var(--accent4)">T2* — the echo peak lands here, not on T2</text>
+    <line x1="78" y1="248" x2="370" y2="248" stroke="var(--ink-faint)" stroke-width="1"/>
+    <line x1="78" y1="242" x2="78" y2="254" stroke="var(--ink-faint)"/>
+    <line x1="370" y1="242" x2="370" y2="254" stroke="var(--ink-faint)"/>
+    <text x="224" y="264" text-anchor="middle" class="lbl-sm">TE — set by when the gradient areas balance</text>
+    <text x="370" y="196" text-anchor="middle" class="lbl-b" style="fill:var(--accent)">echo</text>
+  </g>
+</svg>
+<figcaption><b>Figure 5.2 — Gradient echo timing.</b> The echo forms when the shaded areas above
+and below the axis are equal. No RF pulse is involved in the refocusing, so field inhomogeneity is
+never reversed — the price of speed. That same sensitivity is deliberately exploited by
+susceptibility-weighted imaging and BOLD fMRI.</figcaption>
+</figure>
+
+<h2>5.4 &nbsp;Echo trains and the CPMG condition</h2>
+
+<p>One 180° pulse gives one echo. Apply a train of them and you get an echo after each, with peaks
+tracing out the T2 decay curve — the Carr–Purcell experiment. Meiboom and Gill added a crucial
+refinement: shift the phase of the refocusing pulses by 90° relative to the excitation. Then any
+small error in the 180° flip angle alternates sign from echo to echo instead of accumulating, and
+a train of hundreds of echoes remains stable. This is the <strong>CPMG condition</strong>, and it is
+the reason turbo/fast spin echo (Chapter 11) is practical at all.</p>
+
+<figure class="wide">
+<svg viewBox="0 0 860 260" width="860" height="260" role="img" aria-label="CPMG echo train">
+  <g transform="translate(60,50)">
+    <line x1="0" y1="30" x2="760" y2="30" class="axis"/>
+    <text x="-46" y="34" class="lbl-b">RF</text>
+    <path d="M20,30 C26,30 28,8 34,8 C40,8 42,30 48,30" fill="none" stroke="var(--accent4)" stroke-width="2"/>
+    <text x="34" y="0" text-anchor="middle" class="lbl-sm">90°_x</text>
+    <g stroke="var(--accent2)" stroke-width="2" fill="none">
+      <path d="M86,30 C92,30 94,2 102,2 C110,2 112,30 118,30"/>
+      <path d="M206,30 C212,30 214,2 222,2 C230,2 232,30 238,30"/>
+      <path d="M326,30 C332,30 334,2 342,2 C350,2 352,30 358,30"/>
+      <path d="M446,30 C452,30 454,2 462,2 C470,2 472,30 478,30"/>
+      <path d="M566,30 C572,30 574,2 582,2 C590,2 592,30 598,30"/>
+      <path d="M686,30 C692,30 694,2 702,2 C710,2 712,30 718,30"/>
+    </g>
+    <text x="102" y="-6" text-anchor="middle" class="lbl-sm" style="fill:var(--accent2)">180°_y</text>
+    <text x="400" y="-6" text-anchor="middle" class="lbl-sm" style="fill:var(--accent2)">… all refocusing pulses phase-shifted 90° from the excitation …</text>
+
+    <line x1="0" y1="150" x2="760" y2="150" class="axis"/>
+    <text x="-52" y="154" class="lbl-b">signal</text>
+    <g stroke="var(--accent)" stroke-width="2" fill="none">
+      <path d="M140,150 C152,150 156,62 162,62 C168,62 172,150 184,150"/>
+      <path d="M260,150 C272,150 276,84 282,84 C288,84 292,150 304,150"/>
+      <path d="M380,150 C392,150 396,100 402,100 C408,100 412,150 424,150"/>
+      <path d="M500,150 C512,150 516,113 522,113 C528,113 532,150 544,150"/>
+      <path d="M620,150 C632,150 636,123 642,123 C648,123 652,150 664,150"/>
+      <path d="M740,150 C748,150 750,131 754,131" />
+    </g>
+    <path d="M162,62 C 260,80 400,104 754,131" fill="none" stroke="var(--accent2)" stroke-width="1.6" stroke-dasharray="6 4"/>
+    <text x="600" y="98" class="lbl-sm" style="fill:var(--accent2)">echo peaks trace exp(−t/T2)</text>
+    <g class="lbl-sm" text-anchor="middle">
+      <text x="162" y="176">echo 1</text><text x="282" y="176">2</text><text x="402" y="176">3</text>
+      <text x="522" y="176">4</text><text x="642" y="176">5</text><text x="754" y="176">…</text>
+    </g>
+    <text x="400" y="206" text-anchor="middle" class="lbl">Each echo is a separate measurement — in imaging, each one fills a different line of k-space</text>
+  </g>
+  <text class="lbl-b" x="20" y="26">Carr–Purcell–Meiboom–Gill: one excitation, many echoes</text>
+</svg>
+<figcaption><b>Figure 5.3 — The echo train.</b> In spectroscopy this measures T2. In imaging it is
+pure acceleration: instead of one k-space line per excitation, you collect one line per echo, and
+the scan gets faster by the echo train length. The cost is that later echoes are more T2-decayed,
+which blurs the image — see Chapter 11.</figcaption>
+</figure>
+
+<h2>5.5 &nbsp;Stimulated echoes and the wider family</h2>
+
+<p>Three pulses of <em>any</em> flip angle produce not one echo but five. Two 90° pulses form a
+Hahn echo; the third pulse revives magnetization that was “parked” along z between pulses two and
+three, producing a <strong>stimulated echo</strong>. That parked magnetization is protected from T2 while
+it waits — it decays with T1 instead — which is exploited deliberately by STEAM spectroscopy and
+by diffusion sequences that need long mixing times.</p>
+
+<div class="note">
+<span class="label">Extended phase graphs</span>
+<p>Once a sequence has many RF pulses, the bookkeeping of which coherence pathway produces which
+echo becomes unmanageable by hand. The <b>extended phase graph</b> (EPG) formalism tracks
+magnetization as a set of configuration states indexed by accumulated dephasing order, and each
+RF pulse mixes them by a fixed matrix. It is the standard tool for predicting the signal in TSE
+trains with imperfect refocusing, for bSSFP, and for T2 mapping from multi-echo data. If you go on
+to sequence development, EPG is the thing to learn after the Bloch equations.</p>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Echo type</th><th>Formed by</th><th>Decays with</th><th>Where it matters</th></tr></thead>
+<tbody>
+<tr><td>Hahn / spin echo</td><td>90° – 180°</td><td>T2</td><td>All SE and TSE imaging</td></tr>
+<tr><td>Gradient echo</td><td>Gradient reversal</td><td>T2*</td><td>Fast imaging, SWI, BOLD, MRA</td></tr>
+<tr><td>Stimulated echo</td><td>Three pulses, magnetization stored along z</td><td>T1 during storage, T2 otherwise</td><td>STEAM, diffusion with long mixing time, unwanted signal in TSE</td></tr>
+<tr><td>Partial / asymmetric echo</td><td>Truncated readout</td><td>T2*</td><td>Shortening TE for fast GRE</td></tr>
+<tr><td>Spin echo + gradient echo (GRASE)</td><td>Both, interleaved</td><td>Mixed</td><td>Fast T2 imaging with fewer RF pulses</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="keypoints">
+<h3>Key points</h3>
+<ul>
+<li><b>Static dephasing is reversible; random dephasing is not.</b> That single distinction defines T2* versus T2.</li>
+<li><b>A 180° pulse mirrors phase</b>, so all constant-rate spins re-gather at TE = 2τ.</li>
+<li><b>Spin echo peaks follow T2; gradient echo peaks follow T2*.</b> Choose accordingly.</li>
+<li><b>Gradient echoes are fast and susceptibility-sensitive</b>; spin echoes are clean and SAR-hungry.</li>
+<li><b>CPMG phase cycling</b> makes long echo trains robust, enabling TSE and all fast T2 imaging.</li>
+<li><b>Stimulated echoes</b> store magnetization along z where only T1 acts on it.</li>
+</ul>
+</div>
+
+<h2>Going deeper</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://mriquestions.com/" target="_blank" rel="noopener">
+    <span class="k">Reference site</span><span class="t">Q&amp;A in MRI — “Spin echo” / “Gradient echo”</span>
+    <span class="d">Also has a genuinely good page on stimulated echoes and why they contaminate TSE trains.</span></a>
+  <a class="linkcard" href="https://en.wikipedia.org/wiki/Spin_echo" target="_blank" rel="noopener">
+    <span class="k">Reference</span><span class="t">Spin echo — Wikipedia</span>
+    <span class="d">Contains Hahn’s original diagram and the swimmer/runner analogy in its canonical form.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=spin+echo+180+degree+pulse+rephasing+animation+MRI" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Spin echo formation animations</span>
+    <span class="d">The dancers/runners animation is a classic; look for one that also shows the T2 envelope through successive echo peaks.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=extended+phase+graph+EPG+MRI+tutorial" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Extended phase graphs</span>
+    <span class="d">Worth watching once you are comfortable with echo trains; several ISMRM educational talks cover it well.</span></a>
+</div>
+
+<div class="refs">
+<h3>References</h3>
+<ol>
+<li>Hahn, E. L. “Spin echoes.” <i>Physical Review</i> 80:580–594, 1950. — The discovery, and still a pleasure to read.</li>
+<li>Carr, H. Y., Purcell, E. M. “Effects of diffusion on free precession in nuclear magnetic resonance experiments.” <i>Physical Review</i> 94:630–638, 1954.</li>
+<li>Meiboom, S., Gill, D. “Modified spin-echo method for measuring nuclear relaxation times.” <i>Review of Scientific Instruments</i> 29:688–691, 1958.</li>
+<li>Hennig, J. “Echoes — how to generate, recognize, use or avoid them in MR-imaging sequences.” <i>Concepts in Magnetic Resonance</i> 3:125–143, 1991. — The definitive tutorial on the echo zoo and the origin of EPG.</li>
+<li>Weigel, M. “Extended phase graphs: dephasing, RF pulses, and echoes — pure and simple.” <i>JMRI</i> 41:266–295, 2015.</li>
+</ol>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+<script>
+/* ---------- Interactive 5.1 : echo formation ---------- */
+(function () {
+  const cF = document.getElementById("efan"), cS = document.getElementById("esig");
+  const ctxF = hidpi(cF, 320, 300), ctxS = hidpi(cS, 480, 300);
+  const out = document.getElementById("eout");
+  let mode = "se", TE = 80, inh = 55, T2 = 150;
+  let t = 0, running = true;
+  const N = 21, offs = [];                       // isochromats drawn in the fan
+  for (let i = 0; i < N; i++) offs.push((i / (N - 1) - 0.5) * 2);
+  // a finer, Gaussian-weighted set used for the signal, so the echo has a smooth
+  // envelope instead of the side lobes a small uniform set would produce
+  const M = 161, sOffs = [], sW = [];
+  for (let i = 0; i < M; i++) {
+    const o = (i / (M - 1) - 0.5) * 2.6;
+    sOffs.push(o); sW.push(Math.exp(-2.2 * o * o));
+  }
+  const TSPAN = 260;                     // ms shown on the timeline
+
+  function phaseOf(off, tt) {
+    // static field offset: constant rate, always present
+    const rStatic = off * (inh / 100) * 0.25;
+    // imaging gradient: much stronger, but its area is rewound by TE
+    const rGrad = off * 0.30;
+    const gradPhase = (tt <= TE / 2) ? rGrad * tt : rGrad * (TE - tt);
+
+    if (mode === "none") return rStatic * tt;                 // nothing refocuses
+    if (mode === "se")   return (tt <= TE / 2) ? rStatic * tt // 180° mirrors the phase
+                                               : rStatic * (tt - TE);
+    return rStatic * tt + gradPhase;                          // gradient echo
+  }
+
+  function netSignal(tt) {
+    let sx = 0, sy = 0, w = 0;
+    for (let i = 0; i < M; i++) {
+      const p = phaseOf(sOffs[i], tt);
+      sx += sW[i] * Math.cos(p); sy += sW[i] * Math.sin(p); w += sW[i];
+    }
+    return Math.hypot(sx, sy) / w * Math.exp(-tt / T2);
+  }
+
+  function frame() {
+    if (running) { t += 1.1; if (t > TSPAN) t = 0; }
+
+    /* ---- fan ---- */
+    ctxF.clearRect(0, 0, 320, 300);
+    const cx = 160, cy = 145, r = 100;
+    ctxF.strokeStyle = cssv("--rule"); ctxF.lineWidth = 1;
+    ctxF.beginPath(); ctxF.arc(cx, cy, r, 0, Math.PI * 2); ctxF.stroke();
+    const env = Math.exp(-t / T2);
+    for (const o of offs) {
+      const p = phaseOf(o, t);
+      ctxF.strokeStyle = o >= 0 ? cssv("--accent2") : cssv("--accent3");
+      ctxF.globalAlpha = (0.35 + 0.5 * env) * Math.exp(-0.7 * o * o);
+      ctxF.lineWidth = 1.7;
+      ctxF.beginPath(); ctxF.moveTo(cx, cy);
+      ctxF.lineTo(cx + Math.cos(p) * r * env, cy - Math.sin(p) * r * env);
+      ctxF.stroke();
+    }
+    ctxF.globalAlpha = 1;
+    // net vector: same weighted sum the signal panel uses
+    let sx = 0, sy = 0, wsum = 0;
+    for (let i = 0; i < M; i++) {
+      const p = phaseOf(sOffs[i], t);
+      sx += sW[i] * Math.cos(p); sy += sW[i] * Math.sin(p); wsum += sW[i];
+    }
+    sx = sx / wsum * env; sy = sy / wsum * env;
+    ctxF.strokeStyle = cssv("--accent"); ctxF.lineWidth = 3.4; ctxF.lineCap = "round";
+    ctxF.beginPath(); ctxF.moveTo(cx, cy); ctxF.lineTo(cx + sx * r, cy - sy * r); ctxF.stroke();
+    ctxF.font = "11px ui-sans-serif, system-ui"; ctxF.fillStyle = cssv("--ink-faint");
+    ctxF.fillText("t = " + t.toFixed(0) + " ms", 10, 18);
+    if (mode === "se" && Math.abs(t - TE / 2) < 2.5) {
+      ctxF.fillStyle = cssv("--accent4"); ctxF.font = "600 13px ui-sans-serif, system-ui";
+      ctxF.fillText("180° — phases mirrored", 10, 36);
+    }
+    ctxF.fillStyle = cssv("--ink-faint"); ctxF.font = "11px ui-sans-serif, system-ui";
+    ctxF.fillText("fan radius shrinks with true T2", 10, 288);
+
+    /* ---- signal ---- */
+    ctxS.clearRect(0, 0, 480, 300);
+    ctxS.fillStyle = cssv("--bg-sunken"); ctxS.fillRect(0, 0, 480, 300);
+    const L = 46, R = 466, TT = 24, BB = 246;
+    const px = ms => L + (R - L) * ms / TSPAN;
+    const py = v => BB - (BB - TT) * v;
+    ctxS.strokeStyle = cssv("--rule");
+    ctxS.beginPath(); ctxS.moveTo(L, BB); ctxS.lineTo(R, BB); ctxS.stroke();
+    ctxS.beginPath(); ctxS.moveTo(L, TT); ctxS.lineTo(L, BB); ctxS.stroke();
+
+    // T2 envelope
+    ctxS.strokeStyle = cssv("--accent2"); ctxS.lineWidth = 1.5; ctxS.setLineDash([6, 4]);
+    ctxS.beginPath();
+    for (let i = 0; i <= 200; i++) { const ms = TSPAN * i / 200;
+      i ? ctxS.lineTo(px(ms), py(Math.exp(-ms / T2))) : ctxS.moveTo(px(ms), py(Math.exp(-ms / T2))); }
+    ctxS.stroke(); ctxS.setLineDash([]);
+
+    // signal curve
+    ctxS.strokeStyle = cssv("--accent"); ctxS.lineWidth = 2;
+    ctxS.beginPath();
+    for (let i = 0; i <= 480; i++) { const ms = TSPAN * i / 480; const v = netSignal(ms);
+      i ? ctxS.lineTo(px(ms), py(v)) : ctxS.moveTo(px(ms), py(v)); }
+    ctxS.stroke();
+
+    // markers
+    ctxS.font = "11px ui-sans-serif, system-ui";
+    if (mode === "se") {
+      ctxS.strokeStyle = cssv("--accent4"); ctxS.setLineDash([3, 3]);
+      ctxS.beginPath(); ctxS.moveTo(px(TE / 2), TT); ctxS.lineTo(px(TE / 2), BB); ctxS.stroke();
+      ctxS.setLineDash([]);
+      ctxS.fillStyle = cssv("--accent4"); ctxS.fillText("180°", px(TE / 2) - 12, TT - 6);
+    }
+    ctxS.strokeStyle = cssv("--ink-faint"); ctxS.setLineDash([3, 3]);
+    ctxS.beginPath(); ctxS.moveTo(px(TE), TT); ctxS.lineTo(px(TE), BB); ctxS.stroke();
+    ctxS.setLineDash([]);
+    ctxS.fillStyle = cssv("--ink-soft"); ctxS.fillText("TE", px(TE) - 6, TT - 6);
+    // playhead
+    ctxS.strokeStyle = cssv("--accent3"); ctxS.lineWidth = 1.4;
+    ctxS.beginPath(); ctxS.moveTo(px(t), TT); ctxS.lineTo(px(t), BB); ctxS.stroke();
+    ctxS.fillStyle = cssv("--ink-faint");
+    ctxS.fillText("time (ms) →", (L + R) / 2 - 24, BB + 30);
+    ctxS.fillStyle = cssv("--accent2"); ctxS.fillText("true T2 envelope", L + 8, TT + 12);
+
+    const peak = netSignal(TE), t2env = Math.exp(-TE / T2);
+    out.textContent =
+      `mode: ${mode === "se" ? "spin echo" : mode === "gre" ? "gradient echo" : "FID only"}   ` +
+      `TE = ${TE} ms   T2 = ${T2} ms\n` +
+      `signal at TE = ${(peak * 100).toFixed(1)} % of M₀;  the true-T2 ceiling is ${(t2env * 100).toFixed(1)} %\n` +
+      (mode === "se"
+        ? `the 180° pulse recovers all static dephasing → the echo reaches the T2 ceiling.`
+        : mode === "gre"
+        ? `no RF refocusing → static field errors survive, the echo falls short of the ceiling by the T2′ factor.`
+        : `nothing refocuses → the signal is gone long before TE.`);
+  }
+
+  document.getElementById("emode").addEventListener("change", e => { mode = e.target.value; t = 0; });
+  slider("ete", v => (TE = v, v + " ms"), () => { t = 0; });
+  slider("einh", v => (inh = v, v === 0 ? "perfect shim" : v + " (arb.)"), () => { t = 0; });
+  slider("et2", v => (T2 = v, v + " ms"), () => { t = 0; });
+  document.getElementById("epulse").onclick = () => { t = 0; running = true; };
+  document.getElementById("epause").onclick = () => { running = !running; };
+  animate(frame);
+})();
+</script>
+</body>
+</html>

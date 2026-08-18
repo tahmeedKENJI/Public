@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MRI — A Visual Study Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<section class="hero">
+  <p class="eyebrow">From nuclear spin to image processing</p>
+  <h1>Magnetic Resonance Imaging<br>A Visual Study Guide</h1>
+  <p class="dek">Sixteen chapters covering the whole chain: the quantum origin of the signal, the
+  machine that produces it, the mathematics that turns it into a picture, and the pixels that come
+  out the other end. Written for someone who has read the equations and wants to <em>see</em> what
+  they mean — every chapter carries figures and interactive simulations that compute the real
+  physics rather than illustrate it.</p>
+  <p class="byline">Compiled by <b>Tahmeed and Claude</b> · for personal study</p>
+</section>
+
+<div class="note intuition" style="max-width:44rem">
+  <span class="label">How to use this</span>
+  <p>The chapters build on each other and are best read in order the first time — Chapter 8 assumes
+  Chapter 7, and everything after Chapter 10 assumes Chapter 8. Afterwards they stand alone as
+  reference.</p>
+  <p><b>Play with the widgets.</b> They are not decorations. The k-space editor in Chapter 8, the
+  contrast simulator in Chapter 12 and the SENSE reconstruction in Chapter 14 run genuine
+  algorithms — real Fourier transforms, real signal equations, a real least-squares unfolding — on a
+  synthetic phantom built from published tissue relaxation times. Dragging a slider until something
+  breaks teaches more than a paragraph does.</p>
+  <p><b>Everything works offline.</b> No fonts, scripts or images are fetched from the network; the
+  figures are drawn in the page. External links are provided for going deeper, and video links are
+  deliberately search queries rather than specific video IDs so that they do not rot.</p>
+</div>
+
+<div id="toc"></div>
+
+<h2>Quick reference</h2>
+
+<h3>The equations worth knowing by heart</h3>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Equation</th><th>Meaning</th><th>Chapter</th></tr></thead>
+<tbody>
+<tr><td class="mono">ω₀ = γB₀ &nbsp;·&nbsp; γ/2π = 42.58 MHz/T for ¹H</td><td>Larmor: field becomes frequency</td><td>2</td></tr>
+<tr><td class="mono">M₀ ∝ N γ²ℏ²B₀ / 4kT</td><td>Equilibrium magnetization; ~5 ppm of spins at 1.5 T</td><td>2</td></tr>
+<tr><td class="mono">θ = γ ∫ B₁(t) dt</td><td>Flip angle is the area under the RF envelope</td><td>3</td></tr>
+<tr><td class="mono">M<sub>z</sub> = M₀(1 − e<sup>−t/T1</sup>) ·  M<sub>xy</sub> = M₀e<sup>−t/T2</sup></td><td>The two relaxation clocks</td><td>4</td></tr>
+<tr><td class="mono">1/T2* = 1/T2 + γΔB₀</td><td>Observed decay mixes tissue and shim</td><td>4</td></tr>
+<tr><td class="mono">TE = 2τ</td><td>Spin echo forms as far after the 180° as the 90° was before</td><td>5</td></tr>
+<tr><td class="mono">Δz = BW<sub>RF</sub> / (γ̄ G<sub>z</sub>)</td><td>Slice thickness</td><td>7</td></tr>
+<tr><td class="mono">k(t) = (γ/2π)∫G(t′)dt′</td><td>Gradients are velocity through k-space</td><td>8</td></tr>
+<tr><td class="mono">FOV = 1/Δk ·  Δx = 1/(2k<sub>max</sub>)</td><td>The two Nyquist relations behind most artifacts</td><td>8</td></tr>
+<tr><td class="mono">SNR ∝ voxel volume × √(N<sub>PE</sub>N<sub>freq</sub>NEX / BW)</td><td>The protocol trade-off, in one line</td><td>9</td></tr>
+<tr><td class="mono">S = ρ(1 − e<sup>−TR/T1</sup>)e<sup>−TE/T2</sup></td><td>Spin-echo contrast</td><td>12</td></tr>
+<tr><td class="mono">TI<sub>null</sub> = 0.693 × T1</td><td>STIR and FLAIR are this equation with two different T1s</td><td>11</td></tr>
+<tr><td class="mono">α<sub>Ernst</sub> = arccos(e<sup>−TR/T1</sup>)</td><td>Optimal flip angle for spoiled gradient echo</td><td>11</td></tr>
+<tr><td class="mono">S = S₀e<sup>−b·ADC</sup></td><td>Diffusion weighting</td><td>13</td></tr>
+<tr><td class="mono">SNR<sub>accel</sub> = SNR / (g√R)</td><td>The cost of parallel imaging</td><td>14</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Symbols</h3>
+<div class="tablewrap">
+<table>
+<tbody>
+<tr><td class="mono">B₀</td><td>Static main field (T)</td><td class="mono">B₁</td><td>Rotating RF field (μT)</td></tr>
+<tr><td class="mono">γ</td><td>Gyromagnetic ratio (rad s⁻¹T⁻¹); γ̄ = γ/2π in Hz/T</td><td class="mono">M₀, M<sub>z</sub>, M<sub>xy</sub></td><td>Equilibrium, longitudinal and transverse magnetization</td></tr>
+<tr><td class="mono">T1</td><td>Longitudinal / spin–lattice relaxation time</td><td class="mono">T2</td><td>Transverse / spin–spin relaxation time</td></tr>
+<tr><td class="mono">T2*</td><td>Observed transverse decay including static inhomogeneity</td><td class="mono">ρ</td><td>Proton (spin) density</td></tr>
+<tr><td class="mono">TR</td><td>Repetition time</td><td class="mono">TE</td><td>Echo time</td></tr>
+<tr><td class="mono">TI</td><td>Inversion time</td><td class="mono">α</td><td>Flip angle</td></tr>
+<tr><td class="mono">G</td><td>Gradient amplitude (mT/m)</td><td class="mono">k</td><td>Spatial frequency coordinate (1/mm)</td></tr>
+<tr><td class="mono">FOV</td><td>Field of view</td><td class="mono">ETL</td><td>Echo train length (turbo factor)</td></tr>
+<tr><td class="mono">R</td><td>Parallel imaging acceleration factor</td><td class="mono">g</td><td>Geometry factor — noise amplification from unfolding</td></tr>
+<tr><td class="mono">SAR</td><td>Specific absorption rate (W/kg)</td><td class="mono">ADC</td><td>Apparent diffusion coefficient (mm²/s)</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Tissue values at 1.5 T, for sanity checks</h3>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Tissue</th><th>T1 (ms)</th><th>T2 (ms)</th><th>Appearance on T1w</th><th>Appearance on T2w</th></tr></thead>
+<tbody>
+<tr><td>Fat</td><td class="num">260</td><td class="num">80</td><td>Bright</td><td>Bright (on TSE)</td></tr>
+<tr><td>White matter</td><td class="num">650</td><td class="num">80</td><td>Bright-ish</td><td>Darker than grey</td></tr>
+<tr><td>Grey matter</td><td class="num">900</td><td class="num">100</td><td>Mid grey</td><td>Brighter than white</td></tr>
+<tr><td>Muscle</td><td class="num">870</td><td class="num">47</td><td>Mid grey</td><td>Dark</td></tr>
+<tr><td>CSF</td><td class="num">4000</td><td class="num">2000</td><td>Very dark</td><td>Very bright</td></tr>
+<tr><td>Oedema / most pathology</td><td class="num">↑</td><td class="num">↑</td><td>Dark</td><td>Bright</td></tr>
+<tr><td>Cortical bone, air</td><td class="num">—</td><td class="num">&lt;1</td><td>Black</td><td>Black</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Standing resources</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://mriquestions.com/" target="_blank" rel="noopener">
+    <span class="k">The one to bookmark</span><span class="t">Questions and Answers in MRI — Allen D. Elster</span>
+    <span class="d">Several hundred short pages, each answering one specific question, written by a radiologist who understands the physics properly. Free. If you read only one other source, read this one.</span></a>
+  <a class="linkcard" href="https://radiopaedia.org/" target="_blank" rel="noopener">
+    <span class="k">Cases</span><span class="t">Radiopaedia</span>
+    <span class="d">Where to build visual vocabulary: thousands of labelled cases with the sequence stated, plus solid physics articles.</span></a>
+  <a class="linkcard" href="https://www.ismrm.org/" target="_blank" rel="noopener">
+    <span class="k">Community</span><span class="t">ISMRM</span>
+    <span class="d">The field’s society. Educational sessions, weekly online seminars and study-group material — much of it free and considerably deeper than textbook level.</span></a>
+  <a class="linkcard" href="https://mrirecon.github.io/bart/" target="_blank" rel="noopener">
+    <span class="k">Hands-on</span><span class="t">BART</span>
+    <span class="d">Reconstruct real raw data yourself: SENSE, GRAPPA, ESPIRiT, compressed sensing. Pairs naturally with the fastMRI datasets.</span></a>
+  <a class="linkcard" href="https://fastmri.org/" target="_blank" rel="noopener">
+    <span class="k">Data</span><span class="t">fastMRI</span>
+    <span class="d">Open raw k-space and image datasets. The fastest way to move from reading about k-space to holding some.</span></a>
+  <a class="linkcard" href="https://pulseq.github.io/" target="_blank" rel="noopener">
+    <span class="k">Hands-on</span><span class="t">Pulseq</span>
+    <span class="d">Write a pulse sequence in a vendor-neutral format and run it on a real scanner. The natural next step after Chapter 11.</span></a>
+</div>
+
+<h3>Books, in the order they become useful</h3>
+<div class="refs">
+<ol>
+<li><b>McRobbie, Moore, Graves, Prince — <i>MRI from Picture to Proton</i></b> (CUP). Starts from the image and works backwards. The friendliest entry point, and unusually good on why things are done the way they are.</li>
+<li><b>Nishimura — <i>Principles of Magnetic Resonance Imaging</i></b> (Stanford). Short, dense, signal-processing-flavoured. The best value per page if you are comfortable with Fourier analysis.</li>
+<li><b>Haacke, Brown, Thompson, Venkatesan — <i>Magnetic Resonance Imaging: Physical Principles and Sequence Design</i></b> (Wiley). The standard graduate text; complete derivations.</li>
+<li><b>Bernstein, King, Zhou — <i>Handbook of MRI Pulse Sequences</i></b> (Elsevier). Not a textbook but an encyclopaedia: every pulse, gradient waveform and sequence, with implementation detail. Indispensable if you go near sequence development.</li>
+<li><b>Levitt — <i>Spin Dynamics</i></b> (Wiley). For when the quantum description stops being optional — NMR-oriented, superbly written.</li>
+<li><b>Shellock — <i>Reference Manual for Magnetic Resonance Safety, Implants and Devices</i></b>. The safety authority, updated annually.</li>
+</ol>
+</div>
+
+<div class="note" style="max-width:44rem">
+  <span class="label">On the figures and the numbers</span>
+  <p>The phantom used throughout is synthetic — ellipses assigned published relaxation times, not
+  real patient data. Signal values are computed from the standard signal equations, so the images
+  respond correctly to parameter changes, but they are a physics demonstration and nothing more.
+  Relaxation times vary by 10–20% between published studies; the values here follow Stanisz et al.
+  (2005) and Wansapura et al. (1999) and are appropriate for reasoning about sequence design, not
+  for quantitation. Nothing in this guide is clinical advice.</p>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+<script>
+/* build the table of contents from the shared chapter registry */
+(function () {
+  const host = document.getElementById("toc");
+  CHAPTERS.forEach((c, i) => {
+    const part = PARTS.find(p => p.at === i);
+    if (part) {
+      const h = document.createElement("div");
+      h.className = "part";
+      h.innerHTML = `<span>${part.n}</span> · ${part.t}`;
+      host.appendChild(h);
+      const g = document.createElement("div");
+      g.className = "toc";
+      g.dataset.part = part.n;
+      host.appendChild(g);
+    }
+    const grid = host.querySelector(".toc:last-of-type");
+    const a = document.createElement("a");
+    a.href = c.f;
+    a.innerHTML =
+      `<span class="n">${String(i + 1).padStart(2, "0")}</span>` +
+      `<span class="t">${c.t}</span>` +
+      `<span class="d">${c.d}</span>`;
+    grid.appendChild(a);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>16 · The Image Processing Pipeline — MRI Visual Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="eyebrow">Part V · Applications, Speed and Consequences</p>
+<h1>The Image Processing Pipeline: DICOM to Analysis</h1>
+<p class="dek">This is where the physics hands over. If you are going to build algorithms on MRI, the
+preceding fifteen chapters are not background reading — they are the list of reasons your pixel
+values mean something different from what you assumed. This chapter is the handover document.</p>
+
+<h2>16.1 &nbsp;What comes off the scanner</h2>
+
+<p>Clinical output is <strong>DICOM</strong>: one file per slice (or a multi-frame object), each
+carrying a large header of tagged metadata alongside the pixel data. The header is the interesting
+part, and it is where most downstream bugs are born.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Tag</th><th>Name</th><th>Why it matters</th></tr></thead>
+<tbody>
+<tr><td><code>(0020,0037)</code></td><td>ImageOrientationPatient</td><td>Two direction cosine vectors for the row and column axes. With the next tag it defines the slice's position in world space. Get this wrong and left/right flips — a genuine clinical hazard</td></tr>
+<tr><td><code>(0020,0032)</code></td><td>ImagePositionPatient</td><td>World coordinates of the first voxel. Sorting slices by this, not by instance number, is the only reliable way to build a volume</td></tr>
+<tr><td><code>(0028,0030)</code></td><td>PixelSpacing</td><td>In-plane mm. Note it is row spacing then column spacing — the opposite order from what most people assume</td></tr>
+<tr><td><code>(0018,0050)</code> / <code>(0018,0088)</code></td><td>SliceThickness / SpacingBetweenSlices</td><td>These are not the same number when there is a slice gap. Using thickness as spacing silently squashes the volume</td></tr>
+<tr><td><code>(0028,1052)</code> / <code>(0028,1053)</code></td><td>RescaleIntercept / RescaleSlope</td><td>Stored values must be transformed before use. Ignoring them is a common and silent error</td></tr>
+<tr><td><code>(0028,1050)</code> / <code>(0028,1051)</code></td><td>WindowCenter / WindowWidth</td><td>Display preference only. Never bake window settings into training data</td></tr>
+<tr><td><code>(0018,0080)</code> / <code>(0018,0081)</code> / <code>(0018,1314)</code></td><td>RepetitionTime / EchoTime / FlipAngle</td><td>Your record of the physics. Essential for reasoning about contrast — and for spotting that "T2" in the series description is actually FLAIR</td></tr>
+<tr><td><code>(0008,103E)</code></td><td>SeriesDescription</td><td>Free text set by whoever built the protocol. Inconsistent, often wrong, and yet almost every pipeline routes on it. Verify against the acquisition parameters</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+<span class="label">The practical route</span>
+<p>For research, convert once with a well-tested tool — <b>dcm2niix</b> is the de-facto standard —
+into <b>NIfTI</b>, which stores a single volume plus an affine matrix mapping voxel indices to world
+millimetres. Organise with the <b>BIDS</b> convention so that every later tool knows where things
+are. Keep the DICOM headers: sidecar JSON from dcm2niix preserves TR, TE, flip angle, coil, and
+vendor-specific fields that you will eventually need. And be aware that DICOM de-identification is
+not a matter of blanking a few tags — burned-in pixel annotations, private vendor tags and the face
+itself (a 1 mm isotropic T1 volume renders a recognisable face) all require handling.</p>
+</div>
+
+<h2>16.2 &nbsp;The central fact: MRI intensities are not quantitative</h2>
+
+<p>A CT number is Hounsfield units — physically defined, comparable across scanners and decades.
+An MRI intensity is an arbitrary number produced by a signal equation you do not fully know,
+multiplied by coil sensitivity, scaled by a receiver gain set automatically for that patient, and
+rescaled again for display. The same white matter can be 300 in one scan and 1400 in the next on
+the same machine an hour later.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Source of variation</th><th>Effect</th><th>Standard remedy</th></tr></thead>
+<tbody>
+<tr><td>Receiver gain, set per patient</td><td>Global scale factor</td><td>Intensity normalisation (z-score within brain, or percentile scaling)</td></tr>
+<tr><td>Coil sensitivity, B1 inhomogeneity</td><td>Smooth multiplicative shading</td><td><b>N4ITK</b> bias field correction</td></tr>
+<tr><td>Sequence parameters differing between sites</td><td>Different tissue contrast entirely</td><td>Harmonisation; or use only sequences acquired to a common protocol</td></tr>
+<tr><td>Field strength and vendor</td><td>Different T1 weighting, different noise character, different recon filters</td><td>ComBat-style statistical harmonisation, or domain adaptation</td></tr>
+<tr><td>Vendor reconstruction filters and normalisation</td><td>Undocumented smoothing and intensity scaling</td><td>Record everything; validate across scanners; never assume</td></tr>
+<tr><td>Rician noise floor</td><td>Positive bias in low-signal regions</td><td>MP-PCA denoising and noise-floor-aware fitting</td></tr>
+</tbody>
+</table>
+</div>
+
+<figure class="wide">
+<div class="widget">
+  <div class="canvas-row">
+    <div class="canvas-cell"><div class="cname">acquired (with bias field)</div>
+      <canvas id="bi" width="128" height="128" style="width:210px;height:210px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">estimated bias field</div>
+      <canvas id="bf" width="128" height="128" style="width:210px;height:210px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">corrected</div>
+      <canvas id="bc" width="128" height="128" style="width:210px;height:210px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">intensity histogram</div>
+      <canvas id="bh" width="300" height="210"></canvas></div>
+  </div>
+  <div class="controls">
+    <label><span class="cap">Bias field strength <output id="bs-out"></output></span>
+      <input id="bs" type="range" min="0" max="100" step="1" value="60"></label>
+    <label><span class="cap">Smoothing scale for the estimate <output id="bw-out"></output></span>
+      <input id="bw" type="range" min="4" max="40" step="1" value="18"></label>
+    <label><span class="cap">Noise <output id="bn-out"></output></span>
+      <input id="bn" type="range" min="0" max="30" step="1" value="4"></label>
+  </div>
+  <div class="readout" id="bout"></div>
+</div>
+<figcaption><b>Interactive 16.1 — Why bias correction comes before segmentation.</b> The histogram
+shows grey and white matter as two peaks. With a bias field they smear into one another and no
+intensity threshold can separate them — which is exactly why naive thresholding fails on real MRI
+and why every serious pipeline runs N4 first. The correction here is a simplified homomorphic
+filter (smooth the log image, subtract, exponentiate); N4ITK does the same thing far more carefully,
+with B-spline fitting and histogram sharpening. Note the failure mode: set the smoothing scale too
+small and the "bias field" starts absorbing real anatomy, flattening the very contrast you wanted.</figcaption>
+</figure>
+
+<h2>16.3 &nbsp;Geometry, and the affine that everyone gets wrong once</h2>
+
+<p>A volume is not an array; it is an array plus a mapping into physical space. That mapping is a
+4×4 affine matrix carrying voxel size, orientation and origin. Two conventions dominate and they
+disagree about signs: <strong>DICOM/ITK use LPS</strong> (+x left, +y posterior, +z superior) while
+<strong>NIfTI and most neuroimaging tools use RAS</strong>. Converting between them flips two axes.
+Every left-right mix-up in the literature comes from this.</p>
+
+<ul>
+<li><strong>Resample deliberately.</strong> Registration, atlas mapping and network input sizes all
+imply resampling. Use linear or B-spline interpolation for images, and <em>nearest neighbour for
+label maps</em> — interpolating labels invents nonexistent classes at boundaries.</li>
+<li><strong>Anisotropic voxels are the norm.</strong> A clinical 2D T2 is often 0.5 × 0.5 × 5 mm.
+Feeding that to an isotropic 3D network without resampling means the network sees a
+ten-to-one geometric distortion it was never told about.</li>
+<li><strong>Distortion is real geometry, not noise.</strong> EPI-based diffusion and fMRI are warped
+by several millimetres near air; correcting with a field map or reverse-phase-encode pair (topup)
+is mandatory before overlaying them on an anatomical scan.</li>
+</ul>
+
+<h2>16.4 &nbsp;A standard structural pipeline</h2>
+
+<figure class="wide">
+<svg viewBox="0 0 860 400" width="860" height="400" role="img" aria-label="Structural MRI processing pipeline">
+  <defs>
+    <marker id="pa" markerWidth="8" markerHeight="8" refX="6" refY="2.8" orient="auto"><path d="M0,0 L6,2.8 L0,5.6 z" fill="var(--ink-faint)"/></marker>
+  </defs>
+  <text class="lbl-b" x="20" y="24">A conventional structural pipeline, and what each step protects you from</text>
+  <g font-family="ui-sans-serif, system-ui">
+    <g id="steps">
+      <g><rect x="30" y="50" width="180" height="46" rx="6" fill="var(--bg-sunken)" stroke="var(--accent2)" stroke-width="1.5"/>
+         <text x="120" y="72" text-anchor="middle" class="lbl-b">1 · Convert &amp; organise</text>
+         <text x="120" y="88" text-anchor="middle" class="lbl-sm">dcm2niix → NIfTI + BIDS</text></g>
+      <g><rect x="30" y="112" width="180" height="46" rx="6" fill="var(--bg-sunken)" stroke="var(--accent2)" stroke-width="1.5"/>
+         <text x="120" y="134" text-anchor="middle" class="lbl-b">2 · Denoise &amp; de-Gibbs</text>
+         <text x="120" y="150" text-anchor="middle" class="lbl-sm">MP-PCA, subvoxel-shift</text></g>
+      <g><rect x="30" y="174" width="180" height="46" rx="6" fill="var(--bg-sunken)" stroke="var(--accent2)" stroke-width="1.5"/>
+         <text x="120" y="196" text-anchor="middle" class="lbl-b">3 · Bias correction</text>
+         <text x="120" y="212" text-anchor="middle" class="lbl-sm">N4ITK</text></g>
+      <g><rect x="30" y="236" width="180" height="46" rx="6" fill="var(--bg-sunken)" stroke="var(--accent2)" stroke-width="1.5"/>
+         <text x="120" y="258" text-anchor="middle" class="lbl-b">4 · Brain extraction</text>
+         <text x="120" y="274" text-anchor="middle" class="lbl-sm">HD-BET, SynthStrip, BET</text></g>
+      <g><rect x="30" y="298" width="180" height="46" rx="6" fill="var(--bg-sunken)" stroke="var(--accent2)" stroke-width="1.5"/>
+         <text x="120" y="320" text-anchor="middle" class="lbl-b">5 · Registration</text>
+         <text x="120" y="336" text-anchor="middle" class="lbl-sm">ANTs, elastix, FLIRT/FNIRT</text></g>
+    </g>
+    <g>
+      <g><rect x="330" y="50" width="180" height="46" rx="6" fill="var(--bg-sunken)" stroke="var(--accent3)" stroke-width="1.5"/>
+         <text x="420" y="72" text-anchor="middle" class="lbl-b">6 · Intensity normalisation</text>
+         <text x="420" y="88" text-anchor="middle" class="lbl-sm">z-score, WhiteStripe, percentiles</text></g>
+      <g><rect x="330" y="112" width="180" height="46" rx="6" fill="var(--bg-sunken)" stroke="var(--accent3)" stroke-width="1.5"/>
+         <text x="420" y="134" text-anchor="middle" class="lbl-b">7 · Segmentation</text>
+         <text x="420" y="150" text-anchor="middle" class="lbl-sm">FAST, FreeSurfer, nnU-Net</text></g>
+      <g><rect x="330" y="174" width="180" height="46" rx="6" fill="var(--bg-sunken)" stroke="var(--accent3)" stroke-width="1.5"/>
+         <text x="420" y="196" text-anchor="middle" class="lbl-b">8 · Feature extraction</text>
+         <text x="420" y="212" text-anchor="middle" class="lbl-sm">volumes, thickness, radiomics</text></g>
+      <g><rect x="330" y="236" width="180" height="46" rx="6" fill="var(--bg-sunken)" stroke="var(--accent3)" stroke-width="1.5"/>
+         <text x="420" y="258" text-anchor="middle" class="lbl-b">9 · Harmonisation</text>
+         <text x="420" y="274" text-anchor="middle" class="lbl-sm">ComBat across sites/scanners</text></g>
+      <g><rect x="330" y="298" width="180" height="46" rx="6" fill="var(--bg-sunken)" stroke="var(--accent3)" stroke-width="1.5"/>
+         <text x="420" y="320" text-anchor="middle" class="lbl-b">10 · Statistics / model</text>
+         <text x="420" y="336" text-anchor="middle" class="lbl-sm">with patient-level splits</text></g>
+    </g>
+    <g stroke="var(--ink-faint)" fill="none" marker-end="url(#pa)">
+      <line x1="120" y1="96" x2="120" y2="110"/><line x1="120" y1="158" x2="120" y2="172"/>
+      <line x1="120" y1="220" x2="120" y2="234"/><line x1="120" y1="282" x2="120" y2="296"/>
+      <path d="M210,320 C 260,320 270,80 326,73"/>
+      <line x1="420" y1="96" x2="420" y2="110"/><line x1="420" y1="158" x2="420" y2="172"/>
+      <line x1="420" y1="220" x2="420" y2="234"/><line x1="420" y1="282" x2="420" y2="296"/>
+    </g>
+    <g class="lbl-sm">
+      <text x="540" y="62">Chapter 16.1 — wrong orientation, wrong spacing, wrong series</text>
+      <text x="540" y="80">are the commonest silent errors in the whole pipeline.</text>
+      <text x="540" y="112">Chapter 10 — Rician bias and Gibbs ringing both propagate</text>
+      <text x="540" y="130">directly into diffusion and relaxometry estimates.</text>
+      <text x="540" y="162">Chapter 9 — coil sensitivity shading is multiplicative;</text>
+      <text x="540" y="180">correct it before anything that assumes intensity means tissue.</text>
+      <text x="540" y="212">Skull, scalp fat and neck have no bearing on brain analysis</text>
+      <text x="540" y="230">and confuse both registration and normalisation.</text>
+      <text x="540" y="262">Registration puts subjects into a common space —</text>
+      <text x="540" y="280">and is the step most worth inspecting visually, every time.</text>
+      <text x="540" y="312">Chapter 16.2 — normalisation is what makes intensities</text>
+      <text x="540" y="330">comparable at all. Without it, models learn the scanner.</text>
+    </g>
+  </g>
+</svg>
+<figcaption><b>Figure 16.1 — The order matters.</b> Bias correction before normalisation before
+segmentation; brain extraction before registration for most structural work. Running these out of
+order rarely errors — it just quietly degrades everything downstream, which is far worse.</figcaption>
+</figure>
+
+<h2>16.5 &nbsp;Machine learning on MRI: the failure modes that are specific to this modality</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Failure mode</th><th>What happens</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td><b>The model learns the scanner</b></td><td>Site and vendor are correlated with the label in most multi-centre datasets. A classifier can reach high accuracy purely from noise texture and recon filtering</td><td>Site-stratified splits, leave-one-site-out validation, ComBat, aggressive intensity augmentation, and testing on a genuinely external site</td></tr>
+<tr><td><b>Patient leakage</b></td><td>Slices or timepoints from the same patient land in both train and test; performance is inflated dramatically</td><td>Split by patient, always. Never by slice, never by study</td></tr>
+<tr><td><b>Contrast is not standardised</b></td><td>"T1-weighted" spans a wide range of TR/TE/sequence; a model trained on MPRAGE may fail on 2D spin-echo T1</td><td>Filter by acquisition parameters not series description; augment across contrast; or train on physics-simulated variation</td></tr>
+<tr><td><b>Anisotropic and inconsistent geometry</b></td><td>Networks assume consistent voxel size; clinical data does not provide it</td><td>Resample to a fixed spacing, or use spacing-aware architectures (nnU-Net does this automatically and is a strong baseline for exactly this reason)</td></tr>
+<tr><td><b>Class imbalance</b></td><td>A lesion may be 0.01% of voxels; a network that predicts all-background scores 99.99% accuracy</td><td>Dice or Tversky losses, patch sampling biased to the foreground, and reporting sensitivity per lesion, not per voxel</td></tr>
+<tr><td><b>Metric–task mismatch</b></td><td>High Dice on large structures hides complete failure on the small ones that matter</td><td>Report lesion-wise detection, size-stratified Dice, and surface distances alongside volumetric overlap</td></tr>
+<tr><td><b>Artifacts as confounders</b></td><td>Motion correlates with pathology (patients who are unwell move more), so a model can learn motion instead of disease</td><td>Quality control every input; record and adjust for QC metrics; exclude on prospective criteria, not on outcome</td></tr>
+<tr><td><b>Reconstruction hallucination</b></td><td>Accelerated learned reconstruction may synthesise or erase small features upstream of your model</td><td>Know which recon produced your data; prefer classically reconstructed data for quantitative work</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note intuition">
+<span class="label">The most useful habit you can build</span>
+<p>For every dataset, write down the acquisition parameters of every series you use: field strength,
+vendor, sequence, TR, TE, TI, flip angle, voxel size, acceleration factor, reconstruction method.
+Not because you will use them all as features, but because when the model behaves strangely, that
+table is where the answer almost always is. Half of "the model does not generalise" turns out on
+inspection to be "site B used a different sequence".</p>
+</div>
+
+<h2>16.6 &nbsp;The toolchain</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Tool</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td><b>dcm2niix</b></td><td>DICOM → NIfTI conversion with a BIDS-compatible JSON sidecar. The standard entry point</td></tr>
+<tr><td><b>nibabel</b>, <b>pydicom</b></td><td>Python reading and writing of NIfTI and DICOM; nibabel's affine handling is the reference implementation</td></tr>
+<tr><td><b>SimpleITK / ITK</b></td><td>Registration, resampling, filtering, N4 bias correction. Careful, well-tested geometry handling</td></tr>
+<tr><td><b>ANTs / ANTsPy</b></td><td>State-of-the-art registration (SyN) and N4; the reference for deformable alignment</td></tr>
+<tr><td><b>FSL</b></td><td>Complete neuroimaging suite: FLIRT/FNIRT, FAST, BET, FEAT, TOPUP/EDDY for diffusion</td></tr>
+<tr><td><b>FreeSurfer</b></td><td>Cortical surface reconstruction, thickness, subcortical segmentation; SynthStrip and SynthSeg are excellent modern components</td></tr>
+<tr><td><b>MRtrix3</b></td><td>Diffusion modelling and tractography, including MP-PCA denoising and Gibbs removal</td></tr>
+<tr><td><b>MONAI</b>, <b>TorchIO</b>, <b>nnU-Net</b></td><td>Deep learning for medical imaging: transforms, patch sampling, and a self-configuring segmentation baseline that is hard to beat</td></tr>
+<tr><td><b>3D Slicer</b>, <b>ITK-SNAP</b>, <b>FSLeyes</b></td><td>Visualisation and manual annotation. Look at your data; look at it often</td></tr>
+<tr><td><b>BART</b>, <b>SigPy</b>, <b>Pulseq</b></td><td>Reconstruction from raw k-space, and open-source pulse sequence programming if you want to go back upstream</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>16.7 &nbsp;A checklist before you train anything</h2>
+<ol>
+<li>Do I know the sequence and parameters of every series, from the headers rather than the description?</li>
+<li>Have I looked at fifty images, including the bad ones? Do I know what the artifacts in this dataset look like?</li>
+<li>Is my split by patient, and stratified by site and scanner?</li>
+<li>Have I applied bias correction and a defensible intensity normalisation, in that order?</li>
+<li>Is the geometry consistent — spacing, orientation, and the affine — and have I verified an overlay visually?</li>
+<li>Are labels interpolated with nearest neighbour?</li>
+<li>Does my metric reflect the clinical task, including small and rare targets?</li>
+<li>Do I have an external test set from a scanner the model has never seen?</li>
+<li>Can I explain what a failure case has in common, in physics terms?</li>
+</ol>
+
+<div class="keypoints">
+<h3>Key points</h3>
+<ul>
+<li><b>DICOM headers carry the geometry and the physics.</b> Sort by position, respect rescale slope, distrust the series description.</li>
+<li><b>MRI intensities are arbitrary.</b> Bias correction and normalisation are not optional preprocessing niceties; they are what makes the data comparable at all.</li>
+<li><b>Bias correction precedes segmentation</b>, because a smooth multiplicative field defeats any intensity threshold.</li>
+<li><b>Geometry is a matrix, not a shape.</b> LPS versus RAS causes real left–right errors.</li>
+<li><b>The commonest ML failure is learning the scanner</b>, and the fix is validation design, not architecture.</li>
+<li><b>Everything upstream is visible downstream</b> — which is precisely why the previous fifteen chapters were worth reading.</li>
+</ul>
+</div>
+
+<h2>Going deeper</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://bids.neuroimaging.io/" target="_blank" rel="noopener">
+    <span class="k">Standard</span><span class="t">BIDS — Brain Imaging Data Structure</span>
+    <span class="d">A file-naming and metadata convention that makes datasets self-describing and pipelines interoperable. Adopting it early saves a great deal of pain.</span></a>
+  <a class="linkcard" href="https://nipy.org/nibabel/coordinate_systems.html" target="_blank" rel="noopener">
+    <span class="k">Documentation</span><span class="t">nibabel — coordinate systems and affines</span>
+    <span class="d">The clearest explanation anywhere of voxel-to-world mapping, RAS vs LPS, and how to avoid flipping your data.</span></a>
+  <a class="linkcard" href="https://github.com/MIC-DKFZ/nnUNet" target="_blank" rel="noopener">
+    <span class="k">Software</span><span class="t">nnU-Net</span>
+    <span class="d">Self-configuring segmentation that adapts preprocessing to the dataset’s spacing and intensity distribution. Even if you build your own model, run this first as a baseline.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=neuroimaging+preprocessing+pipeline+registration+bias+correction+tutorial" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Neuroimaging preprocessing tutorials</span>
+    <span class="d">FSL and ANTs course recordings walk through each step on real data, including how to tell when registration has failed.</span></a>
+</div>
+
+<div class="refs">
+<h3>References</h3>
+<ol>
+<li>Tustison, N. J. et al. “N4ITK: improved N3 bias correction.” <i>IEEE TMI</i> 29:1310–1320, 2010.</li>
+<li>Avants, B. B. et al. “A reproducible evaluation of ANTs similarity metric performance in brain image registration.” <i>NeuroImage</i> 54:2033–2044, 2011.</li>
+<li>Isensee, F. et al. “nnU-Net: a self-configuring method for deep learning-based biomedical image segmentation.” <i>Nature Methods</i> 18:203–211, 2021.</li>
+<li>Fortin, J.-P. et al. “Harmonization of multi-site diffusion tensor imaging data.” <i>NeuroImage</i> 161:149–170, 2017. — ComBat for imaging.</li>
+<li>Gorgolewski, K. J. et al. “The brain imaging data structure, a format for organizing and describing outputs of neuroimaging experiments.” <i>Scientific Data</i> 3:160044, 2016.</li>
+<li>Veraart, J. et al. “Denoising of diffusion MRI using random matrix theory.” <i>NeuroImage</i> 142:394–406, 2016. — MP-PCA.</li>
+<li>Li, X., Morgan, P. S., Ashburner, J., Smith, J., Rorden, C. “The first step for neuroimaging data analysis: DICOM to NIfTI conversion.” <i>J. Neurosci. Methods</i> 264:47–56, 2016. — dcm2niix.</li>
+</ol>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+<script src="assets/fft.js"></script>
+<script src="assets/phantom.js"></script>
+<script>
+/* ---------- Interactive 16.1 : bias field and correction ---------- */
+(function () {
+  const N = 128;
+  const lbl = buildPhantom(N);
+  const cI = document.getElementById("bi"), cF = document.getElementById("bf");
+  const cC = document.getElementById("bc"), cH = document.getElementById("bh");
+  const ctxH = hidpi(cH, 300, 210);
+  const out = document.getElementById("bout");
+
+  const clean = new Float64Array(N * N);
+  {
+    // MPRAGE-like T1 volume: inversion preparation separates grey and white matter
+    // far better than a plain short-TR spin echo, which is exactly why it is the
+    // standard input to segmentation pipelines
+    const lut = TISSUE_KEYS.map(k => signalIR(TISSUES[k], 2000, 3, 900));
+    let mx = 0; for (const v of lut) mx = Math.max(mx, v);
+    for (let i = 0; i < N * N; i++) clean[i] = lut[lbl[i]] / mx;
+  }
+  const gmIdx = TISSUE_KEYS.indexOf("gm"), wmIdx = TISSUE_KEYS.indexOf("wm");
+
+  let strength = 60, scale = 18, noise = 4;
+
+  /** separable box blur repeated 3× ≈ Gaussian */
+  function blur(src, r) {
+    let a = Float64Array.from(src), b = new Float64Array(N * N);
+    for (let pass = 0; pass < 3; pass++) {
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        let s = 0, n = 0;
+        for (let d = -r; d <= r; d++) { const ii = i + d; if (ii < 0 || ii >= N) continue; s += a[j * N + ii]; n++; }
+        b[j * N + i] = s / n;
+      }
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        let s = 0, n = 0;
+        for (let d = -r; d <= r; d++) { const jj = j + d; if (jj < 0 || jj >= N) continue; s += b[jj * N + i]; n++; }
+        a[j * N + i] = s / n;
+      }
+    }
+    return a;
+  }
+
+  function render() {
+    const s = strength / 100;
+    // synthesise a smooth multiplicative bias field
+    const bias = new Float64Array(N * N);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const x = i / N - 0.5, y = j / N - 0.5;
+      const f = 1 + s * (0.85 * Math.cos(2.1 * x + 0.6) * Math.cos(1.7 * y - 0.4)
+                        - 1.15 * (x * x + y * y) + 0.35 * Math.sin(3.0 * y));
+      bias[j * N + i] = Math.max(0.15, f);
+    }
+    const acq = new Float64Array(N * N);
+    for (let k = 0; k < N * N; k++)
+      acq[k] = Math.max(0, clean[k] * bias[k] + (Math.random() - .5) * noise * 0.01);
+    paint(cI, acq, N, N, { gamma: 0.9 });
+
+    /* Homomorphic estimate of the bias field.
+       Two details matter and are the usual source of bugs: the estimate must be
+       computed inside a mask (otherwise the dark background drags the field down
+       at the edges of the object), and it must be normalised to mean 1 so that
+       correction does not change the overall brightness. */
+    let amax = 0; for (let k = 0; k < N * N; k++) amax = Math.max(amax, acq[k]);
+    const mask = new Uint8Array(N * N);
+    for (let k = 0; k < N * N; k++) mask[k] = acq[k] > 0.08 * amax ? 1 : 0;
+
+    const eps = 1e-3;
+    const logImg = new Float64Array(N * N);
+    let lmean = 0, lcnt = 0;
+    for (let k = 0; k < N * N; k++) if (mask[k]) { lmean += Math.log(Math.max(eps, acq[k])); lcnt++; }
+    lmean = lcnt ? lmean / lcnt : 0;
+    // fill the background with the object's mean log intensity before blurring
+    for (let k = 0; k < N * N; k++)
+      logImg[k] = mask[k] ? Math.log(Math.max(eps, acq[k])) : lmean;
+
+    const logBias = blur(logImg, Math.max(1, Math.round(scale)));
+    let bmean = 0, bcnt = 0;
+    for (let k = 0; k < N * N; k++) if (mask[k]) { bmean += logBias[k]; bcnt++; }
+    bmean = bcnt ? bmean / bcnt : 0;
+
+    const est = new Float64Array(N * N), corr = new Float64Array(N * N);
+    for (let k = 0; k < N * N; k++) {
+      est[k] = Math.exp(logBias[k] - bmean);
+      corr[k] = mask[k] ? acq[k] / Math.max(0.2, est[k]) : 0;
+    }
+    let cmax = 0; for (let k = 0; k < N * N; k++) if (mask[k]) cmax = Math.max(cmax, corr[k]);
+    // autoscale the bias display so its structure is visible at any strength
+    let emin = 1e9, emax = 0;
+    for (let k = 0; k < N * N; k++) if (mask[k]) { emin = Math.min(emin, est[k]); emax = Math.max(emax, est[k]); }
+    const edisp = new Float64Array(N * N);
+    for (let k = 0; k < N * N; k++) edisp[k] = (est[k] - emin) / Math.max(1e-6, emax - emin);
+    paint(cF, edisp, N, N, { gamma: 1, max: 1, tint: [1, .72, .5] });
+    paint(cC, corr, N, N, { gamma: 0.9, max: cmax });
+
+    /* histogram of GM and WM intensities, before and after */
+    function hist(src) {
+      const hg = new Float64Array(64), hw = new Float64Array(64);
+      let mx = 1e-9; for (let k = 0; k < N * N; k++) mx = Math.max(mx, src[k]);
+      for (let k = 0; k < N * N; k++) {
+        const b = Math.min(63, Math.floor(src[k] / mx * 63));
+        if (lbl[k] === gmIdx) hg[b]++;
+        else if (lbl[k] === wmIdx) hw[b]++;
+      }
+      return [hg, hw];
+    }
+    const [ag, aw] = hist(acq), [cg, cw] = hist(corr);
+    ctxH.clearRect(0, 0, 300, 210);
+    ctxH.fillStyle = cssv("--bg-sunken"); ctxH.fillRect(0, 0, 300, 210);
+    ctxH.font = "10px ui-sans-serif, system-ui";
+    function plot(hg, hw, y0, h, title) {
+      let mx = 1e-9;
+      for (let i = 0; i < 64; i++) { mx = Math.max(mx, hg[i], hw[i]); }
+      ctxH.fillStyle = cssv("--ink-soft"); ctxH.fillText(title, 8, y0 - 4);
+      for (let i = 0; i < 64; i++) {
+        const x = 8 + i * 4.4;
+        ctxH.fillStyle = "rgba(111,179,221,.75)";
+        ctxH.fillRect(x, y0 + h - h * hg[i] / mx, 4, h * hg[i] / mx);
+        ctxH.fillStyle = "rgba(226,114,110,.6)";
+        ctxH.fillRect(x, y0 + h - h * hw[i] / mx, 4, h * hw[i] / mx);
+      }
+      ctxH.strokeStyle = cssv("--rule");
+      ctxH.beginPath(); ctxH.moveTo(8, y0 + h); ctxH.lineTo(290, y0 + h); ctxH.stroke();
+    }
+    plot(ag, aw, 22, 66, "before — grey (blue) and white (red) overlap");
+    plot(cg, cw, 130, 66, "after correction — peaks separate again");
+
+    // overlap metric
+    function overlap(hg, hw) {
+      let sg = 0, sw = 0, ov = 0;
+      for (let i = 0; i < 64; i++) { sg += hg[i]; sw += hw[i]; }
+      for (let i = 0; i < 64; i++) ov += Math.min(hg[i] / (sg || 1), hw[i] / (sw || 1));
+      return ov;
+    }
+    const oB = overlap(ag, aw), oA = overlap(cg, cw);
+    out.textContent =
+`bias field varies by ${(strength * 0.9).toFixed(0)} % across the field of view
+histogram overlap between grey and white matter: ${(oB * 100).toFixed(1)} % before → ${(oA * 100).toFixed(1)} % after
+${oA < oB ? "correction has separated the tissue classes: a simple intensity threshold could now work"
+          : "correction has not helped at this setting — check the smoothing scale"}
+${scale < 8 ? "⚠ smoothing scale is small: the 'bias field' is absorbing real anatomy, which flattens genuine contrast. A bias field must be much smoother than the structures you care about."
+            : scale > 32 ? "very smooth estimate: safe, but slow-varying shading may remain uncorrected."
+            : "smoothing scale is reasonable — much coarser than anatomy, fine enough to track the shading."}`;
+  }
+  slider("bs", v => (strength = v, v === 0 ? "none" : v + " %"), render);
+  slider("bw", v => (scale = v, v + " px"), render);
+  slider("bn", v => (noise = v, v === 0 ? "none" : v + " (arb.)"), render);
+  window.addEventListener("themechange", render);
+  render();
+})();
+</script>
+</body>
+</html>

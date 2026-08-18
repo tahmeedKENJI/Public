@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4 · Relaxation: T1, T2, T2* — MRI Visual Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="eyebrow">Part I · The Physics</p>
+<h1>Relaxation: T1, T2, T2* and the Bloch Equations</h1>
+<p class="dek">Excitation is the same for every tissue. What makes a tumour look different from
+the brain around it is what happens <em>afterwards</em> — how fast the magnetization returns to
+equilibrium, and how fast the spins lose their common phase. These are two independent processes
+with two independent time constants, and essentially all of MRI contrast lives in the gap between them.</p>
+
+<h2>4.1 &nbsp;Two clocks, not one</h2>
+
+<p>Immediately after a 90° pulse, the magnetization lies in the transverse plane: M<sub>z</sub> = 0,
+M<sub>xy</sub> = M₀. The system is far from equilibrium in two separate ways, and it fixes them by
+two separate mechanisms.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th></th><th>T1 — longitudinal / spin–lattice</th><th>T2 — transverse / spin–spin</th></tr></thead>
+<tbody>
+<tr><td><b>What changes</b></td><td>M<sub>z</sub> grows back toward M₀</td><td>M<sub>xy</sub> shrinks toward 0</td></tr>
+<tr><td><b>Energy</b></td><td>Spins must <em>give energy away</em> to the surrounding molecular lattice</td><td>No net energy exchange — only loss of phase order</td></tr>
+<tr><td><b>Requires</b></td><td>Fluctuating fields <em>at the Larmor frequency</em> to stimulate transitions</td><td>Any field fluctuation, including very slow ones</td></tr>
+<tr><td><b>Entropy</b></td><td>Order is restored (energy leaves)</td><td>Order is destroyed (phase information is scrambled)</td></tr>
+<tr><td><b>Typical brain values</b></td><td>250–4500 ms</td><td>40–2000 ms</td></tr>
+<tr><td><b>Constraint</b></td><td colspan="2">T2 ≤ T1 always. Anything that returns M<sub>z</sub> also destroys M<sub>xy</sub>, but the reverse is not true.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="eq">
+  <span class="eq-name">4.1 · 4.2</span>
+  M<sub>z</sub>(<var>t</var>) = M₀ (1 − e<sup>−<var>t</var>/T1</sup>) &nbsp;&nbsp;&nbsp;&nbsp;
+  M<sub>xy</sub>(<var>t</var>) = M₀ e<sup>−<var>t</var>/T2</sup>
+  <span class="where">Assuming a starting point of M<sub>z</sub> = 0 and M<sub>xy</sub> = M₀,
+  i.e. immediately after a 90° pulse. After time T1 the longitudinal magnetization has recovered
+  63%; after 3×T1, 95%; after 5×T1, 99%. After time T2 the transverse signal has fallen to 37%.</span>
+</div>
+
+<figure class="wide">
+<div class="widget">
+  <canvas id="curves" width="820" height="360"></canvas>
+  <div class="controls">
+    <label><span class="cap">Time axis span <output id="tmax-out"></output></span>
+      <input id="tmax" type="range" min="200" max="6000" step="100" value="2500"></label>
+    <label><span class="cap">Readout time marker <output id="tm-out"></output></span>
+      <input id="tm" type="range" min="0" max="100" step="0.5" value="24"></label>
+    <label><span class="cap">Show</span>
+      <select id="mode">
+        <option value="both" selected>T1 recovery and T2 decay</option>
+        <option value="t1">T1 recovery only</option>
+        <option value="t2">T2 decay only</option>
+      </select></label>
+  </div>
+  <div class="readout" id="curve-out"></div>
+</div>
+<figcaption><b>Interactive 4.1 — Where contrast comes from.</b> Solid curves: recovery of
+M<sub>z</sub> (T1). Dashed curves: decay of M<sub>xy</sub> (T2). Drag the time marker and read the
+vertical <i>separation</i> between tissues — that separation is contrast. Notice that T1 contrast
+between white and grey matter peaks at a few hundred milliseconds and vanishes at both extremes:
+too early and nothing has recovered, too late and everything has. Notice too that CSF is the
+outlier on both curves, which is why it is the tissue that flips from black to white as you change
+weighting.</figcaption>
+</figure>
+
+<h2>4.2 &nbsp;Why T1 depends on molecular tumbling</h2>
+
+<p>T1 relaxation needs a mechanism to carry energy away, and the mechanism is other magnetic
+moments moving nearby. Each proton sits in the dipole field of its neighbours (Figure 1.1b);
+as molecules tumble, translate and vibrate, that local field fluctuates. Fourier-analyse the
+fluctuation and you get a <strong>spectral density</strong> J(ω): how much power the molecular motion
+has at each frequency. Only the power <em>at the Larmor frequency</em> can stimulate the transitions
+that change M<sub>z</sub>.</p>
+
+<p>This gives the central result of Bloembergen–Purcell–Pound theory, and the famous curve:</p>
+
+<figure class="wide">
+<svg viewBox="0 0 860 380" width="860" height="380" role="img" aria-label="T1 and T2 versus molecular correlation time">
+  <g transform="translate(110,45)">
+    <line x1="0" y1="0" x2="0" y2="250" class="axis"/>
+    <line x1="0" y1="250" x2="640" y2="250" class="axis"/>
+    <text x="-72" y="-16" class="lbl">relaxation<tspan x="-72" dy="14">time (log)</tspan></text>
+    <text x="320" y="292" text-anchor="middle" class="lbl">molecular correlation time τ_c (log scale) — how long a molecule keeps its orientation</text>
+
+    <!-- T1 curve: V shape with minimum where w0*tc = 1 -->
+    <path d="M10,30 C 90,120 160,205 250,215 C 330,224 360,200 420,150 C 480,100 550,52 630,26"
+          fill="none" stroke="var(--accent2)" stroke-width="3"/>
+    <!-- T2 curve: monotonic decrease then plateau -->
+    <path d="M10,32 C 90,124 170,206 250,224 C 340,242 460,246 630,247"
+          fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="7 4"/>
+
+    <text x="640" y="26" class="lbl-b" style="fill:var(--accent2)">T1</text>
+    <text x="640" y="252" class="lbl-b" style="fill:var(--accent)">T2</text>
+
+    <!-- minimum marker -->
+    <line x1="262" y1="216" x2="262" y2="250" stroke="var(--accent4)" stroke-width="1.4" stroke-dasharray="3 3"/>
+    <circle cx="262" cy="216" r="4" fill="var(--accent4)"/>
+    <text x="268" y="208" class="lbl-sm" style="fill:var(--accent4)">T1 minimum: ω₀τ_c ≈ 1</text>
+    <text x="268" y="222" class="lbl-sm">motion is “tuned” to the Larmor frequency</text>
+
+    <!-- regime bands -->
+    <g class="lbl-sm" text-anchor="middle">
+      <rect x="0" y="256" width="200" height="0" />
+      <text x="95" y="272">fast tumbling</text>
+      <text x="95" y="286">free water, CSF</text>
+      <text x="320" y="272">intermediate</text>
+      <text x="320" y="286">fat, protein-bound water, tissue</text>
+      <text x="560" y="272">slow / rigid</text>
+      <text x="560" y="286">macromolecules, ice, bone, myelin</text>
+    </g>
+    <g class="grid">
+      <line x1="200" y1="0" x2="200" y2="258"/><line x1="440" y1="0" x2="440" y2="258"/>
+    </g>
+
+    <!-- annotations -->
+    <text x="30" y="60" class="lbl-sm">both long:</text>
+    <text x="30" y="74" class="lbl-sm">little power at ω₀,</text>
+    <text x="30" y="88" class="lbl-sm">and no static dephasing</text>
+    <text x="470" y="86" class="lbl-sm">T1 long again (motion too slow to reach ω₀)</text>
+    <text x="470" y="232" class="lbl-sm">but T2 stays very short — static local fields</text>
+  </g>
+  <text class="lbl-b" x="20" y="26">The BPP curve: why T1 has a minimum and T2 does not</text>
+</svg>
+<figcaption><b>Figure 4.1 — Relaxation is a resonance phenomenon too.</b> T1 is shortest when the
+molecular tumbling rate matches the Larmor frequency (ω₀τ<sub>c</sub> ≈ 1). Fat sits near that
+optimum, which is why fat has a famously short T1 (~250 ms) and appears bright on T1-weighted
+images. Free water tumbles far too fast, has little spectral power at 64 MHz, and therefore has a
+very long T1 — CSF at ~4000 ms. Rigid solids tumble too slowly for T1 but their <em>static</em>
+local fields destroy phase immediately, so T2 collapses to microseconds. This curve also explains
+why T1 lengthens with field strength (ω₀ moves right, away from the tissue's motional peak) while
+T2 barely changes.</figcaption>
+</figure>
+
+<h2>4.3 &nbsp;T2 versus T2*: reversible and irreversible dephasing</h2>
+
+<p>The signal you actually observe after a single 90° pulse — the <strong>free induction decay</strong>,
+or FID — dies far faster than T2. Two different things are dephasing the spins at once:</p>
+
+<ul>
+<li><strong>True T2</strong> — random, time-varying fields from neighbouring molecules. Each spin's
+accumulated phase error is a random walk. This is <em>irreversible</em>; no experiment can undo it.</li>
+<li><strong>T2′</strong> — static field inhomogeneity: imperfect shimming, air–tissue interfaces,
+metal, deoxyhaemoglobin. A spin in a slightly higher field runs slightly fast, <em>consistently</em>.
+This is <em>reversible</em>, because a spin that has been running fast can be made to run slow.</li>
+</ul>
+
+<div class="eq">
+  <span class="eq-name">4.3</span>
+  1/T2* = 1/T2 + 1/T2′ = 1/T2 + γ ΔB<sub>0</sub>
+  <span class="where">Rates add, not times. Because T2′ is often much shorter than T2, T2* is
+  dominated by inhomogeneity: in the brain at 3 T, T2 ≈ 80 ms but T2* ≈ 40 ms, and near the
+  sinuses T2* can fall below 20 ms.</span>
+</div>
+
+<figure class="wide">
+<div class="widget">
+  <div class="canvas-row">
+    <div class="canvas-cell">
+      <div class="cname">Isochromats in the rotating frame</div>
+      <canvas id="fan" width="330" height="300"></canvas>
+    </div>
+    <div class="canvas-cell">
+      <div class="cname">Signal in the coil</div>
+      <canvas id="fid" width="470" height="300"></canvas>
+    </div>
+  </div>
+  <div class="controls">
+    <label><span class="cap">Field inhomogeneity (sets T2′) <output id="inh-out"></output></span>
+      <input id="inh" type="range" min="0" max="100" step="1" value="45"></label>
+    <label><span class="cap">Intrinsic T2 <output id="t2-out"></output></span>
+      <input id="t2" type="range" min="10" max="300" step="5" value="120"></label>
+    <div class="btnrow"><button id="pulse90">90° pulse</button></div>
+  </div>
+  <div class="readout" id="fid-out"></div>
+</div>
+<figcaption><b>Interactive 4.2 — The free induction decay.</b> Left: a fan of isochromats — groups
+of spins that share a local field. With inhomogeneity at zero they stay together and decay only by
+true T2. Turn inhomogeneity up and the fan spreads: some spins run fast, some slow, and their vector
+sum collapses long before any individual spin has lost coherence. Right: the resulting FID, with the
+T2 envelope drawn for comparison. The gap between the two envelopes is exactly the signal that a
+spin echo will recover in Chapter 5.</figcaption>
+</figure>
+
+<h2>4.4 &nbsp;The Bloch equations</h2>
+
+<p>Felix Bloch wrote down the whole of classical MR in 1946 by adding two phenomenological decay
+terms to the precession equation. Every simulator, every sequence design tool, and every animation
+in this guide is ultimately integrating these three lines:</p>
+
+<div class="eq">
+  <span class="eq-name">4.4</span>
+  d<b>M</b>/d<var>t</var> = γ (<b>M</b> × <b>B</b>) − (M<sub>x</sub><b>x̂</b> + M<sub>y</sub><b>ŷ</b>)/T2 − (M<sub>z</sub> − M₀)<b>ẑ</b>/T1
+  <span class="where">First term: precession about whatever field is present (B₀, B₁, gradients —
+  all of them at once). Second: transverse components leak away with time constant T2. Third:
+  longitudinal component is pulled back toward M₀ with time constant T1. Nothing else is needed to
+  describe a conventional imaging experiment.</span>
+</div>
+
+<div class="note">
+<span class="label">What the Bloch equations deliberately omit</span>
+<p>They are phenomenological — T1 and T2 are inserted as measured constants, not derived. They
+assume a single, well-mixed pool of spins, so they cannot describe magnetization transfer between
+free water and macromolecular protons, chemical exchange (CEST), or diffusion through a field
+gradient without extension (Bloch–Torrey adds a diffusion term; Bloch–McConnell adds exchanging
+pools). Each of those extensions became a whole imaging modality — see Chapter 13.</p>
+</div>
+
+<h2>4.5 &nbsp;Real numbers</h2>
+
+<div class="tablewrap">
+<table>
+<caption>Representative in-vivo relaxation times. Values vary between studies, subjects and
+measurement methods by 10–20%; use them to reason about sequence design, not for quantitation.
+Note the systematic trend: T1 lengthens with field, T2 shortens slightly, T2* shortens markedly.</caption>
+<thead><tr><th>Tissue</th><th>T1 @ 1.5 T</th><th>T1 @ 3 T</th><th>T2 @ 1.5 T</th><th>T2 @ 3 T</th><th>T2* @ 3 T</th></tr></thead>
+<tbody>
+<tr><td>White matter</td><td class="num">600–650</td><td class="num">830–900</td><td class="num">80</td><td class="num">70</td><td class="num">~50</td></tr>
+<tr><td>Grey matter</td><td class="num">900–1000</td><td class="num">1300–1400</td><td class="num">100</td><td class="num">90</td><td class="num">~50</td></tr>
+<tr><td>CSF</td><td class="num">3500–4500</td><td class="num">4000–4500</td><td class="num">1500–2000</td><td class="num">1500–2000</td><td class="num">~250</td></tr>
+<tr><td>Fat</td><td class="num">250–290</td><td class="num">350–380</td><td class="num">70–85</td><td class="num">60–80</td><td class="num">~30</td></tr>
+<tr><td>Muscle</td><td class="num">850–900</td><td class="num">1400</td><td class="num">45–50</td><td class="num">30–50</td><td class="num">~25</td></tr>
+<tr><td>Liver</td><td class="num">570</td><td class="num">800–810</td><td class="num">45</td><td class="num">40–45</td><td class="num">~20</td></tr>
+<tr><td>Blood (arterial)</td><td class="num">1400</td><td class="num">1650–1930</td><td class="num">250</td><td class="num">140–275</td><td class="num">variable</td></tr>
+<tr><td>Cartilage</td><td class="num">1000</td><td class="num">1200</td><td class="num">30–45</td><td class="num">30–40</td><td class="num">~20</td></tr>
+<tr><td>Cortical bone</td><td class="num">~250</td><td class="num">~250</td><td class="num">&lt;1</td><td class="num">&lt;1</td><td class="num">0.3–0.5</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>4.6 &nbsp;Changing relaxation on purpose: contrast agents</h2>
+
+<p>If relaxation is caused by fluctuating local magnetic fields, then adding a strong, tumbling
+magnetic moment to the water will accelerate it. That is exactly what a gadolinium chelate does.
+Gd³⁺ has seven unpaired electrons and a magnetic moment ~658 times larger than a proton's, so
+water molecules that transiently coordinate with it experience an enormous fluctuating field.</p>
+
+<div class="eq">
+  <span class="eq-name">4.5</span>
+  1/T1<sub>obs</sub> = 1/T1<sub>0</sub> + <var>r</var><sub>1</sub> · [Gd]
+  <span class="where">Relaxivity r₁ is typically 3–5 mM⁻¹s⁻¹ at 1.5 T. Relaxation <b>rates</b>
+  add linearly in concentration — the basis of every quantitative perfusion and permeability
+  model in Chapter 13. The same agent also shortens T2 (r₂ ≳ r₁), which is why very high local
+  concentrations paradoxically cause signal <em>loss</em>.</span>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Agent class</th><th>Dominant effect</th><th>Appearance</th><th>Use</th></tr></thead>
+<tbody>
+<tr><td>Gadolinium chelates (Gd-DTPA, gadobutrol, gadoterate)</td><td>Shortens T1</td><td>Bright on T1w</td><td>Enhancement of vascular/leaky tissue: tumours, inflammation, breakdown of the blood–brain barrier</td></tr>
+<tr><td>Superparamagnetic iron oxide (SPIO/USPIO)</td><td>Shortens T2 and T2*</td><td>Dark</td><td>Liver, lymph node, macrophage tracking; largely research/limited availability</td></tr>
+<tr><td>Manganese, hepatobiliary Gd (gadoxetate)</td><td>Shortens T1, taken up by hepatocytes</td><td>Bright liver parenchyma</td><td>Focal liver lesion characterisation</td></tr>
+<tr><td>Endogenous deoxyhaemoglobin</td><td>Shortens T2*</td><td>Dark</td><td>BOLD contrast — the basis of fMRI (Chapter 13)</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note warn">
+<span class="label">Clinical caveat worth knowing</span>
+<p>Gadolinium is toxic as a free ion; safety depends entirely on the chelate holding it. Linear
+chelates release more Gd than macrocyclic ones, are associated with nephrogenic systemic fibrosis
+in severe renal impairment, and are the reason several agents have been restricted or withdrawn in
+Europe. Gadolinium deposition in the dentate nucleus and globus pallidus is documented; its clinical
+significance remains unsettled. This is a real constraint on protocol design, not a footnote.</p>
+</div>
+
+<div class="keypoints">
+<h3>Key points</h3>
+<ul>
+<li><b>T1 and T2 are independent</b> and describe different physics — energy loss versus phase loss. T2 ≤ T1 always.</li>
+<li><b>T1 requires spectral power at ω₀</b>; hence the BPP minimum, hence fat's short T1, hence T1 lengthening at high field.</li>
+<li><b>T2* mixes true T2 with static inhomogeneity.</b> 1/T2* = 1/T2 + γΔB₀; rates add.</li>
+<li><b>The FID decays with T2*</b>, not T2 — which is why almost every sequence forms an echo instead.</li>
+<li><b>The Bloch equations are the complete classical description</b>: precession plus two decay terms.</li>
+<li><b>Contrast agents work by adding relaxation rate</b>, linearly in concentration.</li>
+</ul>
+</div>
+
+<h2>Going deeper</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://mriquestions.com/" target="_blank" rel="noopener">
+    <span class="k">Reference site</span><span class="t">Q&amp;A in MRI — “Relaxation” section</span>
+    <span class="d">Elster’s explanation of why T1 has a minimum, with the BPP curve properly drawn, is the best short treatment available.</span></a>
+  <a class="linkcard" href="https://en.wikipedia.org/wiki/Relaxation_(NMR)" target="_blank" rel="noopener">
+    <span class="k">Reference</span><span class="t">Relaxation (NMR) — Wikipedia</span>
+    <span class="d">Includes the Solomon–Bloembergen equations if you want the spectral density functions written out.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=T1+T2+relaxation+MRI+physics+explained+animation" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">T1 and T2 relaxation animations</span>
+    <span class="d">Watch for the ones that animate the isochromat fan spreading — the fan is the mental model that makes echoes obvious later.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=bloch+equation+simulation+MRI" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Bloch equation simulations</span>
+    <span class="d">Several groups publish open Bloch simulators; seeing one driven by a real pulse sequence is a fast way to connect Chapters 4, 7 and 11.</span></a>
+</div>
+
+<div class="refs">
+<h3>References</h3>
+<ol>
+<li>Bloembergen, N., Purcell, E. M., Pound, R. V. “Relaxation effects in nuclear magnetic resonance absorption.” <i>Physical Review</i> 73:679–712, 1948. — The origin of the correlation-time picture.</li>
+<li>Bloch, F. “Nuclear Induction.” <i>Physical Review</i> 70:460–474, 1946.</li>
+<li>Stanisz, G. J. et al. “T1, T2 relaxation and magnetization transfer in tissue at 3T.” <i>Magnetic Resonance in Medicine</i> 54:507–512, 2005. — The most-cited source for the numbers in the table above.</li>
+<li>Wansapura, J. P. et al. “NMR relaxation times in the human brain at 3.0 tesla.” <i>JMRI</i> 9:531–538, 1999.</li>
+<li>Rohrer, M. et al. “Comparison of magnetic properties of MRI contrast media solutions at different magnetic field strengths.” <i>Investigative Radiology</i> 40:715–724, 2005. — Relaxivity values by agent and field.</li>
+</ol>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+<script>
+/* ---------- Interactive 4.1 : relaxation curves ---------- */
+(function () {
+  const cv = document.getElementById("curves");
+  const ctx = hidpi(cv, 820, 360);
+  const out = document.getElementById("curve-out");
+  const TIS = [
+    { n: "White matter", T1: 650,  T2: 80,   c: "--accent2" },
+    { n: "Grey matter",  T1: 900,  T2: 100,  c: "--accent3" },
+    { n: "CSF",          T1: 4000, T2: 2000, c: "--accent4" },
+    { n: "Fat",          T1: 260,  T2: 80,   c: "--accent"  },
+  ];
+  let tmax = 2500, markPct = 24, mode = "both";
+  const L = 60, R = 780, T = 26, B = 300;
+
+  function draw() {
+    const bg = cssv("--bg-sunken"), rule = cssv("--rule"), ink = cssv("--ink-soft");
+    ctx.clearRect(0, 0, 820, 360);
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, 820, 360);
+    ctx.font = "11px ui-sans-serif, system-ui";
+
+    // grid
+    ctx.strokeStyle = rule; ctx.lineWidth = 1; ctx.fillStyle = ink;
+    for (let i = 0; i <= 4; i++) {
+      const y = T + (B - T) * i / 4;
+      ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(R, y); ctx.stroke();
+      ctx.textAlign = "right"; ctx.fillText((100 - i * 25) + "%", L - 8, y + 4);
+    }
+    ctx.textAlign = "center";
+    for (let i = 0; i <= 5; i++) {
+      const x = L + (R - L) * i / 5;
+      ctx.strokeStyle = rule;
+      ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, B); ctx.stroke();
+      ctx.fillStyle = ink; ctx.fillText(Math.round(tmax * i / 5) + " ms", x, B + 18);
+    }
+    ctx.fillText("time after the 90° pulse", (L + R) / 2, B + 40);
+
+    const px = t => L + (R - L) * t / tmax;
+    const py = v => B - (B - T) * v;
+
+    for (const s of TIS) {
+      const col = cssv(s.c);
+      if (mode !== "t2") {
+        ctx.strokeStyle = col; ctx.lineWidth = 2.2; ctx.setLineDash([]);
+        ctx.beginPath();
+        for (let i = 0; i <= 400; i++) {
+          const t = tmax * i / 400, v = 1 - Math.exp(-t / s.T1);
+          i ? ctx.lineTo(px(t), py(v)) : ctx.moveTo(px(t), py(v));
+        }
+        ctx.stroke();
+      }
+      if (mode !== "t1") {
+        ctx.strokeStyle = col; ctx.lineWidth = 2.2; ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        for (let i = 0; i <= 400; i++) {
+          const t = tmax * i / 400, v = Math.exp(-t / s.T2);
+          i ? ctx.lineTo(px(t), py(v)) : ctx.moveTo(px(t), py(v));
+        }
+        ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
+
+    // legend
+    let lx = L + 8, ly = T + 14;
+    ctx.textAlign = "left";
+    for (const s of TIS) {
+      ctx.fillStyle = cssv(s.c);
+      ctx.fillRect(lx, ly - 7, 16, 3);
+      ctx.fillText(s.n, lx + 22, ly - 2);
+      lx += 130;
+    }
+
+    // marker
+    const tmark = tmax * markPct / 100;
+    ctx.strokeStyle = cssv("--ink"); ctx.lineWidth = 1.4; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(px(tmark), T); ctx.lineTo(px(tmark), B); ctx.stroke();
+    ctx.setLineDash([]);
+
+    let txt = `at t = ${tmark.toFixed(0)} ms\n`;
+    txt += `tissue           T1     T2     Mz recovered   Mxy remaining\n`;
+    for (const s of TIS) {
+      const r = 1 - Math.exp(-tmark / s.T1), d = Math.exp(-tmark / s.T2);
+      txt += `${s.n.padEnd(16)}${String(s.T1).padStart(5)}  ${String(s.T2).padStart(5)}` +
+             `      ${(r * 100).toFixed(1).padStart(5)} %        ${(d * 100).toFixed(1).padStart(5)} %\n`;
+    }
+    const gw = 1 - Math.exp(-tmark / 650), gg = 1 - Math.exp(-tmark / 900);
+    const dw = Math.exp(-tmark / 80),  dg = Math.exp(-tmark / 100);
+    txt += `\nWM–GM separation:  longitudinal ${(Math.abs(gw - gg) * 100).toFixed(1)} %   ` +
+           `transverse ${(Math.abs(dw - dg) * 100).toFixed(1)} %` +
+           `\n(use these as TI and TE intuition: contrast is the vertical gap, not the signal level)`;
+    out.textContent = txt;
+  }
+  slider("tmax", v => (tmax = v, v + " ms"), draw);
+  slider("tm", v => (markPct = v, "at " + (tmax * v / 100).toFixed(0) + " ms"), draw);
+  document.getElementById("mode").addEventListener("change", e => { mode = e.target.value; draw(); });
+  window.addEventListener("themechange", draw);
+  draw();
+})();
+
+/* ---------- Interactive 4.2 : FID, T2 vs T2* ---------- */
+(function () {
+  const cF = document.getElementById("fan"), cS = document.getElementById("fid");
+  const ctxF = hidpi(cF, 330, 300), ctxS = hidpi(cS, 470, 300);
+  const out = document.getElementById("fid-out");
+  let inh = 45, T2 = 120;
+  let t = 0;                                   // ms since the 90° pulse
+  const DT = 1.6;                              // ms advanced per animation frame
+  const N = 25, offs = [], w = [];
+  for (let i = 0; i < N; i++) {
+    const o = (i / (N - 1) - 0.5) * 2;
+    offs.push(o); w.push(Math.exp(-1.6 * o * o));
+  }
+  let trace = [];
+
+  const T2prime = () => inh === 0 ? Infinity : 2500 / inh;
+  const T2star  = () => 1 / (1 / T2 + 1 / T2prime());
+  // show four intrinsic-T2 time constants, so both envelopes fit the window
+  const span    = () => Math.min(900, Math.max(120, 4 * T2));
+
+  function netAt(tt) {
+    let sx = 0, sy = 0, sw = 0;
+    for (let i = 0; i < N; i++) {
+      const p = offs[i] * 1.8 * tt / T2prime();
+      sx += w[i] * Math.cos(p); sy += w[i] * Math.sin(p); sw += w[i];
+    }
+    return Math.hypot(sx, sy) / sw * Math.exp(-tt / T2);
+  }
+
+  function frame() {
+    const TSPAN = span();
+    t += DT;
+    if (t > TSPAN) { t = 0; trace = []; }
+    trace.push([t, netAt(t)]);
+
+    /* ---- fan panel ---- */
+    ctxF.clearRect(0, 0, 330, 300);
+    const cx = 165, cy = 150, r = 105;
+    ctxF.strokeStyle = cssv("--rule"); ctxF.lineWidth = 1;
+    ctxF.beginPath(); ctxF.arc(cx, cy, r, 0, Math.PI * 2); ctxF.stroke();
+    const env = Math.exp(-t / T2);
+    for (let i = 0; i < N; i++) {
+      const p = offs[i] * 1.8 * t / T2prime();
+      ctxF.strokeStyle = cssv("--accent2");
+      ctxF.globalAlpha = (0.3 + 0.55 * env) * w[i];
+      ctxF.lineWidth = 1.8;
+      ctxF.beginPath(); ctxF.moveTo(cx, cy);
+      ctxF.lineTo(cx + Math.cos(p) * r * env, cy - Math.sin(p) * r * env);
+      ctxF.stroke();
+    }
+    ctxF.globalAlpha = 1;
+    let sx = 0, sy = 0, sw = 0;
+    for (let i = 0; i < N; i++) {
+      const p = offs[i] * 1.8 * t / T2prime();
+      sx += w[i] * Math.cos(p); sy += w[i] * Math.sin(p); sw += w[i];
+    }
+    sx = sx / sw * env; sy = sy / sw * env;
+    ctxF.strokeStyle = cssv("--accent"); ctxF.lineWidth = 3.6; ctxF.lineCap = "round";
+    ctxF.beginPath(); ctxF.moveTo(cx, cy); ctxF.lineTo(cx + sx * r, cy - sy * r); ctxF.stroke();
+    ctxF.fillStyle = cssv("--ink-faint"); ctxF.font = "11px ui-sans-serif, system-ui";
+    ctxF.fillText("t = " + t.toFixed(0) + " ms", 12, 20);
+    ctxF.fillText("red = net M_xy, the only thing detected", 12, 274);
+    ctxF.fillText("arrows shrink with T2; the fan spreads with T2′", 12, 288);
+
+    /* ---- signal panel ---- */
+    ctxS.clearRect(0, 0, 470, 300);
+    ctxS.fillStyle = cssv("--bg-sunken"); ctxS.fillRect(0, 0, 470, 300);
+    const L = 46, R = 456, TT = 22, BB = 236;
+    const px = ms => L + (R - L) * ms / TSPAN;
+    const py = v => (TT + BB) / 2 - ((BB - TT) / 2) * v;
+    ctxS.strokeStyle = cssv("--rule"); ctxS.lineWidth = 1;
+    ctxS.beginPath(); ctxS.moveTo(L, py(0)); ctxS.lineTo(R, py(0)); ctxS.stroke();
+    ctxS.beginPath(); ctxS.moveTo(L, TT); ctxS.lineTo(L, BB); ctxS.stroke();
+
+    const T2s = T2star();
+    // envelopes, mirrored about zero
+    for (const [tc, col, dash] of [[T2, "--accent2", [5, 4]], [T2s, "--accent4", [3, 3]]]) {
+      ctxS.strokeStyle = cssv(col); ctxS.lineWidth = 1.5; ctxS.setLineDash(dash);
+      for (const sgn of [1, -1]) {
+        ctxS.beginPath();
+        for (let i = 0; i <= 200; i++) {
+          const ms = TSPAN * i / 200, v = sgn * Math.exp(-ms / tc);
+          i ? ctxS.lineTo(px(ms), py(v)) : ctxS.moveTo(px(ms), py(v));
+        }
+        ctxS.stroke();
+      }
+    }
+    ctxS.setLineDash([]);
+
+    // the FID itself: an oscillation under the T2* envelope
+    const cycles = 26, wOsc = 2 * Math.PI * cycles / TSPAN;
+    ctxS.strokeStyle = cssv("--accent"); ctxS.lineWidth = 1.5;
+    ctxS.beginPath();
+    for (let i = 0; i < trace.length; i++) {
+      const [ms, amp] = trace[i];
+      const v = amp * Math.cos(wOsc * ms);
+      i ? ctxS.lineTo(px(ms), py(v)) : ctxS.moveTo(px(ms), py(v));
+    }
+    ctxS.stroke();
+
+    ctxS.font = "11px ui-sans-serif, system-ui";
+    ctxS.fillStyle = cssv("--ink-faint");
+    ctxS.fillText("time (ms) →", (L + R) / 2 - 26, BB + 42);
+    ctxS.fillText("0", L - 3, BB + 22); ctxS.fillText(TSPAN.toFixed(0), R - 16, BB + 22);
+    const lx = R - 218;
+    ctxS.fillStyle = cssv("--accent2"); ctxS.fillText("T2 envelope — unreachable by an FID", lx, TT + 12);
+    ctxS.fillStyle = cssv("--accent4"); ctxS.fillText("T2* envelope — what actually happens", lx, TT + 26);
+    ctxS.fillStyle = cssv("--accent"); ctxS.fillText("FID signal", lx, TT + 40);
+
+    const S = netAt(t);
+    out.textContent =
+      `intrinsic T2 = ${T2} ms    T2′ from inhomogeneity = ${inh === 0 ? "∞" : T2prime().toFixed(0) + " ms"}    ` +
+      `→ observed T2* = ${T2s.toFixed(1)} ms\n` +
+      `1/T2* = 1/T2 + 1/T2′  →  ${(1000 / T2).toFixed(2)} + ${inh === 0 ? "0.00" : (1000 / T2prime()).toFixed(2)} = ${(1000 / T2s).toFixed(2)} s⁻¹\n` +
+      `at t = ${t.toFixed(0)} ms the signal is ${(S * 100).toFixed(1)} % of M₀; a pure-T2 experiment would still have ` +
+      `${(Math.exp(-t / T2) * 100).toFixed(1)} %\n` +
+      `that gap is recoverable — Chapter 5 recovers it with a 180° pulse.`;
+  }
+
+  slider("inh", v => (inh = v, v === 0 ? "perfectly shimmed" : v + " (arb.)"), () => { t = 0; trace = []; });
+  slider("t2", v => (T2 = v, v + " ms"), () => { t = 0; trace = []; });
+  document.getElementById("pulse90").onclick = () => { t = 0; trace = []; };
+  animate(frame);
+})();
+</script>
+</body>
+</html>

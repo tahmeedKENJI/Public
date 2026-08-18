@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8 · k-Space — MRI Visual Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="eyebrow">Part III · Making an Image</p>
+<h1>k-Space: The Domain the Scanner Actually Measures</h1>
+<p class="dek">An MRI scanner does not acquire an image and it does not acquire pixels. It acquires
+Fourier coefficients — one complex number per sample, each describing how much of a particular
+striped pattern is present in the object. k-space is the ledger of those coefficients, and learning
+to read it is the difference between memorising MRI and understanding it.</p>
+
+<h2>8.1 &nbsp;The definition, and why it is inevitable</h2>
+
+<p>From Chapter 7, with a gradient applied the received signal is</p>
+
+<div class="eq">
+  <span class="eq-name">8.1</span>
+  <var>s</var>(<var>t</var>) = ∫ ρ(<b>r</b>) e<sup>−<var>i</var>2π <b>k</b>(<var>t</var>)·<b>r</b></sup> d<b>r</b>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <b>k</b>(<var>t</var>) = (γ/2π) ∫<sub>0</sub><sup><var>t</var></sup> <b>G</b>(<var>t</var>′) d<var>t</var>′
+  <span class="where">Read the second equation carefully, because it is the operating manual for the
+  entire scanner: <b>the gradient is the velocity with which you move through k-space</b>, and the
+  position you reach is the accumulated area under the gradient waveform. Turn a gradient on and you
+  travel; turn it off and you stop where you are; reverse it and you travel back.</span>
+</div>
+
+<p>Each sample of s(t) is therefore the value of the object's Fourier transform at one point
+<b>k</b>. Collect enough points on a grid, run a 2D inverse FFT, and you have ρ(<b>r</b>). That is
+the whole of conventional MRI reconstruction.</p>
+
+<div class="tablewrap">
+<table>
+<caption>The dictionary between the two domains. Every one of these relationships is used daily in
+protocol design.</caption>
+<thead><tr><th>In k-space</th><th>In the image</th><th>Practical consequence</th></tr></thead>
+<tbody>
+<tr><td>Sample spacing Δk</td><td>Field of view: FOV = 1/Δk</td><td>Sample too coarsely and the image wraps around (aliasing)</td></tr>
+<tr><td>Extent k<sub>max</sub></td><td>Resolution: Δx = 1/(2k<sub>max</sub>)</td><td>Higher resolution means going further out, which takes longer and costs SNR</td></tr>
+<tr><td>Centre (low k)</td><td>Contrast, brightness, gross shape</td><td>The effective TE is the TE of the <i>central</i> line, not the first one</td></tr>
+<tr><td>Periphery (high k)</td><td>Edges, fine detail, sharpness</td><td>Truncating it causes Gibbs ringing; filtering it smooths the image</td></tr>
+<tr><td>Number of samples N</td><td>Matrix size</td><td>N = FOV/Δx, so the three are never independent</td></tr>
+<tr><td>Hermitian symmetry</td><td>The image is real-valued</td><td>In principle half of k-space suffices — partial Fourier</td></tr>
+<tr><td>A shift in k-space</td><td>A phase ramp in the image</td><td>Trajectory errors show up as ghosts, not blur</td></tr>
+<tr><td>A phase ramp in k-space</td><td>A shift in the image</td><td>How FOV offsets and oblique shifts are implemented</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>8.2 &nbsp;One point of k-space is one stripe pattern</h2>
+
+<p>The most common misconception is that the centre of k-space corresponds to the centre of the
+image. It does not. <strong>Every point in k-space contains information about every point in the
+image.</strong> A single k-space sample is the amplitude and phase of one sinusoidal grating spanning
+the entire field of view: its spatial frequency is |<b>k</b>| and its orientation is the direction
+of <b>k</b>.</p>
+
+<figure class="wide">
+<svg viewBox="0 0 860 260" width="860" height="260" role="img" aria-label="k-space points and their corresponding gratings">
+  <defs>
+    <pattern id="g1" width="80" height="80" patternUnits="userSpaceOnUse">
+      <rect width="80" height="80" fill="var(--ink-faint)" opacity=".18"/>
+    </pattern>
+    <linearGradient id="s1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="var(--ink)" stop-opacity=".05"/><stop offset="50%" stop-color="var(--ink)" stop-opacity=".45"/><stop offset="100%" stop-color="var(--ink)" stop-opacity=".05"/>
+    </linearGradient>
+  </defs>
+  <text class="lbl-b" x="20" y="24">One k-space sample ⇄ one grating across the whole image</text>
+
+  <g transform="translate(40,50)">
+    <rect x="0" y="0" width="150" height="150" fill="var(--bg-sunken)" stroke="var(--rule)"/>
+    <circle cx="75" cy="75" r="4" fill="var(--accent)"/>
+    <line x1="75" y1="0" x2="75" y2="150" class="grid"/><line x1="0" y1="75" x2="150" y2="75" class="grid"/>
+    <text x="75" y="170" text-anchor="middle" class="lbl-sm">k = (0,0) — DC</text>
+  </g>
+  <g transform="translate(210,50)">
+    <rect x="0" y="0" width="150" height="150" fill="var(--ink-faint)" opacity=".32"/>
+    <rect x="0" y="0" width="150" height="150" fill="none" stroke="var(--rule)"/>
+    <text x="75" y="170" text-anchor="middle" class="lbl-sm">uniform brightness</text>
+    <text x="75" y="184" text-anchor="middle" class="lbl-sm">= the image's mean</text>
+  </g>
+
+  <g transform="translate(400,50)">
+    <rect x="0" y="0" width="150" height="150" fill="var(--bg-sunken)" stroke="var(--rule)"/>
+    <circle cx="105" cy="75" r="4" fill="var(--accent)"/>
+    <circle cx="45" cy="75" r="4" fill="var(--accent)" opacity=".4"/>
+    <line x1="75" y1="0" x2="75" y2="150" class="grid"/><line x1="0" y1="75" x2="150" y2="75" class="grid"/>
+    <text x="75" y="170" text-anchor="middle" class="lbl-sm">k = (k_x, 0), mid</text>
+  </g>
+  <g transform="translate(570,50)">
+    <g>
+      <rect x="0" y="0" width="150" height="150" fill="var(--bg-sunken)"/>
+      <g fill="var(--ink)" opacity=".38">
+        <rect x="0" y="0" width="15" height="150"/><rect x="30" y="0" width="15" height="150"/>
+        <rect x="60" y="0" width="15" height="150"/><rect x="90" y="0" width="15" height="150"/>
+        <rect x="120" y="0" width="15" height="150"/>
+      </g>
+      <rect x="0" y="0" width="150" height="150" fill="none" stroke="var(--rule)"/>
+    </g>
+    <text x="75" y="170" text-anchor="middle" class="lbl-sm">vertical stripes, spacing 1/k_x</text>
+    <text x="75" y="184" text-anchor="middle" class="lbl-sm">further out = finer stripes</text>
+  </g>
+  <text class="lbl-sm" x="40" y="238">The image is the weighted sum of every such grating. Delete one sample and that grating disappears from the entire picture — not from one corner of it.</text>
+</svg>
+<figcaption><b>Figure 8.1 — Why "the centre of k-space is the centre of the image" is wrong.</b>
+k-space is a basis decomposition, not a spatial map. The DC sample is the average brightness of the
+whole image; a sample near the edge is a fine grating covering the whole image. This is why a spike
+of interference at one k-space location produces a herringbone pattern across the entire image
+(Chapter 15), and why the order in which you fill k-space controls contrast (Chapter 11).</figcaption>
+</figure>
+
+<h2>8.3 &nbsp;The playground</h2>
+
+<p>The widget below runs a genuine 2D FFT in your browser on a synthetic head phantom. Nothing is
+faked: k-space is computed from the image, you edit it, and the image is recomputed by inverse
+transform. Everything you can do to k-space here is something a real acquisition does to you.</p>
+
+<figure class="wide">
+<div class="widget">
+  <div class="canvas-row">
+    <div class="canvas-cell"><div class="cname">k-space (log magnitude)</div>
+      <canvas id="kk" width="128" height="128" style="width:250px;height:250px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">what you kept</div>
+      <canvas id="km" width="128" height="128" style="width:250px;height:250px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">reconstructed image</div>
+      <canvas id="ki" width="128" height="128" style="width:250px;height:250px"></canvas></div>
+  </div>
+  <div class="controls">
+    <label style="min-width:15rem"><span class="cap">What to keep</span>
+      <select id="kmode">
+        <option value="full" selected>Everything — the reference image</option>
+        <option value="low">Only the centre (low spatial frequencies)</option>
+        <option value="high">Only the periphery (high spatial frequencies)</option>
+        <option value="dc">A single point — DC only</option>
+        <option value="rowband">Only a horizontal band of k</option>
+        <option value="colband">Only a vertical band of k</option>
+        <option value="under2">Undersample: every 2nd phase-encode line</option>
+        <option value="under4">Undersample: every 4th phase-encode line</option>
+        <option value="partial">Partial Fourier: 62.5% of lines, zero-filled</option>
+        <option value="corners">Zero the corners (a common k-space filter)</option>
+        <option value="spike">Add an interference spike</option>
+      </select></label>
+    <label><span class="cap">Radius / band width <output id="krad-out"></output></span>
+      <input id="krad" type="range" min="2" max="64" step="1" value="12"></label>
+    <label><span class="cap">Noise added to k-space <output id="knz-out"></output></span>
+      <input id="knz" type="range" min="0" max="100" step="1" value="0"></label>
+    <label><span class="cap">Display gamma <output id="kg-out"></output></span>
+      <input id="kg" type="range" min="0.3" max="1.5" step="0.05" value="0.85"></label>
+  </div>
+  <div class="readout" id="kout"></div>
+</div>
+<figcaption><b>Interactive 8.1 — Edit k-space, watch the image.</b> Work through the options in order.
+<b>Centre only</b>: a blurred but correctly-contrasted image — this is why the centre determines
+contrast, and why 8× accelerated scans still look "right" in overall appearance.
+<b>Periphery only</b>: pure edges, no contrast at all — an edge detector implemented in hardware.
+<b>Every 2nd line</b>: the image folds onto itself, because halving Δk halved the FOV. That is
+aliasing, and it is exactly what parallel imaging must undo (Chapter 14).
+<b>Interference spike</b>: a single bad sample stripes the entire image.</figcaption>
+</figure>
+
+<h2>8.4 &nbsp;Trajectories: gradients are the steering wheel</h2>
+
+<p>Cartesian line-by-line filling is the default, but nothing in the physics requires it. Any path
+through k-space is legal as long as you can compute where you are, and different paths trade speed,
+artifact behaviour and hardware demand against each other.</p>
+
+<figure class="wide">
+<div class="widget">
+  <div class="canvas-row">
+    <div class="canvas-cell"><div class="cname">k-space trajectory</div>
+      <canvas id="traj" width="330" height="330"></canvas></div>
+    <div class="canvas-cell"><div class="cname">gradient waveforms that produce it</div>
+      <canvas id="gwav" width="470" height="330"></canvas></div>
+  </div>
+  <div class="controls">
+    <label style="min-width:14rem"><span class="cap">Trajectory</span>
+      <select id="tmode">
+        <option value="cart" selected>Cartesian spin-warp — one line per TR</option>
+        <option value="epi">EPI — the whole plane in one shot</option>
+        <option value="radial">Radial spokes (PROPELLER-like)</option>
+        <option value="spiral">Spiral</option>
+        <option value="zigzag">Centric-ordered Cartesian</option>
+      </select></label>
+    <label><span class="cap">Speed <output id="tsp-out"></output></span>
+      <input id="tsp" type="range" min="1" max="40" step="1" value="12"></label>
+    <div class="btnrow"><button id="trst">Restart</button></div>
+  </div>
+  <div class="readout" id="tout"></div>
+</div>
+<figcaption><b>Interactive 8.2 — The gradient waveform <i>is</i> the trajectory.</b> The right panel
+plots G<sub>x</sub> and G<sub>y</sub>; the left panel plots the running integral of those waveforms,
+which is k. Watch the correspondence: a constant gradient gives a straight line at constant speed;
+a gradient of zero holds position; a sinusoidal gradient pair traces a spiral. When you next look at
+a sequence diagram, you are looking at a set of driving instructions for a pen moving over this plane.</figcaption>
+</figure>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Trajectory</th><th>How it fills k</th><th>Strengths</th><th>Weaknesses</th></tr></thead>
+<tbody>
+<tr><td>Cartesian</td><td>One horizontal line per excitation</td><td>Simple FFT recon; robust; artifacts are predictable and localised to the phase axis</td><td>Slow; motion sensitive; every line needs its own TR</td></tr>
+<tr><td>EPI</td><td>A zig-zag covering the whole plane after one excitation</td><td>Whole image in 30–100 ms — the enabler of fMRI and DWI</td><td>Distortion, N/2 ghosting, severe off-resonance sensitivity, T2* blurring</td></tr>
+<tr><td>Radial</td><td>Spokes through the centre</td><td>Every spoke samples the centre → motion-robust, allows self-navigation; graceful undersampling (streaks, not folds)</td><td>Needs gridding, more samples for the same resolution, sensitive to gradient delays</td></tr>
+<tr><td>Spiral</td><td>Outward spiral from the centre</td><td>Very efficient use of gradient hardware; short TE; smooth</td><td>Off-resonance causes blur rather than shift, which is harder to correct</td></tr>
+<tr><td>PROPELLER / BLADE</td><td>Rotating rectangular blades</td><td>Retrospective motion correction from the oversampled centre</td><td>Longer scans; more complex reconstruction</td></tr>
+<tr><td>3D stack-of-stars / koosh-ball</td><td>Radial in-plane, Cartesian or radial through-plane</td><td>Free-breathing abdominal imaging, dynamic contrast studies</td><td>Reconstruction cost, streak artifacts</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>8.5 &nbsp;Sampling rules, stated once and used forever</h2>
+
+<div class="eq">
+  <span class="eq-name">8.2 · 8.3</span>
+  FOV = 1 / Δk &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Δx = 1 / (2 k<sub>max</sub>) = FOV / N
+  <span class="where">Both are Nyquist statements. Sampling k too sparsely (Δk too large) shrinks the
+  FOV below the object and the object folds back on itself. Truncating k too early (k<sub>max</sub>
+  too small) blurs, and — because truncation is a rectangular window whose transform is a sinc —
+  it also rings.</span>
+</div>
+
+<div class="note intuition">
+<span class="label">A diagnostic habit worth building</span>
+<p>When you see an unfamiliar artifact, ask: <b>what would k-space have to look like to produce
+this?</b> Ghosts repeating at FOV/2 → something alternated between even and odd lines. A single
+herringbone → one corrupted sample. Ringing at sharp edges → k-space was truncated. Blurring in one
+direction only → that axis lost its high frequencies. Half the image folded over the other →
+Δk was too large. This question converts artifact identification from memorisation into deduction.</p>
+</div>
+
+<h3>Partial Fourier and conjugate symmetry</h3>
+<p>If the object were perfectly real-valued, its Fourier transform would satisfy
+S(−<b>k</b>) = S*(<b>k</b>): each sample would be the complex conjugate of the one opposite it
+through the origin. You could acquire half of k-space and infer the rest, halving scan time.
+In reality the image is not real — B₀ inhomogeneity, flow, and coil phase all impose slowly-varying
+phase — so practical implementations acquire slightly more than half (typically 60–75%), use the
+extra central lines to estimate that phase, and then synthesise the missing region. The cost is
+√(fraction) SNR and some sensitivity to phase errors near sharp field changes.</p>
+
+<div class="keypoints">
+<h3>Key points</h3>
+<ul>
+<li><b>k(t) = (γ/2π)∫G dt.</b> Gradients are velocity in k-space; the acquisition is a path, not a picture.</li>
+<li><b>Every k sample encodes the whole image</b> as one grating. There is no local correspondence.</li>
+<li><b>Centre = contrast; periphery = detail.</b> Acquisition order therefore controls contrast.</li>
+<li><b>FOV = 1/Δk and Δx = 1/(2k<sub>max</sub>)</b> — the two Nyquist relations behind nearly every artifact.</li>
+<li><b>Any trajectory is legal</b>; Cartesian, EPI, radial and spiral trade speed against artifact character.</li>
+<li><b>Hermitian symmetry allows partial Fourier</b>, limited in practice by real image phase.</li>
+</ul>
+</div>
+
+<h2>Going deeper</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://mriquestions.com/" target="_blank" rel="noopener">
+    <span class="k">Reference site</span><span class="t">Q&amp;A in MRI — the k-space section</span>
+    <span class="d">Dozens of short pages, each answering one k-space confusion. The best remedy for lingering misconceptions.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=k-space+MRI+explained+intuition+fourier" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">k-space explained</span>
+    <span class="d">Prefer videos that demonstrate masking a real k-space and showing the result, rather than only drawing the grid.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=3blue1brown+fourier+transform" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">The Fourier transform, visually</span>
+    <span class="d">If the Fourier relationship itself is the shaky part, fix that first — the payoff runs through every remaining chapter.</span></a>
+  <a class="linkcard" href="https://en.wikipedia.org/wiki/K-space_in_magnetic_resonance_imaging" target="_blank" rel="noopener">
+    <span class="k">Reference</span><span class="t">k-space in MRI — Wikipedia</span>
+    <span class="d">Concise, with the standard trajectory diagrams and the sampling relations written out.</span></a>
+</div>
+
+<div class="refs">
+<h3>References</h3>
+<ol>
+<li>Twieg, D. B. “The k-trajectory formulation of the NMR imaging process.” <i>Medical Physics</i> 10:610–621, 1983. — The paper that introduced the formalism.</li>
+<li>Ljunggren, S. “A simple graphical representation of Fourier-based imaging methods.” <i>J. Magn. Reson.</i> 54:338–343, 1983.</li>
+<li>Mezrich, R. “A perspective on k-space.” <i>Radiology</i> 195:297–315, 1995. — Written for radiologists; unusually clear.</li>
+<li>Pipe, J. G. “Motion correction with PROPELLER MRI.” <i>Magnetic Resonance in Medicine</i> 42:963–969, 1999.</li>
+<li>Nishimura, <i>Principles of MRI</i>, Ch. 5 — the cleanest derivation of Equation 8.1.</li>
+</ol>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+<script src="assets/fft.js"></script>
+<script src="assets/phantom.js"></script>
+<script>
+/* ================= Interactive 8.1 : k-space editor ================= */
+(function () {
+  const N = 128;
+  const cK = document.getElementById("kk"), cM = document.getElementById("km"), cI = document.getElementById("ki");
+  const out = document.getElementById("kout");
+  const lbl = buildPhantom(N);
+
+  // base image: a T1-weighted-looking spin echo
+  const base = new Float64Array(N * N);
+  {
+    const lut = TISSUE_KEYS.map(k => signalSE(TISSUES[k], 600, 12));
+    let mx = 0; for (const v of lut) mx = Math.max(mx, v);
+    for (let i = 0; i < N * N; i++) base[i] = lut[lbl[i]] / mx;
+  }
+  // forward transform once, keep centred
+  const RE0 = Float64Array.from(base), IM0 = new Float64Array(N * N);
+  fft2d(RE0, IM0, N, N, false);
+  const REc = fftshift(RE0, N, N), IMc = fftshift(IM0, N, N);
+
+  let mode = "full", rad = 12, nz = 0, gam = 0.85;
+
+  function maskAt(x, y) {          // x,y are centred coords in [-N/2, N/2)
+    const r = Math.hypot(x, y);
+    switch (mode) {
+      case "full":   return 1;
+      case "low":    return r <= rad ? 1 : 0;
+      case "high":   return r > rad ? 1 : 0;
+      case "dc":     return (x === 0 && y === 0) ? 1 : 0;
+      case "rowband":return Math.abs(y) <= rad ? 1 : 0;
+      case "colband":return Math.abs(x) <= rad ? 1 : 0;
+      case "under2": return ((y + N / 2) % 2 === 0) ? 1 : 0;
+      case "under4": return ((y + N / 2) % 4 === 0) ? 1 : 0;
+      case "partial":return (y < N * 0.125) ? 1 : 0;      // keeps 62.5% of rows
+      case "corners":return r <= N / 2 ? 1 : 0;
+      case "spike":  return 1;
+      default: return 1;
+    }
+  }
+
+  function render() {
+    const re = new Float64Array(N * N), im = new Float64Array(N * N);
+    const mag = new Float64Array(N * N), mvis = new Float64Array(N * N);
+    let kept = 0;
+    for (let j = 0; j < N; j++) {
+      const y = j - N / 2;
+      for (let i = 0; i < N; i++) {
+        const x = i - N / 2, o = j * N + i;
+        let a = REc[o], b = IMc[o];
+        if (nz > 0) {
+          const s = nz * 0.02 * Math.abs(REc[N / 2 * N + N / 2]) / N;
+          a += (Math.random() - .5) * s; b += (Math.random() - .5) * s;
+        }
+        const m = maskAt(x, y);
+        if (m) kept++;
+        if (mode === "spike" && Math.abs(x - 26) < 1 && Math.abs(y + 18) < 1) {
+          const big = Math.abs(REc[(N / 2) * N + N / 2]) * 0.06;
+          a += big; b += big;
+        }
+        re[o] = a * m; im[o] = b * m;
+        mag[o] = Math.hypot(REc[o], IMc[o]);
+        mvis[o] = m ? Math.hypot(a, b) : 0;
+      }
+    }
+    // display k-space
+    paint(cK, mag, N, N, { log: true, logGain: 0.02, gamma: gam });
+    paint(cM, mvis, N, N, { log: true, logGain: 0.02, gamma: gam, tint: [1, .78, .62] });
+
+    // inverse
+    const ri = fftshift(re, N, N), ii = fftshift(im, N, N);
+    fft2d(ri, ii, N, N, true);
+    const img = magnitude(ri, ii);
+    paint(cI, img, N, N, { gamma: 0.9 });
+
+    const pct = 100 * kept / (N * N);
+    const EXPL = {
+      full: "The reference. Full Cartesian sampling, inverse FFT, done.",
+      low: `Only |k| ≤ ${rad} survives. Contrast and brightness are intact but detail is gone — a low-pass filter. Note that the image is not dark, just soft: the energy of an MR image lives overwhelmingly in the centre.`,
+      high: `Only |k| > ${rad} survives. All contrast has vanished and only edges remain. Nothing in the acquisition changed; this is purely which coefficients you kept.`,
+      dc: "One sample. The image is a uniform grey equal to the object's mean — the DC term really is the average brightness of everything.",
+      rowband: "Keeping a horizontal band of k blurs the image vertically only. Anisotropic resolution is anisotropic k-space coverage.",
+      colband: "Keeping a vertical band of k blurs the image horizontally only.",
+      under2: "Every 2nd phase-encode line. Δk doubled, so FOV halved — the top and bottom of the head fold onto the middle. This is exactly the aliasing that SENSE and GRAPPA are designed to unwrap.",
+      under4: "Every 4th line: three superimposed copies. Undersampling never destroys information gently; it superimposes it.",
+      partial: "62.5% of lines, the rest zero-filled. Blurring in the phase direction, slightly lower SNR — but a real partial-Fourier reconstruction would synthesise the missing half from conjugate symmetry instead of zeros, recovering most of the sharpness.",
+      corners: "A circular k-space window. The corners contribute only diagonal high frequencies; discarding them saves ~21% of acquisition time for very little visible loss — several vendors do this by default.",
+      spike: "A single corrupted sample far from the centre. It becomes a sinusoidal grating stretched across the entire image — the classic herringbone or corduroy artifact caused by an RF spark, a bad gradient amplifier, or a loose connection.",
+    };
+    out.textContent =
+      `${pct.toFixed(1)} % of k-space retained (${kept} of ${N * N} samples)\n` +
+      `nominal FOV/resolution unchanged; what changed is which spatial frequencies exist\n\n` +
+      EXPL[mode];
+  }
+  document.getElementById("kmode").addEventListener("change", e => { mode = e.target.value; render(); });
+  slider("krad", v => (rad = Math.round(v), Math.round(v) + " px"), render);
+  slider("knz", v => (nz = v, v === 0 ? "none" : v + " (arb.)"), render);
+  slider("kg", v => (gam = v, v.toFixed(2)), render);
+  window.addEventListener("themechange", render);
+  render();
+})();
+
+/* ================= Interactive 8.2 : trajectories ================= */
+(function () {
+  const cT = document.getElementById("traj"), cG = document.getElementById("gwav");
+  const ctxT = hidpi(cT, 330, 330), ctxG = hidpi(cG, 470, 330);
+  const out = document.getElementById("tout");
+  let mode = "cart", speed = 12, idx = 0;
+  let path = [], grad = [];
+
+  function build() {
+    path = [];
+    const K = 1;                                   // normalised kmax
+    if (mode === "cart" || mode === "zigzag") {
+      const lines = 17;
+      const order = [];
+      for (let i = 0; i < lines; i++) order.push(i - (lines - 1) / 2);
+      if (mode === "zigzag") order.sort((a, b) => Math.abs(a) - Math.abs(b));
+      for (const ky of order) {
+        const y = ky / ((lines - 1) / 2) * K;
+        path.push({ x: -K, y, jump: true });
+        for (let i = 1; i <= 26; i++) path.push({ x: -K + 2 * K * i / 26, y, jump: false });
+      }
+    } else if (mode === "epi") {
+      const lines = 17;
+      for (let l = 0; l < lines; l++) {
+        const y = (l - (lines - 1) / 2) / ((lines - 1) / 2) * K;
+        const dir = l % 2 === 0 ? 1 : -1;
+        for (let i = 0; i <= 26; i++) {
+          const u = i / 26;
+          path.push({ x: dir * (-K + 2 * K * u), y, jump: l === 0 && i === 0 });
+        }
+      }
+    } else if (mode === "radial") {
+      const spokes = 16;
+      for (let s = 0; s < spokes; s++) {
+        const th = Math.PI * s / spokes;
+        for (let i = 0; i <= 30; i++) {
+          const u = -1 + 2 * i / 30;
+          path.push({ x: u * K * Math.cos(th), y: u * K * Math.sin(th), jump: i === 0 });
+        }
+      }
+    } else {                                        // spiral
+      const turns = 7, pts = 520;
+      for (let i = 0; i <= pts; i++) {
+        const u = i / pts, th = 2 * Math.PI * turns * u, r = K * u;
+        path.push({ x: r * Math.cos(th), y: r * Math.sin(th), jump: i === 0 });
+      }
+    }
+    // gradient = d(k)/dt
+    grad = path.map((p, i) => {
+      if (i === 0 || p.jump) return { gx: 0, gy: 0 };
+      return { gx: (p.x - path[i - 1].x) * 12, gy: (p.y - path[i - 1].y) * 12 };
+    });
+    idx = 0;
+  }
+  build();
+
+  function frame() {
+    idx = Math.min(path.length, idx + Math.max(1, Math.round(speed / 4)));
+
+    /* --- trajectory --- */
+    ctxT.clearRect(0, 0, 330, 330);
+    ctxT.fillStyle = cssv("--bg-sunken"); ctxT.fillRect(0, 0, 330, 330);
+    const cx = 165, cy = 165, s = 135;
+    ctxT.strokeStyle = cssv("--rule"); ctxT.lineWidth = 1;
+    ctxT.strokeRect(cx - s, cy - s, 2 * s, 2 * s);
+    ctxT.beginPath(); ctxT.moveTo(cx - s, cy); ctxT.lineTo(cx + s, cy);
+    ctxT.moveTo(cx, cy - s); ctxT.lineTo(cx, cy + s); ctxT.stroke();
+    ctxT.font = "11px ui-sans-serif, system-ui"; ctxT.fillStyle = cssv("--ink-faint");
+    ctxT.fillText("k_x", cx + s - 22, cy - 6); ctxT.fillText("k_y", cx + 6, cy - s + 14);
+
+    ctxT.lineWidth = 1.4;
+    for (let i = 1; i < idx; i++) {
+      const a = path[i - 1], b = path[i];
+      if (b.jump) continue;
+      ctxT.strokeStyle = cssv("--accent2"); ctxT.globalAlpha = 0.35 + 0.65 * (i / Math.max(1, idx));
+      ctxT.beginPath();
+      ctxT.moveTo(cx + a.x * s, cy - a.y * s);
+      ctxT.lineTo(cx + b.x * s, cy - b.y * s);
+      ctxT.stroke();
+    }
+    ctxT.globalAlpha = 1;
+    if (idx > 0 && idx <= path.length) {
+      const p = path[idx - 1];
+      ctxT.fillStyle = cssv("--accent");
+      ctxT.beginPath(); ctxT.arc(cx + p.x * s, cy - p.y * s, 4.5, 0, 7); ctxT.fill();
+    }
+
+    /* --- gradient waveforms --- */
+    ctxG.clearRect(0, 0, 470, 330);
+    ctxG.fillStyle = cssv("--bg-sunken"); ctxG.fillRect(0, 0, 470, 330);
+    const L = 46, R = 458;
+    const rows = [{ y: 90, k: "gx", n: "G_x (readout)", c: "--accent" },
+                  { y: 230, k: "gy", n: "G_y (phase)", c: "--accent3" }];
+    const WIN = 260;
+    const from = Math.max(0, idx - WIN);
+    for (const row of rows) {
+      ctxG.strokeStyle = cssv("--rule");
+      ctxG.beginPath(); ctxG.moveTo(L, row.y); ctxG.lineTo(R, row.y); ctxG.stroke();
+      ctxG.fillStyle = cssv("--ink-soft"); ctxG.font = "11px ui-sans-serif, system-ui";
+      ctxG.fillText(row.n, L, row.y - 62);
+      ctxG.strokeStyle = cssv(row.c); ctxG.lineWidth = 1.8;
+      ctxG.beginPath();
+      for (let i = from; i < idx; i++) {
+        const x = L + (R - L) * (i - from) / WIN;
+        const v = Math.max(-1, Math.min(1, grad[i][row.k]));
+        const y = row.y - v * 52;
+        (i === from) ? ctxG.moveTo(x, y) : ctxG.lineTo(x, y);
+      }
+      ctxG.stroke();
+    }
+    ctxG.fillStyle = cssv("--ink-faint");
+    ctxG.fillText("time →   (k is the running integral of these curves)", L, 300);
+
+    const NAMES = {
+      cart: "Cartesian spin-warp: jump to the start of a line (the prephasing lobe), then sweep across it at constant gradient. One line per excitation — note the long jumps, each of which is a whole TR.",
+      epi:  "EPI: after a single excitation the readout gradient oscillates, sweeping back and forth while the phase gradient blips between lines. The entire plane in one shot, at the cost of a very long readout during which off-resonance accumulates.",
+      radial: "Radial: every spoke passes through the centre, so every spoke measures the image's contrast and mean. Motion during the scan spreads into streaks rather than coherent ghosts, and the repeated centre samples can be used to detect and correct it.",
+      spiral: "Spiral: both gradients driven sinusoidally with growing amplitude. Extremely efficient — no wasted travel — and the centre is sampled first, giving very short effective TE.",
+      zigzag: "Centric ordering: the same Cartesian grid, but the centre lines are acquired first. Contrast is therefore determined at the very start of the acquisition — the basis of contrast-enhanced MRA timing.",
+    };
+    out.textContent =
+      `${(100 * idx / path.length).toFixed(0)} % of the trajectory traversed\n\n${NAMES[mode]}`;
+    if (idx >= path.length) idx = path.length;
+  }
+  document.getElementById("tmode").addEventListener("change", e => { mode = e.target.value; build(); });
+  slider("tsp", v => (speed = v, v + "×"), null);
+  document.getElementById("trst").onclick = build;
+  animate(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7 · Spatial Encoding — MRI Visual Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="eyebrow">Part III · Making an Image</p>
+<h1>Spatial Encoding: Slice, Frequency and Phase</h1>
+<p class="dek">A receive coil produces one voltage. One number per instant, summed over every proton
+in range. Turning that into a picture requires making each location's contribution
+<em>distinguishable</em> — and the only handle we have is the Larmor equation. Everything in this
+chapter is an application of one idea: make the field depend on position, and frequency becomes a
+map.</p>
+
+<h2>7.1 &nbsp;The problem, stated precisely</h2>
+
+<p>Without gradients, every proton in the coil's sensitive volume precesses at the same frequency
+and contributes to the same signal, indistinguishably. The measured signal is</p>
+
+<div class="eq">
+  <span class="eq-name">7.1</span>
+  <var>s</var>(<var>t</var>) = ∫ ρ(<b>r</b>) e<sup>−<var>i</var>ω(<b>r</b>)<var>t</var></sup> d<b>r</b>
+  <span class="where">If ω is the same everywhere, this integral collapses to a single number times
+  a single oscillation — no spatial information whatsoever. Make ω depend on <b>r</b> and the integral
+  becomes a transform we can invert.</span>
+</div>
+
+<p>With a gradient on, ω(<b>r</b>) = γ(B₀ + <b>G</b>·<b>r</b>). Dropping into the rotating frame at
+γB₀ to remove the carrier, the signal becomes:</p>
+
+<div class="eq">
+  <span class="eq-name">7.2</span>
+  <var>s</var>(<var>t</var>) = ∫ ρ(<b>r</b>) e<sup>−<var>i</var>γ(<b>G</b>·<b>r</b>)<var>t</var></sup> d<b>r</b>
+  &nbsp;&nbsp;=&nbsp;&nbsp; ∫ ρ(<b>r</b>) e<sup>−<var>i</var>2π <b>k</b>·<b>r</b></sup> d<b>r</b>
+  &nbsp;&nbsp;with&nbsp;&nbsp; <b>k</b>(<var>t</var>) = (γ/2π)∫<sub>0</sub><sup><var>t</var></sup> <b>G</b>(<var>t</var>′) d<var>t</var>′
+  <span class="where">That is the Fourier transform of the spin density, evaluated at spatial
+  frequency <b>k</b>. The scanner does not measure an image — it measures Fourier coefficients, one
+  per sampling instant, and the gradient waveform determines <i>which</i> coefficient. Chapter 8 is
+  entirely about this equation; here we build it up one axis at a time.</span>
+</div>
+
+<h2>7.2 &nbsp;Slice selection: excite only one plane</h2>
+
+<p>Turn on a gradient along z <em>during</em> the RF pulse. Now every axial plane has its own Larmor
+frequency. A pulse containing only frequencies in a narrow band will tip only the plane whose
+frequencies fall in that band; everything else is off-resonance and, as Figure 3.1 showed, barely
+moves.</p>
+
+<div class="eq">
+  <span class="eq-name">7.3</span>
+  Δz = BW<sub>RF</sub> / (γ̄ · G<sub>z</sub>)
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  z<sub>centre</sub> = (<var>f</var><sub>RF</sub> − <var>f</var><sub>0</sub>) / (γ̄ · G<sub>z</sub>)
+  <span class="where">Two independent controls. <b>Thickness</b> comes from the ratio of pulse
+  bandwidth to gradient strength — thinner slices need a stronger gradient or a longer (narrower-band)
+  pulse. <b>Position</b> comes purely from the transmit centre frequency: to move the slice, you
+  retune the radio, you do not move anything mechanical.</span>
+</div>
+
+<figure class="wide">
+<div class="widget">
+  <canvas id="slice" width="820" height="320"></canvas>
+  <div class="controls">
+    <label><span class="cap">Slice gradient G<sub>z</sub> <output id="sg-out"></output></span>
+      <input id="sg" type="range" min="1" max="40" step="0.5" value="10"></label>
+    <label><span class="cap">RF bandwidth <output id="sbw-out"></output></span>
+      <input id="sbw" type="range" min="200" max="4000" step="50" value="1250"></label>
+    <label><span class="cap">Transmit offset from f₀ <output id="soff-out"></output></span>
+      <input id="soff" type="range" min="-8000" max="8000" step="100" value="0"></label>
+    <label><span class="cap">Pulse quality</span>
+      <select id="sq">
+        <option value="good" selected>Good pulse — sharp profile</option>
+        <option value="poor">Short/crude pulse — sloppy profile</option>
+      </select></label>
+  </div>
+  <div class="readout" id="sout"></div>
+</div>
+<figcaption><b>Interactive 7.1 — Selecting a slice.</b> The straight line is the Larmor frequency
+as a function of position — its slope <em>is</em> the gradient. The shaded horizontal band is the
+range of frequencies present in the RF pulse. Where they intersect is the excited slice. Strengthen
+the gradient and the line steepens, so the same RF bandwidth selects a thinner slice. Shift the
+transmit frequency and the slice slides along the body without anything moving. Switch to the poor
+pulse to see why slice profiles have shoulders — and why interleaved acquisition exists to avoid
+cross-talk between adjacent slices.</figcaption>
+</figure>
+
+<div class="note">
+<span class="label">The rephasing lobe</span>
+<p>While the slice gradient is on, spins across the thickness of the slice precess at different
+rates and accumulate a phase spread — by the end of the pulse the slice is dephased and would give
+almost no signal. Every slice-selective pulse is therefore followed by a <b>negative gradient lobe</b>
+of roughly half the area of the slice-select gradient, which unwinds that phase. If you look at any
+real sequence diagram and wonder why the slice gradient has a small negative kick after each RF
+pulse, that is what it is doing.</p>
+</div>
+
+<h3>Slice thickness, gaps and cross-talk</h3>
+<ul>
+<li>Thin slices need strong gradients and give less signal (fewer spins per voxel), so there is an
+SNR floor: below about 2 mm on a 2D sequence you generally switch to a 3D acquisition instead.</li>
+<li>Real slice profiles are not rectangles. The tails of one slice excite its neighbour, saturating
+it — <strong>cross-talk</strong>, which appears as alternating bright/dark slices. The fixes are a
+<strong>slice gap</strong> (typically 10–30% of thickness) or <strong>interleaved</strong> acquisition
+(excite all odd slices, then all even), which gives each neighbour time to recover.</li>
+<li>3D sequences excite a whole slab and then phase-encode <em>along</em> z as well, giving thin,
+contiguous, isotropic partitions with better SNR per unit time — at the cost of longer scans and
+wrap-around in the slab direction.</li>
+</ul>
+
+<h2>7.3 &nbsp;Frequency encoding: one axis for free</h2>
+
+<p>Once a slice is excited, turn on a gradient along x <em>while sampling</em>. Each column of the
+slice now precesses at its own frequency, and the coil sees the sum of all those tones. A Fourier
+transform of that composite signal separates them, and because frequency maps linearly to position,
+the spectrum <em>is</em> a projection of the object along x.</p>
+
+<figure class="wide">
+<div class="widget">
+  <canvas id="freq" width="820" height="380"></canvas>
+  <div class="controls">
+    <label><span class="cap">Readout gradient G<sub>x</sub> <output id="fg-out"></output></span>
+      <input id="fg" type="range" min="1" max="20" step="0.5" value="6"></label>
+    <label><span class="cap">Object</span>
+      <select id="fobj">
+        <option value="three" selected>Three bars of different width</option>
+        <option value="two">Two point sources</option>
+        <option value="head">Head-like profile</option>
+      </select></label>
+    <label><span class="cap">Receive bandwidth <output id="fbw-out"></output></span>
+      <input id="fbw" type="range" min="20" max="500" step="10" value="200"></label>
+    <label><span class="cap">Noise <output id="fn-out"></output></span>
+      <input id="fn" type="range" min="0" max="60" step="1" value="8"></label>
+  </div>
+  <div class="readout" id="fout"></div>
+</div>
+<figcaption><b>Interactive 7.2 — Frequency encoding is a projection.</b> Top: the object's density
+along x. Middle: the signal the coil actually records — a beat pattern with no visible structure,
+because it is the sum of every column's tone. Bottom: the magnitude spectrum of that signal, which
+reproduces the object. This is a one-dimensional MRI. Note what happens when you lower the receive
+bandwidth: the noise falls (good) but the acquisition takes longer and off-resonance effects shift
+things further (bad) — the fundamental SNR-versus-fidelity trade of Chapter 9.</figcaption>
+</figure>
+
+<h2>7.4 &nbsp;Phase encoding: the second axis costs you time</h2>
+
+<p>Why not simply apply a y gradient at the same time and read two frequencies at once? Because a
+single received tone cannot say whether it came from a high-x/low-y location or a low-x/high-y one —
+the mapping from 2D position to 1D frequency is many-to-one. We need an independent handle.</p>
+
+<p>That handle is <strong>phase</strong>. Before the readout, turn a y gradient on for a fixed
+duration and then off. During that interval spins at different y precess at different rates, so they
+end up with a <em>position-dependent phase</em> which they retain afterwards. Repeat the whole
+experiment with a different gradient amplitude each time, and each repetition records the object
+under a different phase twist. Fourier-transforming across repetitions separates the y positions.</p>
+
+<div class="eq">
+  <span class="eq-name">7.4</span>
+  φ(<var>y</var>) = γ G<sub>y</sub> τ <var>y</var> &nbsp;&nbsp;⟹&nbsp;&nbsp; <var>k</var><sub>y</sub> = (γ/2π) G<sub>y</sub> τ
+  <span class="where">Phase encoding and frequency encoding are the <b>same operation</b>; the only
+  difference is whether you sample during the gradient (frequency) or after it (phase). Both simply
+  move you to a position in k-space. Once you see this, Chapter 8 becomes obvious rather than mystical.</span>
+</div>
+
+<figure class="wide">
+<div class="widget">
+  <div class="canvas-row">
+    <div class="canvas-cell"><div class="cname">Phase across the object</div>
+      <canvas id="pe" width="330" height="330"></canvas></div>
+    <div class="canvas-cell"><div class="cname">Signal recorded for this step</div>
+      <canvas id="pesig" width="470" height="330"></canvas></div>
+  </div>
+  <div class="controls">
+    <label><span class="cap">Phase-encode step k<sub>y</sub> <output id="pk-out"></output></span>
+      <input id="pk" type="range" min="-16" max="16" step="1" value="0"></label>
+    <div class="btnrow"><button id="pauto">Sweep all steps</button><button id="pstop">Stop</button></div>
+  </div>
+  <div class="readout" id="pout"></div>
+</div>
+<figcaption><b>Interactive 7.3 — What a phase-encoding step actually does.</b> Each arrow is the
+transverse magnetization at that location, after the y gradient has been applied and switched off.
+At k<sub>y</sub> = 0 nothing is twisted and every voxel adds constructively — the largest signal of
+the entire scan, and the one that carries the image's overall brightness. As |k<sub>y</sub>| grows
+the twist tightens, the sum cancels down toward zero, and what survives is the object's structure at
+that spatial frequency. Sweep through all steps and watch: the centre of k-space carries contrast,
+the edges carry edges.</figcaption>
+</figure>
+
+<h2>7.5 &nbsp;Putting it together: the spin-warp sequence</h2>
+
+<figure class="wide">
+<svg viewBox="0 0 860 480" width="860" height="480" role="img" aria-label="2D spin-warp spin echo sequence diagram">
+  <text class="lbl-b" x="20" y="22">2D spin-echo acquisition — the canonical sequence diagram</text>
+  <g transform="translate(96,44)">
+    <!-- rows -->
+    <g class="lbl-b">
+      <text x="-88" y="34">RF</text>
+      <text x="-88" y="114">G_slice</text>
+      <text x="-88" y="194">G_phase</text>
+      <text x="-88" y="274">G_read</text>
+      <text x="-88" y="354">ADC</text>
+      <text x="-88" y="414">signal</text>
+    </g>
+    <g class="grid">
+      <line x1="0" y1="30" x2="700" y2="30"/><line x1="0" y1="110" x2="700" y2="110"/>
+      <line x1="0" y1="190" x2="700" y2="190"/><line x1="0" y1="270" x2="700" y2="270"/>
+      <line x1="0" y1="350" x2="700" y2="350"/><line x1="0" y1="410" x2="700" y2="410"/>
+    </g>
+
+    <!-- RF: 90 then 180 -->
+    <path d="M40,30 C48,30 46,10 54,6 C62,2 60,30 70,30 C78,30 76,12 84,10 C92,8 92,30 100,30"
+          fill="none" stroke="var(--accent4)" stroke-width="2.2"/>
+    <text x="70" y="-2" text-anchor="middle" class="lbl-sm">90° sinc</text>
+    <path d="M250,30 C258,30 256,-2 268,-6 C280,-10 278,30 290,30"
+          fill="none" stroke="var(--accent4)" stroke-width="2.2"/>
+    <text x="270" y="-14" text-anchor="middle" class="lbl-sm">180°</text>
+
+    <!-- slice gradient -->
+    <rect x="36" y="80" width="68" height="30" fill="var(--accent3)" opacity=".35" stroke="var(--accent3)" stroke-width="1.6"/>
+    <rect x="108" y="110" width="34" height="22" fill="var(--accent3)" opacity=".22" stroke="var(--accent3)" stroke-width="1.4"/>
+    <text x="125" y="146" text-anchor="middle" class="lbl-sm">rephase</text>
+    <rect x="246" y="80" width="48" height="30" fill="var(--accent3)" opacity=".35" stroke="var(--accent3)" stroke-width="1.6"/>
+
+    <!-- phase encode: multiple amplitudes -->
+    <g stroke="var(--accent2)" stroke-width="1.5" fill="var(--accent2)" fill-opacity=".2">
+      <rect x="156" y="160" width="52" height="30"/>
+      <rect x="156" y="168" width="52" height="22"/>
+      <rect x="156" y="176" width="52" height="14"/>
+      <rect x="156" y="190" width="52" height="14"/>
+      <rect x="156" y="190" width="52" height="22"/>
+      <rect x="156" y="190" width="52" height="30"/>
+    </g>
+    <text x="182" y="238" text-anchor="middle" class="lbl-sm">one amplitude per TR</text>
+    <text x="182" y="252" text-anchor="middle" class="lbl-sm">→ one line of k-space</text>
+
+    <!-- read gradient -->
+    <rect x="156" y="270" width="60" height="26" fill="var(--accent)" opacity=".28" stroke="var(--accent)" stroke-width="1.5"/>
+    <text x="186" y="312" text-anchor="middle" class="lbl-sm">prephase</text>
+    <rect x="380" y="244" width="180" height="26" fill="var(--accent)" opacity=".28" stroke="var(--accent)" stroke-width="1.5"/>
+    <text x="470" y="236" text-anchor="middle" class="lbl-sm">readout — sampling happens here</text>
+
+    <!-- ADC -->
+    <rect x="380" y="332" width="180" height="20" fill="var(--ink-faint)" opacity=".35" stroke="var(--ink-faint)"/>
+    <text x="470" y="326" text-anchor="middle" class="lbl-sm">N_x samples</text>
+
+    <!-- signal -->
+    <path d="M100,410 C 112,368 126,398 140,410" fill="none" stroke="var(--accent)" stroke-width="1.6"/>
+    <path d="M400,410 C 440,410 456,352 470,352 C 484,352 500,410 540,410" fill="none" stroke="var(--accent)" stroke-width="2"/>
+    <text x="470" y="374" text-anchor="middle" class="lbl-sm" style="fill:var(--accent)">echo</text>
+
+    <!-- timing -->
+    <line x1="70" y1="440" x2="470" y2="440" stroke="var(--ink-faint)"/>
+    <line x1="70" y1="434" x2="70" y2="446" stroke="var(--ink-faint)"/>
+    <line x1="470" y1="434" x2="470" y2="446" stroke="var(--ink-faint)"/>
+    <text x="270" y="432" text-anchor="middle" class="lbl-sm">TE</text>
+    <line x1="70" y1="462" x2="690" y2="462" stroke="var(--ink-faint)"/>
+    <line x1="690" y1="456" x2="690" y2="468" stroke="var(--ink-faint)"/>
+    <text x="380" y="458" text-anchor="middle" class="lbl-sm">TR — then repeat with the next phase-encode amplitude</text>
+  </g>
+</svg>
+<figcaption><b>Figure 7.1 — How to read any pulse sequence diagram.</b> Five rows, time to the
+right. RF pulses on top; the three gradient channels below; the ADC window showing when data is
+actually taken; the signal at the bottom. The stack of rectangles on the phase-encode row is the
+standard shorthand for “this gradient takes a different amplitude on every repetition”. Everything
+in Chapter 11 is a variation on this template.</figcaption>
+</figure>
+
+<div class="eq">
+  <span class="eq-name">7.5</span>
+  <var>T</var><sub>scan</sub> = TR × <var>N</var><sub>PE</sub> × NEX &nbsp;&nbsp;(2D, one echo per TR)
+  <span class="where">256 phase-encode steps at TR = 500 ms and one average is 128 seconds
+  <i>per slice group</i>. This equation is the reason every acceleration technique in Chapters 11
+  and 14 exists — and note which term is missing: the number of <b>frequency</b>-encoded samples
+  costs nothing, because they all come from one readout.</span>
+</div>
+
+<h2>7.6 &nbsp;Three dimensions, and oblique slices</h2>
+
+<p><strong>3D acquisition</strong> replaces the thin slice with a thick slab and adds a second
+phase-encoding axis along z. Scan time becomes TR × N<sub>PE,y</sub> × N<sub>PE,z</sub> × NEX,
+which is why 3D sequences are almost always gradient-echo with very short TR. In exchange you get
+isotropic sub-millimetre voxels that can be reformatted in any plane, and an SNR advantage of
+√N<sub>z</sub> because every excitation collects signal from the whole slab.</p>
+
+<p><strong>Oblique slices</strong> require no new hardware. The three gradient coils are combined:
+a slice normal <b>n̂</b> is produced by driving G<sub>x</sub>, G<sub>y</sub> and G<sub>z</sub> in
+proportion to the components of <b>n̂</b>. Any plane in space is reachable by a 3×3 rotation matrix
+applied to the logical gradient waveforms — one of the quiet advantages MRI holds over CT, where the
+plane is fixed by the geometry of the gantry.</p>
+
+<div class="note warn">
+<span class="label">Logical versus physical axes</span>
+<p>Sequence programmers work in <i>logical</i> axes — slice, phase, read. The scanner maps these
+onto <i>physical</i> x, y, z through the rotation matrix for the chosen orientation. Artifacts,
+however, follow the logical axes: motion ghosts always propagate along the phase-encode direction,
+chemical shift displacement always along the readout direction, no matter how the slice is angled.
+When you are diagnosing an artifact, the first question is always “which way was phase encode?”</p>
+</div>
+
+<div class="keypoints">
+<h3>Key points</h3>
+<ul>
+<li><b>Gradients turn position into frequency</b>: ω(r) = γ(B₀ + G·r). That is the entire encoding principle.</li>
+<li><b>Slice thickness = RF bandwidth ÷ (γ̄ × G<sub>z</sub>)</b>; slice position = transmit frequency offset.</li>
+<li><b>Frequency encoding is free</b> — one readout gives a whole axis. <b>Phase encoding costs a TR per line.</b></li>
+<li><b>Phase and frequency encoding are the same physics</b>, differing only in whether you sample during the gradient.</li>
+<li><b>Scan time = TR × N<sub>PE</sub> × NEX</b>, independent of readout matrix size.</li>
+<li><b>The centre of k-space carries contrast and brightness; the periphery carries edges.</b></li>
+<li><b>Artifacts follow logical axes</b>, not anatomical ones.</li>
+</ul>
+</div>
+
+<h2>Going deeper</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://mriquestions.com/" target="_blank" rel="noopener">
+    <span class="k">Reference site</span><span class="t">Q&amp;A in MRI — “Spatial encoding”</span>
+    <span class="d">Particularly good on why phase encoding needs repetition, a point most textbooks rush past.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=MRI+slice+selection+phase+encoding+frequency+encoding+explained" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Slice, phase and frequency encoding</span>
+    <span class="d">Look for lectures that build the sequence diagram row by row rather than presenting it finished.</span></a>
+  <a class="linkcard" href="https://en.wikipedia.org/wiki/Physics_of_magnetic_resonance_imaging" target="_blank" rel="noopener">
+    <span class="k">Reference</span><span class="t">Physics of MRI — Wikipedia</span>
+    <span class="d">A compact statement of the signal equation and the k-space relationship, useful as a formula reference.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=MRI+pulse+sequence+diagram+how+to+read" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Reading pulse sequence diagrams</span>
+    <span class="d">Being fluent in these diagrams is the single highest-leverage skill for the rest of the guide.</span></a>
+</div>
+
+<div class="refs">
+<h3>References</h3>
+<ol>
+<li>Lauterbur, P. C. “Image formation by induced local interactions: examples employing nuclear magnetic resonance.” <i>Nature</i> 242:190–191, 1973. — Gradients as an imaging principle; Nobel Prize 2003.</li>
+<li>Mansfield, P. “Multi-planar image formation using NMR spin echoes.” <i>J. Phys. C</i> 10:L55–L58, 1977.</li>
+<li>Edelstein, W. A. et al. “Spin warp NMR imaging and applications to human whole-body imaging.” <i>Physics in Medicine and Biology</i> 25:751–756, 1980. — The phase-encoding scheme every scanner still uses.</li>
+<li>Nishimura, <i>Principles of MRI</i>, Ch. 5–6.</li>
+<li>Bernstein, King, Zhou, <i>Handbook of MRI Pulse Sequences</i>, Ch. 8–9 (slice selection and encoding gradients).</li>
+</ol>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+<script>
+/* ================= Interactive 7.1 : slice selection ================= */
+(function () {
+  const cv = document.getElementById("slice"), ctx = hidpi(cv, 820, 320);
+  const out = document.getElementById("sout");
+  let G = 10, BW = 1250, OFF = 0, quality = "good";
+  const GBAR = 42577;          // Hz per mT/m per metre  ->  Hz/(mT/m)/m = 42577
+  // f(z) = GBAR * G[mT/m] * z[m]
+
+  function draw() {
+    const W = 820, H = 320;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = cssv("--bg-sunken"); ctx.fillRect(0, 0, W, H);
+    ctx.font = "11px ui-sans-serif, system-ui";
+
+    const thick = BW / (GBAR * G) * 1000;              // mm
+    const centre = OFF / (GBAR * G) * 1000;            // mm
+
+    /* ---- left: body with slice ---- */
+    const bx = 40, by = 40, bw = 300, bh = 240;
+    ctx.strokeStyle = cssv("--rule"); ctx.strokeRect(bx, by, bw, bh);
+    ctx.fillStyle = cssv("--ink-faint"); ctx.globalAlpha = .25;
+    // crude body: head + neck + shoulders along z (vertical)
+    ctx.beginPath();
+    ctx.ellipse(bx + bw / 2, by + 58, 54, 46, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(bx + bw / 2 - 22, by + 96, 44, 40);
+    ctx.beginPath();
+    ctx.ellipse(bx + bw / 2, by + 190, 96, 62, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // z axis: map -200..200 mm to by..by+bh
+    const zTop = -200, zBot = 200;
+    const zpix = z => by + bh * (z - zTop) / (zBot - zTop);
+    const c0 = zpix(centre), half = bh * (thick / 2) / (zBot - zTop);
+
+    ctx.fillStyle = cssv("--accent"); ctx.globalAlpha = .3;
+    ctx.fillRect(bx, c0 - half, bw, Math.max(1.5, 2 * half));
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = cssv("--accent"); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(bx, c0 - half); ctx.lineTo(bx + bw, c0 - half);
+    ctx.moveTo(bx, c0 + half); ctx.lineTo(bx + bw, c0 + half); ctx.stroke();
+    ctx.fillStyle = cssv("--accent");
+    ctx.fillText(`excited slice — ${thick.toFixed(1)} mm thick at z = ${centre.toFixed(0)} mm`, bx + 4, by - 8);
+    ctx.fillStyle = cssv("--ink-faint");
+    ctx.fillText("z = −200 mm", bx + 4, by + 14);
+    ctx.fillText("z = +200 mm", bx + 4, by + bh - 6);
+
+    /* ---- right: frequency vs position ---- */
+    const px0 = 400, py0 = 40, pw = 380, ph = 240;
+    ctx.strokeStyle = cssv("--rule"); ctx.strokeRect(px0, py0, pw, ph);
+    // axes: x = z (-200..200mm), y = frequency offset (-20k..20k)
+    const fTop = 20000, fBot = -20000;
+    const X = z => px0 + pw * (z - zTop) / (zBot - zTop);
+    const Y = f => py0 + ph * (fTop - f) / (fTop - fBot);
+
+    ctx.strokeStyle = cssv("--rule"); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px0, Y(0)); ctx.lineTo(px0 + pw, Y(0)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(X(0), py0); ctx.lineTo(X(0), py0 + ph); ctx.stroke();
+
+    // the RF band
+    ctx.fillStyle = cssv("--accent4"); ctx.globalAlpha = .25;
+    ctx.fillRect(px0, Y(OFF + BW / 2), pw, Math.max(1.5, Y(OFF - BW / 2) - Y(OFF + BW / 2)));
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = cssv("--accent4");
+    ctx.fillText("RF pulse bandwidth", px0 + 6, Y(OFF + BW / 2) - 5);
+
+    // the gradient line f = GBAR*G*z
+    ctx.strokeStyle = cssv("--accent3"); ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    const f1 = GBAR * G * (zTop / 1000), f2 = GBAR * G * (zBot / 1000);
+    ctx.moveTo(X(zTop), Y(Math.max(fBot, Math.min(fTop, f1))));
+    ctx.lineTo(X(zBot), Y(Math.max(fBot, Math.min(fTop, f2))));
+    ctx.stroke();
+    ctx.fillStyle = cssv("--accent3");
+    ctx.fillText("f(z) = γ̄ · G_z · z", px0 + pw - 110, py0 + 16);
+
+    // intersection band
+    ctx.strokeStyle = cssv("--accent"); ctx.lineWidth = 1.4; ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(X(centre - thick / 2), py0); ctx.lineTo(X(centre - thick / 2), py0 + ph);
+    ctx.moveTo(X(centre + thick / 2), py0); ctx.lineTo(X(centre + thick / 2), py0 + ph);
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = cssv("--accent"); ctx.globalAlpha = .18;
+    ctx.fillRect(X(centre - thick / 2), py0, Math.max(1.5, X(centre + thick / 2) - X(centre - thick / 2)), ph);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = cssv("--ink-faint");
+    ctx.fillText("position z →", px0 + pw / 2 - 26, py0 + ph + 18);
+    ctx.save(); ctx.translate(px0 - 12, py0 + ph / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText("frequency offset from f₀", -60, 0); ctx.restore();
+
+    /* ---- profile inset ---- */
+    ctx.fillStyle = cssv("--ink-soft");
+    ctx.fillText("slice profile:", 40, 300);
+    const ix = 130, iw = 210, iy = 302;
+    ctx.strokeStyle = cssv("--accent"); ctx.lineWidth = 2; ctx.beginPath();
+    for (let i = 0; i <= 100; i++) {
+      const u = (i / 100 - 0.5) * 3;            // in units of half-thickness
+      let v;
+      if (quality === "good") v = Math.abs(u) < 1 ? 1 : Math.exp(-8 * (Math.abs(u) - 1));
+      else v = 1 / (1 + Math.pow(Math.abs(u) * 1.15, 4)) * (0.85 + 0.15 * Math.cos(u * 7));
+      const x = ix + iw * i / 100, y = iy - 16 * v;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.stroke();
+
+    const dwell = 1;
+    out.textContent =
+`slice thickness  Δz = BW / (γ̄·G_z) = ${BW} Hz / (42 577 Hz/(mT/m)/m × ${G} mT/m) = ${thick.toFixed(2)} mm
+slice position   z  = Δf / (γ̄·G_z) = ${OFF} Hz → ${centre.toFixed(1)} mm from isocentre
+to halve the thickness: double G_z, or halve the RF bandwidth (which doubles the pulse duration)
+${quality === "poor"
+  ? "profile: poor — shoulders and ripple spill excitation into neighbouring slices (cross-talk).\n         Fix with a better pulse, a slice gap, or interleaved slice ordering."
+  : "profile: good — a long apodised sinc gives near-rectangular selection with little spill."}`;
+  }
+  slider("sg", v => (G = v, v + " mT/m"), draw);
+  slider("sbw", v => (BW = v, v + " Hz"), draw);
+  slider("soff", v => (OFF = v, (v > 0 ? "+" : "") + v + " Hz"), draw);
+  document.getElementById("sq").addEventListener("change", e => { quality = e.target.value; draw(); });
+  window.addEventListener("themechange", draw);
+  draw();
+})();
+
+/* ================= Interactive 7.2 : frequency encoding ================= */
+(function () {
+  const cv = document.getElementById("freq"), ctx = hidpi(cv, 820, 380);
+  const out = document.getElementById("fout");
+  let G = 6, obj = "three", BW = 200, noise = 8;
+  const N = 256;
+
+  function objectProfile() {
+    const p = new Float64Array(N);
+    for (let i = 0; i < N; i++) {
+      const x = i / N - 0.5;                 // -0.5..0.5
+      if (obj === "three") {
+        if (Math.abs(x + 0.28) < 0.018) p[i] = 1;
+        if (Math.abs(x - 0.02) < 0.055) p[i] = 0.75;
+        if (Math.abs(x - 0.30) < 0.10) p[i] = 0.5;
+      } else if (obj === "two") {
+        if (Math.abs(x + 0.15) < 0.008) p[i] = 1;
+        if (Math.abs(x - 0.15) < 0.008) p[i] = 1;
+      } else {
+        const r = Math.abs(x) / 0.42;
+        if (r < 1) p[i] = 0.55 + 0.45 * Math.cos(r * 2.6) * (r < 0.75 ? 1 : 0.4);
+        if (Math.abs(x) > 0.36 && Math.abs(x) < 0.42) p[i] = 0.95;
+      }
+    }
+    return p;
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, 820, 380);
+    ctx.fillStyle = cssv("--bg-sunken"); ctx.fillRect(0, 0, 820, 380);
+    ctx.font = "11px ui-sans-serif, system-ui";
+    const p = objectProfile();
+    const L = 50, R = 800;
+
+    // --- panel 1: object ---
+    ctx.fillStyle = cssv("--ink-soft"); ctx.fillText("1 · the object along x (what we want to recover)", L, 20);
+    ctx.strokeStyle = cssv("--accent2"); ctx.lineWidth = 2; ctx.beginPath();
+    for (let i = 0; i < N; i++) {
+      const x = L + (R - L) * i / (N - 1), y = 100 - 60 * p[i];
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = cssv("--rule"); ctx.beginPath(); ctx.moveTo(L, 100); ctx.lineTo(R, 100); ctx.stroke();
+
+    // --- panel 2: composite signal ---
+    ctx.fillStyle = cssv("--ink-soft"); ctx.fillText("2 · the signal in the coil during the readout gradient — one wire, all positions at once", L, 138);
+    const M = 512;
+    const sig = new Float64Array(M), sigI = new Float64Array(M);
+    const spread = G / 10;                          // frequency spread scales with gradient
+    for (let t = 0; t < M; t++) {
+      let re = 0, im = 0;
+      for (let i = 0; i < N; i++) {
+        if (p[i] === 0) continue;
+        const x = i / N - 0.5;
+        const ph = 2 * Math.PI * x * spread * t * 0.16;
+        re += p[i] * Math.cos(ph); im += p[i] * Math.sin(ph);
+      }
+      const nz = (Math.random() - 0.5) * noise * 0.9;
+      sig[t] = re + nz; sigI[t] = im + (Math.random() - 0.5) * noise * 0.9;
+    }
+    let smax = 1; for (let t = 0; t < M; t++) smax = Math.max(smax, Math.abs(sig[t]));
+    ctx.strokeStyle = cssv("--accent"); ctx.lineWidth = 1.2; ctx.beginPath();
+    for (let t = 0; t < M; t++) {
+      const x = L + (R - L) * t / (M - 1), y = 210 - 55 * sig[t] / smax;
+      t ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = cssv("--rule"); ctx.beginPath(); ctx.moveTo(L, 210); ctx.lineTo(R, 210); ctx.stroke();
+    ctx.fillStyle = cssv("--ink-faint"); ctx.fillText("time →", (L + R) / 2, 276);
+
+    // --- panel 3: spectrum ---
+    ctx.fillStyle = cssv("--ink-soft"); ctx.fillText("3 · magnitude spectrum of that signal = a projection of the object", L, 296);
+    const spec = new Float64Array(N);
+    for (let f = 0; f < N; f++) {
+      let re = 0, im = 0;
+      const fx = (f / N - 0.5);
+      for (let t = 0; t < M; t++) {
+        const ph = -2 * Math.PI * fx * spread * t * 0.16;
+        re += sig[t] * Math.cos(ph) - sigI[t] * Math.sin(ph);
+        im += sig[t] * Math.sin(ph) + sigI[t] * Math.cos(ph);
+      }
+      spec[f] = Math.hypot(re, im);
+    }
+    let mx = 1e-9; for (const v of spec) mx = Math.max(mx, v);
+    ctx.strokeStyle = cssv("--accent3"); ctx.lineWidth = 2; ctx.beginPath();
+    for (let f = 0; f < N; f++) {
+      const x = L + (R - L) * f / (N - 1), y = 366 - 62 * spec[f] / mx;
+      f ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = cssv("--rule"); ctx.beginPath(); ctx.moveTo(L, 366); ctx.lineTo(R, 366); ctx.stroke();
+
+    const fovFreq = 42577 * G * 0.25;    // Hz across a 250 mm FOV
+    out.textContent =
+`readout gradient ${G} mT/m spreads a 250 mm FOV over ${(fovFreq / 1000).toFixed(1)} kHz
+receive bandwidth ${BW} Hz/pixel → readout duration ≈ ${(1000 / BW).toFixed(2)} ms, total ±${(BW * 256 / 2000).toFixed(0)} kHz
+fat–water shift at 1.5 T (220 Hz) = ${(220 / BW).toFixed(2)} pixels of displacement along the readout axis
+noise level ${noise} → the spectrum is still recoverable because the object's energy is concentrated,
+which is exactly why averaging and low bandwidth help.`;
+  }
+  slider("fg", v => (G = v, v + " mT/m"), draw);
+  slider("fbw", v => (BW = v, v + " Hz/px"), draw);
+  slider("fn", v => (noise = v, v === 0 ? "none" : v + " (arb.)"), draw);
+  document.getElementById("fobj").addEventListener("change", e => { obj = e.target.value; draw(); });
+  window.addEventListener("themechange", draw);
+  draw();
+})();
+
+/* ================= Interactive 7.3 : phase encoding ================= */
+(function () {
+  const cP = document.getElementById("pe"), cS = document.getElementById("pesig");
+  const ctxP = hidpi(cP, 330, 330), ctxS = hidpi(cS, 470, 330);
+  const out = document.getElementById("pout");
+  let ky = 0, sweep = false, dir = 1, tick = 0;
+  const GRID = 11;
+  const record = new Map();
+
+  function draw() {
+    /* --- phase map --- */
+    ctxP.clearRect(0, 0, 330, 330);
+    ctxP.fillStyle = cssv("--bg-sunken"); ctxP.fillRect(0, 0, 330, 330);
+    const cell = 28, ox = 12, oy = 12;
+    let sre = 0, sim = 0, n = 0;
+    for (let j = 0; j < GRID; j++) {
+      for (let i = 0; i < GRID; i++) {
+        const x = (i - (GRID - 1) / 2) / GRID, y = (j - (GRID - 1) / 2) / GRID;
+        // circular object
+        const inside = Math.hypot(x, y) < 0.42;
+        const cx = ox + cell * i + cell / 2 + 6, cy = oy + cell * j + cell / 2 + 6;
+        if (!inside) continue;
+        const ph = 2 * Math.PI * ky * y;
+        sre += Math.cos(ph); sim += Math.sin(ph); n++;
+        ctxP.strokeStyle = cssv("--accent2"); ctxP.lineWidth = 2; ctxP.lineCap = "round";
+        ctxP.beginPath(); ctxP.moveTo(cx, cy);
+        ctxP.lineTo(cx + Math.cos(ph) * 11, cy - Math.sin(ph) * 11); ctxP.stroke();
+        ctxP.fillStyle = cssv("--rule");
+        ctxP.beginPath(); ctxP.arc(cx, cy, 1.6, 0, 7); ctxP.fill();
+      }
+    }
+    ctxP.fillStyle = cssv("--ink-faint"); ctxP.font = "11px ui-sans-serif, system-ui";
+    ctxP.fillText("y ↓   phase twists along y only", 12, 322);
+
+    /* --- signal / k-space line --- */
+    const mag = Math.hypot(sre, sim) / n;
+    record.set(ky, mag);
+    ctxS.clearRect(0, 0, 470, 330);
+    ctxS.fillStyle = cssv("--bg-sunken"); ctxS.fillRect(0, 0, 470, 330);
+    const L = 44, R = 452, T = 30, B = 250;
+    ctxS.strokeStyle = cssv("--rule");
+    ctxS.beginPath(); ctxS.moveTo(L, B); ctxS.lineTo(R, B); ctxS.stroke();
+    ctxS.beginPath(); ctxS.moveTo((L + R) / 2, T); ctxS.lineTo((L + R) / 2, B); ctxS.stroke();
+    ctxS.font = "11px ui-sans-serif, system-ui"; ctxS.fillStyle = cssv("--ink-soft");
+    ctxS.fillText("net signal magnitude for each phase-encode step", L, 20);
+    for (let k = -16; k <= 16; k++) {
+      const v = record.has(k) ? record.get(k) : null;
+      if (v === null) continue;
+      const x = L + (R - L) * (k + 16) / 32;
+      ctxS.fillStyle = k === ky ? cssv("--accent") : cssv("--accent2");
+      ctxS.fillRect(x - 4, B - (B - T) * v, 8, (B - T) * v);
+    }
+    ctxS.fillStyle = cssv("--ink-faint");
+    ctxS.fillText("k_y = −16", L - 8, B + 18);
+    ctxS.fillText("0", (L + R) / 2 - 3, B + 18);
+    ctxS.fillText("+16", R - 16, B + 18);
+    ctxS.fillText("each bar is one TR, one line of k-space", L, B + 40);
+    ctxS.fillText("the tall central bars carry most of the image's energy", L, B + 56);
+
+    out.textContent =
+`phase-encode step k_y = ${ky}    phase twist across the object = ${(ky * 360).toFixed(0)}°
+net signal = ${(mag * 100).toFixed(1)} % of the k_y = 0 maximum
+${ky === 0
+  ? "no twist: every voxel adds in phase. This single line sets overall image brightness and most of the contrast."
+  : Math.abs(ky) < 5
+  ? "gentle twist: sensitive to broad, low-spatial-frequency structure — the shape and contrast of the image."
+  : "tight twist: almost everything cancels. What survives encodes fine detail and edges — small signal, but it is what makes the image sharp."}`;
+  }
+
+  slider("pk", v => (ky = Math.round(v), "k_y = " + Math.round(v)), draw);
+  document.getElementById("pauto").onclick = () => { sweep = true; };
+  document.getElementById("pstop").onclick = () => { sweep = false; };
+  animate(() => {
+    if (!sweep) return;
+    if (++tick % 8) return;
+    ky += dir; if (ky >= 16 || ky <= -16) dir = -dir;
+    const el = document.getElementById("pk"); el.value = ky;
+    el.dispatchEvent(new Event("input"));
+  });
+  draw();
+})();
+</script>
+</body>
+</html>

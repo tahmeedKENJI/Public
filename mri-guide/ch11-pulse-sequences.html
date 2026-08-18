@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11 · Pulse Sequences — MRI Visual Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="eyebrow">Part IV · Sequences and Contrast</p>
+<h1>Pulse Sequences: The Catalogue</h1>
+<p class="dek">Every sequence is built from four verbs — excite, refocus, encode, read — arranged on a
+schedule. The bewildering list of acronyms is three vendors naming the same dozen arrangements
+differently. This chapter organises them by what they actually do, so a new acronym becomes a
+question of "which family?" rather than a memory test.</p>
+
+<h2>11.1 &nbsp;The family tree</h2>
+
+<figure class="wide">
+<svg viewBox="0 0 860 380" width="860" height="380" role="img" aria-label="Family tree of MRI pulse sequences">
+  <defs>
+    <marker id="tr" markerWidth="8" markerHeight="8" refX="6" refY="2.8" orient="auto"><path d="M0,0 L6,2.8 L0,5.6 z" fill="var(--ink-faint)"/></marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui">
+    <rect x="330" y="16" width="200" height="40" rx="7" fill="var(--bg-sunken)" stroke="var(--ink)" stroke-width="1.6"/>
+    <text x="430" y="41" text-anchor="middle" class="lbl-b">How is the echo formed?</text>
+
+    <!-- left: spin echo -->
+    <rect x="60" y="100" width="200" height="40" rx="7" fill="var(--bg-sunken)" stroke="var(--accent2)" stroke-width="1.6"/>
+    <text x="160" y="125" text-anchor="middle" class="lbl-b" style="fill:var(--accent2)">RF refocusing → T2</text>
+    <!-- right: gradient echo -->
+    <rect x="600" y="100" width="200" height="40" rx="7" fill="var(--bg-sunken)" stroke="var(--accent)" stroke-width="1.6"/>
+    <text x="700" y="125" text-anchor="middle" class="lbl-b" style="fill:var(--accent)">gradient reversal → T2*</text>
+    <!-- centre: hybrid -->
+    <rect x="340" y="100" width="180" height="40" rx="7" fill="var(--bg-sunken)" stroke="var(--accent3)" stroke-width="1.6"/>
+    <text x="430" y="125" text-anchor="middle" class="lbl-b" style="fill:var(--accent3)">both (EPI, GRASE)</text>
+
+    <g stroke="var(--ink-faint)" fill="none" marker-end="url(#tr)">
+      <path d="M400,56 C 300,72 220,80 175,96"/>
+      <path d="M430,56 L430,94"/>
+      <path d="M460,56 C 560,72 640,80 685,96"/>
+    </g>
+
+    <!-- SE children -->
+    <g class="lbl-sm">
+      <rect x="20" y="184" width="118" height="34" rx="5" fill="var(--bg-panel)" stroke="var(--rule)"/>
+      <text x="79" y="198" text-anchor="middle" class="lbl-b">SE</text>
+      <text x="79" y="212" text-anchor="middle" class="lbl-sm">one echo per TR</text>
+
+      <rect x="150" y="184" width="128" height="34" rx="5" fill="var(--bg-panel)" stroke="var(--rule)"/>
+      <text x="214" y="198" text-anchor="middle" class="lbl-b">TSE / FSE / RARE</text>
+      <text x="214" y="212" text-anchor="middle" class="lbl-sm">echo train, ETL lines per TR</text>
+
+      <rect x="20" y="234" width="118" height="34" rx="5" fill="var(--bg-panel)" stroke="var(--rule)"/>
+      <text x="79" y="248" text-anchor="middle" class="lbl-b">HASTE / SSFSE</text>
+      <text x="79" y="262" text-anchor="middle" class="lbl-sm">single shot, whole slice</text>
+
+      <rect x="150" y="234" width="128" height="34" rx="5" fill="var(--bg-panel)" stroke="var(--rule)"/>
+      <text x="214" y="248" text-anchor="middle" class="lbl-b">SPACE / CUBE / VISTA</text>
+      <text x="214" y="262" text-anchor="middle" class="lbl-sm">3D TSE, variable flip angles</text>
+
+      <rect x="20" y="284" width="258" height="34" rx="5" fill="var(--bg-panel)" stroke="var(--rule)"/>
+      <text x="149" y="298" text-anchor="middle" class="lbl-b">+ inversion prep → STIR, FLAIR</text>
+      <text x="149" y="312" text-anchor="middle" class="lbl-sm">null fat (short TI) or CSF (long TI)</text>
+    </g>
+
+    <!-- GRE children -->
+    <g>
+      <rect x="580" y="184" width="128" height="34" rx="5" fill="var(--bg-panel)" stroke="var(--rule)"/>
+      <text x="644" y="198" text-anchor="middle" class="lbl-b">Spoiled GRE</text>
+      <text x="644" y="212" text-anchor="middle" class="lbl-sm">FLASH · SPGR · T1-FFE</text>
+
+      <rect x="720" y="184" width="122" height="34" rx="5" fill="var(--bg-panel)" stroke="var(--rule)"/>
+      <text x="781" y="198" text-anchor="middle" class="lbl-b">bSSFP</text>
+      <text x="781" y="212" text-anchor="middle" class="lbl-sm">TrueFISP · FIESTA · bFFE</text>
+
+      <rect x="580" y="234" width="128" height="34" rx="5" fill="var(--bg-panel)" stroke="var(--rule)"/>
+      <text x="644" y="248" text-anchor="middle" class="lbl-b">MP-RAGE / BRAVO</text>
+      <text x="644" y="262" text-anchor="middle" class="lbl-sm">inversion-prepped 3D GRE</text>
+
+      <rect x="720" y="234" width="122" height="34" rx="5" fill="var(--bg-panel)" stroke="var(--rule)"/>
+      <text x="781" y="248" text-anchor="middle" class="lbl-b">SWI · multi-echo</text>
+      <text x="781" y="262" text-anchor="middle" class="lbl-sm">T2*, phase, QSM</text>
+
+      <rect x="580" y="284" width="262" height="34" rx="5" fill="var(--bg-panel)" stroke="var(--rule)"/>
+      <text x="711" y="298" text-anchor="middle" class="lbl-b">UTE / ZTE</text>
+      <text x="711" y="312" text-anchor="middle" class="lbl-sm">TE &lt; 100 µs — bone, tendon, lung</text>
+    </g>
+
+    <!-- hybrid children -->
+    <g>
+      <rect x="330" y="184" width="200" height="34" rx="5" fill="var(--bg-panel)" stroke="var(--rule)"/>
+      <text x="430" y="198" text-anchor="middle" class="lbl-b">EPI</text>
+      <text x="430" y="212" text-anchor="middle" class="lbl-sm">single- or multi-shot</text>
+      <rect x="330" y="234" width="200" height="34" rx="5" fill="var(--bg-panel)" stroke="var(--rule)"/>
+      <text x="430" y="248" text-anchor="middle" class="lbl-b">DWI · fMRI · perfusion</text>
+      <text x="430" y="262" text-anchor="middle" class="lbl-sm">all built on an EPI readout</text>
+      <rect x="330" y="284" width="200" height="34" rx="5" fill="var(--bg-panel)" stroke="var(--rule)"/>
+      <text x="430" y="298" text-anchor="middle" class="lbl-b">GRASE</text>
+      <text x="430" y="312" text-anchor="middle" class="lbl-sm">SE train + gradient echoes</text>
+    </g>
+    <g stroke="var(--rule)" fill="none">
+      <path d="M160,140 L160,182"/><path d="M430,140 L430,182"/><path d="M700,140 L700,182"/>
+    </g>
+  </g>
+  <text class="lbl-sm" x="20" y="356">Ask three questions of any sequence: how is the echo formed, what prepares the magnetization before it, and in what order is k-space filled? Those three answers determine almost everything.</text>
+</svg>
+<figcaption><b>Figure 11.1 — The whole zoo on one page.</b> Note how few genuinely distinct mechanisms
+there are. Most "new" sequences are a known readout plus a preparation module plus a k-space ordering
+choice.</figcaption>
+</figure>
+
+<h2>11.2 &nbsp;The spin echo family</h2>
+
+<h3>Conventional spin echo</h3>
+<p>90° – 180° – read, one line of k-space per TR. Immune to field inhomogeneity, excellent image
+quality, and hopelessly slow: 256 lines × 500 ms = over two minutes for a single slice group. It
+survives as the reference standard and for T1-weighted work where TR is short anyway.</p>
+
+<h3>Turbo / fast spin echo (TSE, FSE, RARE)</h3>
+<p>Apply a CPMG train of refocusing pulses after one excitation, and give each echo a
+<em>different</em> phase-encoding amplitude. The scan speeds up by the echo train length (ETL, also
+called turbo factor). Three consequences follow immediately:</p>
+
+<ul>
+<li><strong>Effective TE.</strong> The echoes are not all equal — each has decayed by a different
+amount. The contrast of the image is set by whichever echo fills the <em>centre</em> of k-space, and
+that time is called the effective TE. Everything in Chapter 8 about the centre carrying contrast is
+what makes this work.</li>
+<li><strong>Blurring.</strong> The later echoes are weaker, so k-space is multiplied by a decaying
+envelope along the phase direction — which convolves the image with the transform of that envelope.
+Longer trains mean more blurring, particularly of tissues with short T2.</li>
+<li><strong>Bright fat.</strong> The rapid train of 180° pulses disrupts the J-coupling that normally
+shortens the T2 of lipid protons, so fat stays bright on T2-weighted TSE in a way it never was on
+conventional SE. This is why fat suppression became routine when TSE did.</li>
+</ul>
+
+<figure class="wide">
+<div class="widget">
+  <div class="canvas-row">
+    <div class="canvas-cell"><div class="cname">echo train and k-space ordering</div>
+      <canvas id="tsek" width="470" height="330"></canvas></div>
+    <div class="canvas-cell"><div class="cname">effect on the image</div>
+      <canvas id="tsei" width="128" height="128" style="width:250px;height:250px"></canvas></div>
+  </div>
+  <div class="controls">
+    <label><span class="cap">Echo train length <output id="etl-out"></output></span>
+      <input id="etl" type="range" min="1" max="32" step="1" value="8"></label>
+    <label><span class="cap">Echo spacing <output id="esp-out"></output></span>
+      <input id="esp" type="range" min="4" max="20" step="1" value="10"></label>
+    <label><span class="cap">Tissue T2 <output id="tset2-out"></output></span>
+      <input id="tset2" type="range" min="30" max="300" step="5" value="90"></label>
+    <label style="min-width:12rem"><span class="cap">k-space ordering</span>
+      <select id="tord">
+        <option value="linear" selected>Linear — centre in the middle of the train</option>
+        <option value="centric">Centric — centre first</option>
+        <option value="reverse">Reverse centric — centre last</option>
+      </select></label>
+  </div>
+  <div class="readout" id="tseout"></div>
+</div>
+<figcaption><b>Interactive 11.1 — Why a long echo train blurs.</b> The bars show which echo fills
+which k-space line and how much T2 decay it has suffered. The image on the right is reconstructed
+with exactly that weighting applied to k-space. Increase the echo train length and watch the edges
+soften while the scan gets proportionally faster. Switch to centric ordering: the effective TE
+collapses to the first echo, so the image becomes proton-density weighted no matter what you set TE
+to — a real and frequently-encountered surprise.</figcaption>
+</figure>
+
+<h2>11.3 &nbsp;Inversion recovery: nulling a tissue on purpose</h2>
+
+<p>Precede the sequence with a 180° inversion pulse and wait a time TI before exciting. Each tissue's
+longitudinal magnetization recovers from −M₀ through zero to +M₀ at its own T1 rate. Excite at the
+moment a particular tissue passes through zero and that tissue contributes no signal at all.</p>
+
+<div class="eq">
+  <span class="eq-name">11.1</span>
+  TI<sub>null</sub> = T1 · ln 2 ≈ 0.693 · T1 &nbsp;&nbsp;<span style="color:var(--ink-faint)">(long TR)</span>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  TI<sub>null</sub> = T1 · ln[2 / (1 + e<sup>−TR/T1</sup>)] &nbsp;<span style="color:var(--ink-faint)">(finite TR)</span>
+  <span class="where">Fat at 1.5 T: T1 ≈ 260 ms → TI ≈ 180 ms, which is STIR. CSF at 1.5 T:
+  T1 ≈ 4000 ms → TI ≈ 2400 ms, which is FLAIR. The whole clinical distinction between these two
+  famous sequences is one number.</span>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Sequence</th><th>TI</th><th>Nulls</th><th>Clinical role</th></tr></thead>
+<tbody>
+<tr><td>STIR</td><td>~150–180 ms @1.5 T</td><td>Fat</td><td>Bone marrow oedema, musculoskeletal, whole-body. Suppression is based on T1, so it works even where the field is inhomogeneous — but it also suppresses anything else with a similar T1, including enhancing tissue after gadolinium. Never combine STIR with contrast.</td></tr>
+<tr><td>FLAIR</td><td>~2000–2500 ms @1.5 T</td><td>CSF</td><td>The workhorse of neuroimaging: periventricular MS plaques, small-vessel disease and cortical lesions become obvious once bright CSF is removed.</td></tr>
+<tr><td>MP-RAGE / BRAVO / 3D-IR-GRE</td><td>~900 ms</td><td>Enhances T1 contrast</td><td>Isotropic 1 mm 3D T1 brain volumes — the standard input for every neuro image-processing pipeline in Chapter 16.</td></tr>
+<tr><td>DIR (double inversion)</td><td>Two inversions</td><td>CSF and white matter</td><td>Cortical and juxtacortical lesion detection in MS</td></tr>
+<tr><td>PSIR</td><td>Phase-sensitive</td><td>—</td><td>Recovers the sign of M<sub>z</sub>, doubling the effective contrast range; used in cardiac late-gadolinium imaging</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>11.4 &nbsp;The gradient echo family</h2>
+
+<h3>Spoiled gradient echo (FLASH, SPGR, T1-FFE)</h3>
+<p>Small flip angle, short TR, and any leftover transverse magnetization deliberately destroyed
+("spoiled") before the next repetition by a gradient crusher plus RF phase cycling. Because only a
+small fraction of M<sub>z</sub> is used each time, TR can be a few milliseconds and the whole 3D
+volume acquired in a breath-hold.</p>
+
+<div class="eq">
+  <span class="eq-name">11.2</span>
+  S = M₀ sin α · (1 − E₁)/(1 − cos α · E₁) · e<sup>−TE/T2*</sup>, &nbsp; E₁ = e<sup>−TR/T1</sup>
+  &nbsp;&nbsp;⟹&nbsp;&nbsp; α<sub>Ernst</sub> = arccos(E₁)
+  <span class="where">The Ernst angle maximises signal for a given TR and T1. Below it you waste
+  available magnetization; above it you saturate. Because it depends on T1, choosing a flip angle is
+  simultaneously choosing which tissue is favoured — flip angle is a contrast control in GRE just as
+  TR is in spin echo.</span>
+</div>
+
+<figure class="wide">
+<div class="widget">
+  <canvas id="ernst" width="820" height="330"></canvas>
+  <div class="controls">
+    <label><span class="cap">TR <output id="etr-out"></output></span>
+      <input id="etr" type="range" min="2" max="500" step="2" value="20"></label>
+    <label><span class="cap">Marked flip angle <output id="efa-out"></output></span>
+      <input id="efa" type="range" min="1" max="90" step="1" value="15"></label>
+  </div>
+  <div class="readout" id="ernstout"></div>
+</div>
+<figcaption><b>Interactive 11.2 — The Ernst angle, and why short-TR imaging favours short-T1
+tissue.</b> Each curve is one tissue's signal as a function of flip angle. At short TR the curves
+peak at small angles, and they peak at <em>different</em> angles — which is exactly the contrast.
+Drag TR up towards T1 and the peaks move toward 90°, at which point you have rediscovered the spin
+echo regime. This plot is the reason a 3D T1 volume uses 8–15° while a 2D T1 GRE uses 70°.</figcaption>
+</figure>
+
+<h3>Balanced steady-state free precession (bSSFP: TrueFISP, FIESTA, balanced FFE)</h3>
+<p>Instead of spoiling residual transverse magnetization, keep it — every gradient in every axis is
+balanced so that the net phase accrued per TR is zero, and the magnetization reaches a steady state
+containing both longitudinal and transverse components. The result is a remarkably high-SNR image
+with a very unusual contrast, proportional to <b>T2/T1</b>. Fluid and fat are bright; nearly
+everything else is grey.</p>
+
+<div class="note warn">
+<span class="label">Banding artifact — the price of balance</span>
+<p>bSSFP requires the phase per TR to be identical everywhere. Where B₀ is off resonance by
+1/(2·TR), the steady state destructively interferes and a black band appears across the image. This
+is why bSSFP demands excellent shimming and the shortest possible TR, why the bands move when you
+re-shim, and why bSSFP is popular in cardiac imaging (short TR, good shim over the heart) but
+awkward at 3 T and above.</p>
+</div>
+
+<h2>11.5 &nbsp;EPI: the whole image in one shot</h2>
+<p>After a single excitation, oscillate the readout gradient to traverse k-space in a zig-zag,
+blipping the phase gradient between lines. A 64×64 image in 30–60 ms; a whole brain in 2 seconds.
+This is the only practical way to freeze diffusion, perfusion or neural activity, so essentially all
+of Chapter 13 rests on it. Its weaknesses are severe and characteristic:</p>
+
+<ul>
+<li><strong>Geometric distortion.</strong> The effective bandwidth along the phase-encode direction is
+tiny (the whole train, not one line), so even small off-resonance shifts pixels by centimetres near
+sinuses and ear canals. Corrected with a field map or a reverse-phase-encode acquisition (topup).</li>
+<li><strong>N/2 ghosting.</strong> Odd and even lines are read in opposite directions; any timing or
+eddy-current mismatch between them produces a ghost displaced by half the FOV.</li>
+<li><strong>T2* blurring and dropout.</strong> The readout lasts tens of milliseconds, comparable
+with T2*, so signal decays across k-space — and near air interfaces it disappears entirely.</li>
+<li><strong>Chemical shift.</strong> Fat is displaced by a large fraction of the FOV, so fat
+suppression is mandatory, not optional.</li>
+</ul>
+
+<h2>11.6 &nbsp;Preparation modules: sequences bolted on the front</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Module</th><th>Mechanism</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>CHESS / spectral fat sat</td><td>Narrow-band 90° at the fat frequency, then a crusher gradient</td><td>Fast and contrast-neutral, but fails where B₀ is inhomogeneous — the classic patchy failure over the neck or near metal</td></tr>
+<tr><td>STIR</td><td>T1-based inversion nulling</td><td>Immune to B₀ inhomogeneity; incompatible with gadolinium</td></tr>
+<tr><td>Water excitation / SPAIR / SPIR</td><td>Spectrally selective excitation or adiabatic fat inversion</td><td>SPAIR is more B₁-robust than CHESS; water excitation avoids a separate prep pulse entirely</td></tr>
+<tr><td>Dixon (2-, 3-, 6-point)</td><td>Acquire at echo times where fat and water are in and out of phase, solve algebraically</td><td>Gives water, fat, in-phase and out-of-phase images from one acquisition; robust to shim; the modern default in body imaging, and the basis of fat fraction quantification</td></tr>
+<tr><td>Magnetization transfer</td><td>Off-resonance saturation of macromolecular protons, which exchange with free water</td><td>Contrast for myelin and cartilage; also boosts vessel conspicuity in TOF angiography</td></tr>
+<tr><td>Saturation bands</td><td>Regional 90° + crusher</td><td>Kill signal from flowing blood entering the slab, or from moving anatomy outside the FOV</td></tr>
+<tr><td>Navigators / gating</td><td>Track diaphragm or use ECG/pulse</td><td>Free-breathing abdominal and all cardiac imaging</td></tr>
+<tr><td>Diffusion / velocity encoding</td><td>Bipolar gradient pairs</td><td>Chapter 13</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>11.7 &nbsp;The vendor translation table</h2>
+<div class="tablewrap">
+<table>
+<caption>The same sequence under three brand names. Knowing this table is genuinely useful when
+reading papers, comparing protocols, or moving between departments.</caption>
+<thead><tr><th>Generic</th><th>Siemens</th><th>GE</th><th>Philips</th></tr></thead>
+<tbody>
+<tr><td>Fast/turbo spin echo</td><td>TSE</td><td>FSE</td><td>TSE</td></tr>
+<tr><td>Single-shot FSE</td><td>HASTE</td><td>SSFSE</td><td>SSH-TSE / UFSE</td></tr>
+<tr><td>3D variable-flip TSE</td><td>SPACE</td><td>CUBE</td><td>VISTA</td></tr>
+<tr><td>Spoiled gradient echo</td><td>FLASH</td><td>SPGR</td><td>T1-FFE</td></tr>
+<tr><td>Coherent (non-spoiled) GRE</td><td>FISP</td><td>GRASS</td><td>FFE</td></tr>
+<tr><td>Balanced SSFP</td><td>TrueFISP</td><td>FIESTA</td><td>bFFE</td></tr>
+<tr><td>3D IR-prepped GRE</td><td>MPRAGE</td><td>BRAVO / 3D FSPGR-IR</td><td>3D TFE</td></tr>
+<tr><td>Fat-suppressed 3D T1 GRE (body)</td><td>VIBE</td><td>LAVA</td><td>THRIVE</td></tr>
+<tr><td>Spectral fat sat</td><td>FS / SPAIR</td><td>CHEMSAT / ASPIR</td><td>SPIR / SPAIR</td></tr>
+<tr><td>Parallel imaging</td><td>GRAPPA / mSENSE</td><td>ASSET / ARC</td><td>SENSE</td></tr>
+<tr><td>Radial motion-robust TSE</td><td>BLADE</td><td>PROPELLER</td><td>MultiVane</td></tr>
+<tr><td>Susceptibility-weighted</td><td>SWI</td><td>SWAN</td><td>SWIp / Venous BOLD</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="keypoints">
+<h3>Key points</h3>
+<ul>
+<li><b>Three questions identify any sequence:</b> how the echo forms, what prepares the magnetization, and how k-space is ordered.</li>
+<li><b>TSE trades speed for blurring</b>, and its contrast is set by the effective TE — the echo that fills central k-space.</li>
+<li><b>TI = 0.693 × T1</b> nulls a tissue. STIR nulls fat, FLAIR nulls CSF; the sequences are otherwise the same idea.</li>
+<li><b>In gradient echo, flip angle is a contrast parameter</b>, and the Ernst angle sets the maximum.</li>
+<li><b>bSSFP gives T2/T1 contrast and superb SNR</b>, at the cost of banding wherever the shim fails.</li>
+<li><b>EPI buys speed with distortion, ghosting and dropout</b> — and enables all of functional and diffusion imaging.</li>
+<li><b>Fat suppression has four different mechanisms</b>; they fail in different circumstances, which is why all four survive.</li>
+</ul>
+</div>
+
+<h2>Going deeper</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://mriquestions.com/" target="_blank" rel="noopener">
+    <span class="k">Reference site</span><span class="t">Q&amp;A in MRI — the sequence sections</span>
+    <span class="d">Contains a maintained vendor-acronym table considerably longer than the one above.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=turbo+spin+echo+effective+TE+echo+train+explained" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">TSE, effective TE and blurring</span>
+    <span class="d">Look for explanations that draw the k-space ordering alongside the echo train — the two only make sense together.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=balanced+SSFP+trueFISP+banding+artifact+explained" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">bSSFP and banding</span>
+    <span class="d">Cardiac MR teaching material covers this best, since bSSFP is the backbone of cine imaging.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=echo+planar+imaging+EPI+distortion+ghosting+explained" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">EPI and its artifacts</span>
+    <span class="d">Especially useful if you will work with diffusion or fMRI data, where EPI's failure modes dominate preprocessing.</span></a>
+</div>
+
+<div class="refs">
+<h3>References</h3>
+<ol>
+<li>Hennig, J., Nauerth, A., Friedburg, H. “RARE imaging: a fast imaging method for clinical MR.” <i>Magnetic Resonance in Medicine</i> 3:823–833, 1986. — The origin of TSE/FSE.</li>
+<li>Haase, A. et al. “FLASH imaging: rapid NMR imaging using low flip-angle pulses.” <i>J. Magn. Reson.</i> 67:258–266, 1986.</li>
+<li>Mugler, J. P., Brookeman, J. R. “Three-dimensional magnetization-prepared rapid gradient-echo imaging (3D MP RAGE).” <i>Magnetic Resonance in Medicine</i> 15:152–157, 1990.</li>
+<li>Scheffler, K., Lehnhardt, S. “Principles and applications of balanced SSFP techniques.” <i>European Radiology</i> 13:2409–2418, 2003.</li>
+<li>Dixon, W. T. “Simple proton spectroscopic imaging.” <i>Radiology</i> 153:189–194, 1984.</li>
+<li>Bernstein, King, Zhou, <i>Handbook of MRI Pulse Sequences</i>, Parts III–V. — The definitive catalogue; every sequence here is covered in depth.</li>
+</ol>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+<script src="assets/fft.js"></script>
+<script src="assets/phantom.js"></script>
+<script>
+/* ---------- Interactive 11.1 : TSE echo train and blurring ---------- */
+(function () {
+  const N = 128;
+  const cK = document.getElementById("tsek"), cI = document.getElementById("tsei");
+  const ctxK = hidpi(cK, 470, 330);
+  const out = document.getElementById("tseout");
+  const lbl = buildPhantom(N);
+
+  const base = new Float64Array(N * N);
+  {
+    const lut = TISSUE_KEYS.map(k => signalSE(TISSUES[k], 4000, 90));
+    let mx = 0; for (const v of lut) mx = Math.max(mx, v);
+    for (let i = 0; i < N * N; i++) base[i] = lut[lbl[i]] / mx;
+  }
+  const RE0 = Float64Array.from(base), IM0 = new Float64Array(N * N);
+  fft2d(RE0, IM0, N, N, false);
+  const REc = fftshift(RE0, N, N), IMc = fftshift(IM0, N, N);
+
+  let ETL = 8, ESP = 10, T2 = 90, order = "linear";
+
+  function echoIndexForLine(j) {
+    // j = 0..N-1 (k_y index, N/2 is centre). Returns which echo of the train fills it.
+    const shot = Math.floor(j / (N / ETL));                 // which segment
+    let e;
+    if (order === "linear") {
+      e = shot;                                             // centre lands mid-train
+    } else if (order === "centric") {
+      const d = Math.abs(j - N / 2) / (N / 2);
+      e = Math.min(ETL - 1, Math.floor(d * ETL));
+    } else {
+      const d = 1 - Math.abs(j - N / 2) / (N / 2);
+      e = Math.min(ETL - 1, Math.floor(d * ETL));
+    }
+    return Math.min(ETL - 1, Math.max(0, e));
+  }
+
+  function render() {
+    // weight k-space by T2 decay of the echo that filled each line
+    const re = new Float64Array(N * N), im = new Float64Array(N * N);
+    const wline = new Float64Array(N);
+    for (let j = 0; j < N; j++) {
+      const e = echoIndexForLine(j);
+      const t = (e + 1) * ESP;
+      wline[j] = Math.exp(-t / T2);
+      for (let i = 0; i < N; i++) {
+        re[j * N + i] = REc[j * N + i] * wline[j];
+        im[j * N + i] = IMc[j * N + i] * wline[j];
+      }
+    }
+    const ri = fftshift(re, N, N), ii = fftshift(im, N, N);
+    fft2d(ri, ii, N, N, true);
+    paint(cI, magnitude(ri, ii), N, N, { gamma: 0.9 });
+
+    /* --- plot --- */
+    ctxK.clearRect(0, 0, 470, 330);
+    ctxK.fillStyle = cssv("--bg-sunken"); ctxK.fillRect(0, 0, 470, 330);
+    const L = 46, R = 456, T = 34, B = 250;
+    ctxK.font = "11px ui-sans-serif, system-ui";
+    ctxK.fillStyle = cssv("--ink-soft");
+    ctxK.fillText("signal weight applied to each k-space line", L, 20);
+    ctxK.strokeStyle = cssv("--rule");
+    ctxK.beginPath(); ctxK.moveTo(L, B); ctxK.lineTo(R, B); ctxK.stroke();
+    for (let j = 0; j < N; j++) {
+      const x = L + (R - L) * j / (N - 1);
+      const e = echoIndexForLine(j);
+      const hue = e / Math.max(1, ETL - 1);
+      ctxK.fillStyle = `rgba(${Math.round(80 + 150 * hue)}, ${Math.round(160 - 90 * hue)}, ${Math.round(200 - 90 * hue)}, .9)`;
+      ctxK.fillRect(x, B - (B - T) * wline[j], Math.max(1.5, (R - L) / N), (B - T) * wline[j]);
+    }
+    ctxK.strokeStyle = cssv("--accent"); ctxK.setLineDash([4, 3]); ctxK.lineWidth = 1.4;
+    ctxK.beginPath(); ctxK.moveTo((L + R) / 2, T); ctxK.lineTo((L + R) / 2, B); ctxK.stroke();
+    ctxK.setLineDash([]);
+    ctxK.fillStyle = cssv("--accent");
+    ctxK.fillText("← centre of k-space", (L + R) / 2 + 6, T + 12);
+    ctxK.fillStyle = cssv("--ink-faint");
+    ctxK.fillText("k_y  (colour = which echo of the train filled this line)", L, B + 20);
+    ctxK.fillText("early echo", L, B + 40); ctxK.fillText("late echo", R - 52, B + 40);
+    for (let i = 0; i < 60; i++) {
+      const h = i / 59;
+      ctxK.fillStyle = `rgba(${Math.round(80 + 150 * h)}, ${Math.round(160 - 90 * h)}, ${Math.round(200 - 90 * h)}, .95)`;
+      ctxK.fillRect(L + 66 + i * 4.6, B + 32, 4.6, 9);
+    }
+
+    const effEcho = echoIndexForLine(N / 2);
+    const effTE = (effEcho + 1) * ESP;
+    const trainDur = ETL * ESP;
+    out.textContent =
+`echo train length ${ETL}, spacing ${ESP} ms → train lasts ${trainDur} ms
+scan is ${ETL}× faster than conventional spin echo
+effective TE = ${effTE} ms  (echo #${effEcho + 1} fills the centre of k-space)
+signal remaining at the last echo: ${(Math.exp(-trainDur / T2) * 100).toFixed(1)} % — the k-space taper that causes blurring
+${order === "linear" ? "Linear ordering: contrast behaves as you expect from the chosen TE."
+ : order === "centric" ? "Centric ordering: the FIRST echo defines contrast, so this is proton-density weighted whatever TE you asked for. Used deliberately when you want maximum signal or a very short effective TE."
+ : "Reverse-centric: the LAST, weakest echo defines contrast — heavy T2 weighting but low SNR."}
+${trainDur > 2.5 * T2 ? "⚠ the train is far longer than T2: the tail echoes contribute almost nothing but blur." : ""}`;
+  }
+  slider("etl", v => (ETL = Math.max(1, Math.round(v)), ETL + (ETL === 1 ? " (conventional SE)" : " echoes")), render);
+  slider("esp", v => (ESP = v, v + " ms"), render);
+  slider("tset2", v => (T2 = v, v + " ms"), render);
+  document.getElementById("tord").addEventListener("change", e => { order = e.target.value; render(); });
+  window.addEventListener("themechange", render);
+  render();
+})();
+
+/* ---------- Interactive 11.2 : Ernst angle ---------- */
+(function () {
+  const cv = document.getElementById("ernst"), ctx = hidpi(cv, 820, 330);
+  const out = document.getElementById("ernstout");
+  let TR = 20, FA = 15;
+  const TIS = [
+    { n: "Fat", T1: 260, c: "--accent" },
+    { n: "White matter", T1: 650, c: "--accent2" },
+    { n: "Grey matter", T1: 900, c: "--accent3" },
+    { n: "CSF", T1: 4000, c: "--accent4" },
+  ];
+  function S(a, T1) {
+    const E1 = Math.exp(-TR / T1), r = a * Math.PI / 180;
+    return Math.sin(r) * (1 - E1) / (1 - Math.cos(r) * E1);
+  }
+  function draw() {
+    ctx.clearRect(0, 0, 820, 330);
+    ctx.fillStyle = cssv("--bg-sunken"); ctx.fillRect(0, 0, 820, 330);
+    const L = 60, R = 780, T = 26, B = 268;
+    ctx.font = "11px ui-sans-serif, system-ui";
+    ctx.strokeStyle = cssv("--rule");
+    ctx.beginPath(); ctx.moveTo(L, B); ctx.lineTo(R, B); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(L, T); ctx.lineTo(L, B); ctx.stroke();
+    ctx.fillStyle = cssv("--ink-faint");
+    for (let a = 0; a <= 90; a += 15) {
+      const x = L + (R - L) * a / 90;
+      ctx.strokeStyle = cssv("--rule");
+      ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, B); ctx.stroke();
+      ctx.fillText(a + "°", x - 8, B + 16);
+    }
+    ctx.fillText("flip angle α", (L + R) / 2 - 24, B + 34);
+    ctx.save(); ctx.translate(24, (T + B) / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText("steady-state signal (relative to M₀)", -80, 0); ctx.restore();
+
+    let gmax = 0;
+    for (const t of TIS) for (let a = 1; a <= 90; a++) gmax = Math.max(gmax, S(a, t.T1));
+    gmax = Math.max(gmax, 0.05);
+
+    let lx = L + 12;
+    for (const t of TIS) {
+      ctx.strokeStyle = cssv(t.c); ctx.lineWidth = 2.2; ctx.beginPath();
+      for (let a = 0; a <= 90; a += 0.5) {
+        const x = L + (R - L) * a / 90, y = B - (B - T) * S(a, t.T1) / gmax;
+        a ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+      // Ernst marker
+      const E1 = Math.exp(-TR / t.T1), ea = Math.acos(E1) * 180 / Math.PI;
+      const x = L + (R - L) * ea / 90, y = B - (B - T) * S(ea, t.T1) / gmax;
+      ctx.fillStyle = cssv(t.c);
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill();
+      ctx.fillRect(lx, T - 12, 14, 3); ctx.fillText(t.n, lx + 20, T - 8);
+      lx += 150;
+    }
+    ctx.strokeStyle = cssv("--ink"); ctx.setLineDash([4, 3]); ctx.lineWidth = 1.3;
+    const xm = L + (R - L) * FA / 90;
+    ctx.beginPath(); ctx.moveTo(xm, T); ctx.lineTo(xm, B); ctx.stroke(); ctx.setLineDash([]);
+
+    let txt = `TR = ${TR} ms, flip angle marker at ${FA}°\n\ntissue          T1     Ernst angle   signal at ${FA}°\n`;
+    for (const t of TIS) {
+      const E1 = Math.exp(-TR / t.T1), ea = Math.acos(E1) * 180 / Math.PI;
+      txt += `${t.n.padEnd(15)}${String(t.T1).padStart(5)}  ${ea.toFixed(1).padStart(9)}°   ${(S(FA, t.T1) / gmax * 100).toFixed(1).padStart(6)} %\n`;
+    }
+    const contrast = Math.abs(S(FA, 650) - S(FA, 900)) / gmax * 100;
+    txt += `\nWM–GM signal difference at this flip angle: ${contrast.toFixed(2)} %` +
+           `\n${TR < 50 ? "Short TR: only short-T1 tissue recovers between pulses, so fat dominates and CSF is suppressed — the T1-weighted regime."
+                        : TR > 1500 ? "Long TR: everything recovers fully, flip angle no longer discriminates, and contrast must come from TE instead."
+                        : "Intermediate TR: mixed weighting; the Ernst angles are separating, so flip angle is now a meaningful contrast control."}`;
+    out.textContent = txt;
+  }
+  slider("etr", v => (TR = v, v + " ms"), draw);
+  slider("efa", v => (FA = v, v + "°"), draw);
+  window.addEventListener("themechange", draw);
+  draw();
+})();
+</script>
+</body>
+</html>

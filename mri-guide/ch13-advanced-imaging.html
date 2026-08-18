@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>13 · Beyond Anatomy — MRI Visual Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="eyebrow">Part V · Applications, Speed and Consequences</p>
+<h1>Beyond Anatomy: Diffusion, Perfusion, BOLD, Angiography, Spectroscopy</h1>
+<p class="dek">Everything so far has produced pictures of where the protons are and how they relax.
+This chapter is about the second half of MRI's power: encoding <em>motion</em>, <em>oxygenation</em>,
+<em>flow</em> and <em>chemistry</em> into the same phase and amplitude you already know how to
+control. Each technique below is a small, clever modification of the sequences in Chapter 11.</p>
+
+<h2>13.1 &nbsp;Diffusion: making Brownian motion visible</h2>
+
+<p>Water molecules in tissue move randomly, a few micrometres in tens of milliseconds. To detect
+that, apply a strong gradient pulse to wind a position-dependent phase, wait, then apply an equal
+and opposite pulse to unwind it. A stationary spin ends with exactly zero net phase. A spin that
+moved between the two pulses does not — and because the movement is random, the population acquires
+a spread of phases, and the signal drops.</p>
+
+<div class="eq">
+  <span class="eq-name">13.1</span>
+  S = S<sub>0</sub> e<sup>−<var>b</var>·ADC</sup> &nbsp;&nbsp;&nbsp;&nbsp;
+  <var>b</var> = γ²G²δ²(Δ − δ/3)
+  <span class="where">The <b>b-value</b> (s/mm²) collects the gradient strength G, its duration δ
+  and the separation Δ between the two lobes — it is how hard you are asking the question. The
+  <b>apparent diffusion coefficient</b> (ADC, mm²/s) is the answer the tissue gives. Clinical brain
+  DWI uses b = 0 and b = 1000; ADC is then simply ln(S₀/S₁)/1000, computed per pixel.</span>
+</div>
+
+<figure class="wide">
+<div class="widget">
+  <div class="canvas-row">
+    <div class="canvas-cell"><div class="cname">DWI at the chosen b</div>
+      <canvas id="dwi" width="128" height="128" style="width:230px;height:230px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">ADC map</div>
+      <canvas id="adc" width="128" height="128" style="width:230px;height:230px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">signal decay by tissue</div>
+      <canvas id="dplot" width="330" height="230"></canvas></div>
+  </div>
+  <div class="controls">
+    <label><span class="cap">b-value <output id="db-out"></output></span>
+      <input id="db" type="range" min="0" max="3000" step="50" value="1000"></label>
+    <label><span class="cap">Lesion ADC <output id="dl-out"></output></span>
+      <input id="dl" type="range" min="20" max="300" step="5" value="45"></label>
+    <label><span class="cap">Noise floor <output id="dn-out"></output></span>
+      <input id="dn" type="range" min="0" max="20" step="1" value="3"></label>
+  </div>
+  <div class="readout" id="dout"></div>
+</div>
+<figcaption><b>Interactive 13.1 — Restricted diffusion, and the T2 shine-through trap.</b> Set the
+lesion ADC low (restricted, as in acute stroke or a dense cellular tumour) and it stays bright on
+DWI while everything else darkens. Now raise the lesion ADC to a high value while leaving its T2
+long: it is <em>still</em> somewhat bright on DWI — because DWI images are T2-weighted underneath
+the diffusion weighting. That is <b>T2 shine-through</b>, and it is exactly why an ADC map must
+always be read alongside the DWI. Truly restricted tissue is bright on DWI and <em>dark</em> on ADC.</figcaption>
+</figure>
+
+<h3>From one direction to six, and beyond</h3>
+<p>Diffusion is directional. In white matter, water moves easily along axons and poorly across
+myelin sheaths, so the measurement depends on which way the gradient points. Applying diffusion
+gradients along at least six non-collinear directions lets you fit a 3×3 <strong>diffusion
+tensor</strong>, from which follow:</p>
+<ul>
+<li><strong>Mean diffusivity</strong> — the rotationally-invariant average, effectively a directionless ADC.</li>
+<li><strong>Fractional anisotropy (FA)</strong> — 0 for isotropic diffusion, approaching 1 for a
+perfectly directional structure. A sensitive but non-specific marker of white matter integrity.</li>
+<li><strong>Principal eigenvector</strong> — the dominant direction of diffusion, conventionally
+colour-coded red (left–right), green (anterior–posterior), blue (superior–inferior). Following it
+from voxel to voxel is <strong>tractography</strong>.</li>
+</ul>
+
+<div class="note warn">
+<span class="label">What tractography is and is not</span>
+<p>Tractography follows a diffusion direction field. It does not see axons, cannot determine
+direction of signal flow, and fails wherever fibres cross — which is a large fraction of white
+matter. The tensor model allows only one direction per voxel; higher-order models (HARDI, Q-ball,
+constrained spherical deconvolution, NODDI) exist precisely because that assumption is inadequate.
+Beautiful rainbow tract renderings are model output, not measurement, and should be read with that
+in mind.</p>
+</div>
+
+<h2>13.2 &nbsp;Perfusion: blood at the capillary level</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Technique</th><th>Principle</th><th>Yields</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><b>DSC</b> — dynamic susceptibility contrast</td><td>Bolus of gadolinium; T2* drops as it passes through capillaries. Rapid EPI every 1–2 s</td><td>CBV, CBF, MTT, Tmax</td><td>The standard stroke and brain-tumour perfusion method. Quantification requires an arterial input function, which is difficult to measure reliably</td></tr>
+<tr><td><b>DCE</b> — dynamic contrast enhanced</td><td>T1 shortening as gadolinium leaks into extravascular space; slower sampling over minutes</td><td>K<sup>trans</sup>, v<sub>e</sub>, v<sub>p</sub></td><td>Measures permeability rather than flow. Used in breast, prostate and tumour treatment response</td></tr>
+<tr><td><b>ASL</b> — arterial spin labelling</td><td>Magnetically label arterial blood water with an inversion pulse in the neck, wait, image; subtract from an unlabelled control</td><td>CBF in mL/100 g/min</td><td>Completely non-invasive — the tracer is the patient's own blood. Signal difference is only 1–2%, so dozens of averages are needed. Ideal for children, renal impairment and repeated studies</td></tr>
+</tbody>
+</table>
+</div>
+
+<figure class="wide">
+<svg viewBox="0 0 860 300" width="860" height="300" role="img" aria-label="Arterial spin labelling scheme and DSC time course">
+  <text class="lbl-b" x="20" y="24">Two ways to measure perfusion</text>
+
+  <!-- ASL -->
+  <g transform="translate(40,44)">
+    <text x="0" y="0" class="lbl-b">ASL — subtract two images</text>
+    <ellipse cx="70" cy="60" rx="52" ry="44" fill="var(--ink-faint)" opacity=".2" stroke="var(--ink-faint)"/>
+    <rect x="40" y="118" width="60" height="34" fill="var(--ink-faint)" opacity=".2" stroke="var(--ink-faint)"/>
+    <rect x="26" y="126" width="88" height="12" fill="var(--accent)" opacity=".6"/>
+    <text x="124" y="136" class="lbl-sm" style="fill:var(--accent)">labelling plane</text>
+    <text x="124" y="150" class="lbl-sm">180° inverts arterial blood here</text>
+    <text x="70" y="176" text-anchor="middle" class="lbl-sm">wait ~1.5–2 s (post-label delay)</text>
+    <text x="70" y="192" text-anchor="middle" class="lbl-sm">labelled blood reaches the tissue</text>
+    <text x="70" y="212" text-anchor="middle" class="lbl-sm" style="fill:var(--accent2)">control − label = perfusion, ~1% of signal</text>
+  </g>
+
+  <!-- DSC curve -->
+  <g transform="translate(400,60)">
+    <text x="0" y="-16" class="lbl-b">DSC — watch signal drop as the bolus passes</text>
+    <line x1="0" y1="150" x2="400" y2="150" class="axis"/>
+    <line x1="0" y1="150" x2="0" y2="10" class="axis"/>
+    <path d="M0,30 L70,30 C 90,30 100,120 130,124 C 160,128 176,52 210,44 C 250,36 300,40 400,40"
+          fill="none" stroke="var(--accent)" stroke-width="2.4"/>
+    <text x="404" y="44" class="lbl-sm" style="fill:var(--accent)">normal</text>
+    <path d="M0,30 L80,30 C 104,30 116,80 150,86 C 186,92 210,52 250,46 C 300,40 340,42 400,42"
+          fill="none" stroke="var(--accent2)" stroke-width="2.4" stroke-dasharray="6 4"/>
+    <text x="404" y="70" class="lbl-sm" style="fill:var(--accent2)">ischaemic: later, shallower, wider</text>
+    <text x="130" y="146" class="lbl-sm">bolus</text>
+    <text x="200" y="176" text-anchor="middle" class="lbl-sm">time (s) — sampled every 1–2 s with EPI</text>
+    <text x="-8" y="20" class="lbl-sm" text-anchor="end">S</text>
+    <text x="250" y="120" class="lbl-sm">area under the curve → CBV;  timing → MTT, Tmax</text>
+  </g>
+</svg>
+<figcaption><b>Figure 13.1 — Perfusion by contrast bolus and by magnetic labelling.</b> DSC measures
+a first-pass susceptibility dip; ASL measures a 1% difference between two nearly-identical images and
+needs heavy averaging. In acute stroke, the mismatch between a small diffusion lesion (already dead)
+and a larger perfusion deficit (at risk but salvageable) is what selects patients for thrombectomy —
+one of the clearest examples of MRI physics directly changing treatment.</figcaption>
+</figure>
+
+<h2>13.3 &nbsp;BOLD and functional MRI</h2>
+
+<p>Neural activity increases local blood flow more than it increases oxygen consumption. The result
+is a <em>net decrease</em> in deoxyhaemoglobin, which is paramagnetic; less of it means less local
+field distortion, which means a longer T2*, which means slightly more signal on a T2*-weighted
+gradient-echo EPI. The effect is roughly <b>0.5–3%</b> at 3 T — smaller than the noise in any single
+image, and recovered only by statistics over hundreds of volumes.</p>
+
+<figure class="wide">
+<svg viewBox="0 0 860 280" width="860" height="280" role="img" aria-label="The haemodynamic response function">
+  <text class="lbl-b" x="20" y="24">The haemodynamic response — a slow, stereotyped answer to a fast question</text>
+  <g transform="translate(70,50)">
+    <line x1="0" y1="160" x2="700" y2="160" class="axis"/>
+    <line x1="0" y1="160" x2="0" y2="10" class="axis"/>
+    <rect x="40" y="152" width="30" height="16" fill="var(--accent4)" opacity=".7"/>
+    <text x="55" y="186" text-anchor="middle" class="lbl-sm">stimulus</text>
+
+    <path d="M40,160 C 70,160 84,150 100,120 C 120,80 140,40 165,36 C 190,32 210,70 235,110
+             C 260,150 280,176 310,178 C 350,180 400,166 470,161 C 560,158 640,160 700,160"
+          fill="none" stroke="var(--accent)" stroke-width="2.6"/>
+    <g class="lbl-sm">
+      <line x1="40" y1="160" x2="40" y2="196" class="grid"/><text x="40" y="210" text-anchor="middle">0</text>
+      <line x1="165" y1="36" x2="165" y2="196" class="grid" stroke-dasharray="3 3"/><text x="165" y="210" text-anchor="middle">5 s</text>
+      <line x1="310" y1="178" x2="310" y2="196" class="grid" stroke-dasharray="3 3"/><text x="310" y="210" text-anchor="middle">12 s</text>
+      <text x="500" y="210" text-anchor="middle">20 s</text>
+    </g>
+    <text x="176" y="30" class="lbl-sm" style="fill:var(--accent)">peak at 4–6 s</text>
+    <text x="322" y="196" class="lbl-sm">post-stimulus undershoot</text>
+    <text x="360" y="86" class="lbl-sm">The measured response is this shape convolved with the</text>
+    <text x="360" y="102" class="lbl-sm">experimental design. fMRI analysis is, at its core, a</text>
+    <text x="360" y="118" class="lbl-sm">regression of each voxel's time series against it.</text>
+    <text x="-58" y="20" class="lbl-sm">ΔS ≈ 1–3%</text>
+  </g>
+</svg>
+<figcaption><b>Figure 13.2 — Why fMRI has poor temporal resolution regardless of how fast you scan.</b>
+Neurons fire in milliseconds; blood responds over seconds. Acquiring volumes every 0.5 s with
+multiband EPI improves statistics and physiological-noise modelling, but the haemodynamic blur is
+biology, not instrumentation.</figcaption>
+</figure>
+
+<h2>13.4 &nbsp;MR angiography: three completely different tricks</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Method</th><th>Mechanism</th><th>Strengths</th><th>Weaknesses</th></tr></thead>
+<tbody>
+<tr><td><b>Time of flight (TOF)</b></td><td>Short-TR GRE saturates stationary tissue; blood flowing into the slab is unsaturated and therefore bright</td><td>No contrast agent; excellent for circle of Willis and carotids</td><td>Signal loss with in-plane or slow flow, and with turbulence; overestimates stenosis</td></tr>
+<tr><td><b>Phase contrast (PC)</b></td><td>Bipolar gradients give moving spins a phase proportional to velocity</td><td>Quantitative — actual velocity in cm/s; excellent background suppression; the basis of 4D flow</td><td>Slow; requires choosing VENC in advance, and velocities above VENC alias</td></tr>
+<tr><td><b>Contrast-enhanced (CE-MRA)</b></td><td>Gadolinium shortens blood T1; image during first pass with a fast centric-ordered 3D GRE</td><td>Fast, large coverage, insensitive to flow direction — best for aorta, renal and peripheral vessels</td><td>Timing-critical; contrast required</td></tr>
+<tr><td><b>Non-contrast body MRA</b> (e.g. balanced SSFP with inflow prep)</td><td>T2/T1 contrast plus inversion preparation</td><td>Renal impairment; repeatable</td><td>Field-inhomogeneity sensitive</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="eq">
+  <span class="eq-name">13.2</span>
+  φ = γ · <var>M</var><sub>1</sub> · <var>v</var> &nbsp;&nbsp;&nbsp; VENC = π / (γ <var>M</var><sub>1</sub>)
+  <span class="where">M₁ is the first moment of the bipolar gradient pair. Set VENC just above the
+  highest expected velocity: too high and small velocities are lost in noise, too low and fast flow
+  wraps to the wrong sign — the classic "aliased jet" in a stenosis.</span>
+</div>
+
+<h2>13.5 &nbsp;Spectroscopy: chemistry instead of anatomy</h2>
+
+<p>Switch the gradients off during readout and the only thing separating frequencies is chemical
+shift. The result is a spectrum rather than an image: peaks whose positions identify metabolites and
+whose areas measure concentration. Because metabolites are 10 000× less abundant than water, MRS
+needs large voxels (typically 1–8 cm³), long acquisitions, excellent shimming, and aggressive water
+suppression.</p>
+
+<figure class="wide">
+<svg viewBox="0 0 860 260" width="860" height="260" role="img" aria-label="A typical brain proton spectrum">
+  <text class="lbl-b" x="20" y="24">A normal ¹H brain spectrum (PRESS, TE 35 ms)</text>
+  <g transform="translate(60,50)">
+    <line x1="0" y1="160" x2="740" y2="160" class="axis"/>
+    <path d="M0,160 L60,158 L90,155
+             L120,150 C 130,150 134,96 146,96 C 158,96 162,150 172,152
+             L210,154 C 226,154 230,120 242,120 C 254,120 258,154 272,155
+             L330,156 C 344,156 348,64 362,64 C 376,64 380,156 394,157
+             L470,157 C 486,157 492,110 506,110 C 520,110 526,157 540,158
+             L640,158 C 654,158 660,132 672,132 C 684,132 690,158 700,159 L740,160"
+          fill="none" stroke="var(--accent)" stroke-width="2.2"/>
+    <g class="lbl-sm" text-anchor="middle">
+      <text x="146" y="86">Cho</text><text x="146" y="100" style="font-size:9px">3.2 ppm</text>
+      <text x="242" y="110">Cr</text><text x="242" y="124" style="font-size:9px">3.0 ppm</text>
+      <text x="362" y="54">NAA</text><text x="362" y="68" style="font-size:9px">2.0 ppm</text>
+      <text x="506" y="100">Glx</text>
+      <text x="672" y="122">Lip / Lac</text><text x="672" y="136" style="font-size:9px">1.3 ppm</text>
+    </g>
+    <g class="lbl-sm" text-anchor="middle">
+      <text x="0" y="182">4.0</text><text x="185" y="182">3.0</text><text x="370" y="182">2.0</text>
+      <text x="555" y="182">1.0</text><text x="740" y="182">0.0</text>
+      <text x="370" y="202">chemical shift (ppm) — note the axis runs backwards, by NMR convention</text>
+    </g>
+    <text x="0" y="228" class="lbl-sm">NAA ↓ neuronal loss · Cho ↑ membrane turnover, tumour · Cr internal reference · Lac ↑ anaerobic metabolism, necrosis</text>
+  </g>
+</svg>
+<figcaption><b>Figure 13.3 — The clinically standard metabolites.</b> The diagnostic content is
+mostly in ratios (NAA/Cr, Cho/Cr) rather than absolute concentrations, because absolute quantitation
+requires careful calibration. A tumour typically shows Cho up and NAA down; a high lactate peak
+inverting at TE 135 ms is a classic marker of anaerobic metabolism.</figcaption>
+</figure>
+
+<h2>13.6 &nbsp;Quantitative and emerging methods</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Method</th><th>Measures</th><th>Why it matters</th></tr></thead>
+<tbody>
+<tr><td>Relaxometry (T1, T2, T2* mapping)</td><td>Relaxation times in ms</td><td>Reproducible across scanners in a way that weighted-image intensities never are; the foundation of quantitative MRI</td></tr>
+<tr><td>MR Fingerprinting</td><td>T1, T2, PD simultaneously</td><td>Deliberately varies sequence parameters to give each tissue a unique signal "fingerprint", matched against a simulated dictionary. Multiple parametric maps from one fast acquisition</td></tr>
+<tr><td>QSM — quantitative susceptibility mapping</td><td>Magnetic susceptibility from phase</td><td>Iron, calcium and myelin quantification; distinguishes calcification from haemorrhage, which T2* alone cannot</td></tr>
+<tr><td>CEST / APT</td><td>Exchange between labile protons and water</td><td>pH and protein-content sensitivity; tumour grading without contrast</td></tr>
+<tr><td>MR elastography</td><td>Tissue stiffness</td><td>Mechanical waves are driven into tissue and imaged with motion-encoding gradients; the standard non-invasive test for liver fibrosis, replacing many biopsies</td></tr>
+<tr><td>Hyperpolarised ¹³C / ¹²⁹Xe</td><td>Real-time metabolism; lung ventilation</td><td>Polarisation raised 10 000-fold outside the magnet, bypassing the Boltzmann limit of Chapter 2</td></tr>
+<tr><td>MR thermometry</td><td>Temperature via the proton resonance frequency shift</td><td>Real-time monitoring during MR-guided focused ultrasound ablation</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="keypoints">
+<h3>Key points</h3>
+<ul>
+<li><b>Diffusion: S = S₀e<sup>−b·ADC</sup></b>. Always read DWI with its ADC map to avoid T2 shine-through.</li>
+<li><b>The tensor gives FA and fibre direction</b>, with a hard limit: one direction per voxel.</li>
+<li><b>Perfusion by bolus (DSC/DCE) or by labelling blood itself (ASL)</b>; the DWI–perfusion mismatch guides stroke treatment.</li>
+<li><b>BOLD is a 1–3% T2* effect</b>, blurred by a several-second haemodynamic response.</li>
+<li><b>Three MRA mechanisms</b>: inflow, velocity-phase, and T1 shortening. Phase contrast is the quantitative one.</li>
+<li><b>Spectroscopy removes gradients during readout</b> so chemical shift alone separates signals.</li>
+<li><b>Quantitative MRI replaces arbitrary intensities with physical units</b> — the direction the field is moving.</li>
+</ul>
+</div>
+
+<h2>Going deeper</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://mriquestions.com/" target="_blank" rel="noopener">
+    <span class="k">Reference site</span><span class="t">Q&amp;A in MRI — diffusion, perfusion, fMRI, MRA sections</span>
+    <span class="d">Each of this chapter's topics gets a dozen short pages there; the diffusion section is especially good.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=diffusion+weighted+imaging+ADC+stroke+explained" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">DWI and ADC in stroke</span>
+    <span class="d">The clinical case material makes the physics stick better than the equations do.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=arterial+spin+labeling+ASL+MRI+principles" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Arterial spin labelling</span>
+    <span class="d">Look for the label/control subtraction animation — it is the whole idea in ten seconds.</span></a>
+  <a class="linkcard" href="https://fsl.fmrib.ox.ac.uk/fsl/fslwiki" target="_blank" rel="noopener">
+    <span class="k">Software</span><span class="t">FSL — FMRIB Software Library</span>
+    <span class="d">Free tools for diffusion, fMRI and ASL analysis, with course material that doubles as an excellent tutorial on the underlying physics.</span></a>
+</div>
+
+<div class="refs">
+<h3>References</h3>
+<ol>
+<li>Stejskal, E. O., Tanner, J. E. “Spin diffusion measurements: spin echoes in the presence of a time-dependent field gradient.” <i>J. Chem. Phys.</i> 42:288–292, 1965.</li>
+<li>Basser, P. J., Mattiello, J., LeBihan, D. “MR diffusion tensor spectroscopy and imaging.” <i>Biophysical Journal</i> 66:259–267, 1994.</li>
+<li>Ogawa, S. et al. “Brain magnetic resonance imaging with contrast dependent on blood oxygenation.” <i>PNAS</i> 87:9868–9872, 1990. — The BOLD effect.</li>
+<li>Detre, J. A. et al. “Perfusion imaging.” <i>Magnetic Resonance in Medicine</i> 23:37–45, 1992. — The first ASL.</li>
+<li>Ma, D. et al. “Magnetic resonance fingerprinting.” <i>Nature</i> 495:187–192, 2013.</li>
+<li>Alsop, D. C. et al. “Recommended implementation of ASL for clinical applications: a consensus of the ISMRM Perfusion Study Group.” <i>MRM</i> 73:102–116, 2015.</li>
+</ol>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+<script src="assets/fft.js"></script>
+<script src="assets/phantom.js"></script>
+<script>
+/* ---------- Interactive 13.1 : diffusion ---------- */
+(function () {
+  const N = 128;
+  const lbl = buildPhantom(N);
+  const cD = document.getElementById("dwi"), cA = document.getElementById("adc");
+  const cP = document.getElementById("dplot"), ctxP = hidpi(cP, 330, 230);
+  const out = document.getElementById("dout");
+  // ADC in units of 1e-6 mm^2/s
+  const ADC = { air: 0, fat: 100, skull: 200, wm: 700, gm: 800, csf: 3000,
+                muscle: 1400, lesion: 45, vessel: 2000 };
+  let b = 1000, lesionADC = 45, noise = 3;
+
+  function dwiSig(t, key) {
+    const adc = (key === "lesion" ? lesionADC : ADC[key]) * 1e-6;
+    // DWI is an EPI spin echo: T2 weighting is always present underneath
+    const base = t.pd * Math.exp(-90 / t.T2);
+    return base * Math.exp(-b * adc);
+  }
+
+  function render() {
+    renderPhantom(cD, lbl, N, (t, key) => dwiSig(t, key) + noise * 0.002, { fixedMax: 0.55 });
+    renderPhantom(cA, lbl, N, (t, key) => {
+      const adc = (key === "lesion" ? lesionADC : ADC[key]) * 1e-6;
+      return key === "air" ? 0 : adc * 1000;      // scale for display
+    }, { fixedMax: 3.0 });
+
+    /* decay plot */
+    ctxP.clearRect(0, 0, 330, 230);
+    ctxP.fillStyle = cssv("--bg-sunken"); ctxP.fillRect(0, 0, 330, 230);
+    const L = 40, R = 318, T = 18, B = 178;
+    ctxP.font = "10px ui-sans-serif, system-ui";
+    ctxP.strokeStyle = cssv("--rule");
+    ctxP.beginPath(); ctxP.moveTo(L, B); ctxP.lineTo(R, B); ctxP.stroke();
+    ctxP.beginPath(); ctxP.moveTo(L, T); ctxP.lineTo(L, B); ctxP.stroke();
+    const SHOW = [["wm", "--accent2"], ["gm", "--accent3"], ["csf", "--accent4"], ["lesion", "--accent"]];
+    for (const [k, c] of SHOW) {
+      const adc = (k === "lesion" ? lesionADC : ADC[k]) * 1e-6;
+      ctxP.strokeStyle = cssv(c); ctxP.lineWidth = 2; ctxP.beginPath();
+      for (let i = 0; i <= 100; i++) {
+        const bb = 3000 * i / 100, v = Math.exp(-bb * adc);
+        const x = L + (R - L) * i / 100, y = B - (B - T) * v;
+        i ? ctxP.lineTo(x, y) : ctxP.moveTo(x, y);
+      }
+      ctxP.stroke();
+    }
+    ctxP.strokeStyle = cssv("--ink"); ctxP.setLineDash([3, 3]); ctxP.lineWidth = 1.2;
+    const xb = L + (R - L) * b / 3000;
+    ctxP.beginPath(); ctxP.moveTo(xb, T); ctxP.lineTo(xb, B); ctxP.stroke(); ctxP.setLineDash([]);
+    ctxP.fillStyle = cssv("--ink-faint");
+    ctxP.fillText("b = 0", L - 4, B + 14); ctxP.fillText("3000", R - 20, B + 14);
+    ctxP.fillText("b-value (s/mm²)", L + 90, B + 30);
+    // legend, bottom-left where no curve passes
+    ctxP.fillStyle = cssv("--bg-sunken"); ctxP.globalAlpha = .85;
+    ctxP.fillRect(L + 6, B - 56, 96, 54); ctxP.globalAlpha = 1;
+    let ly = B - 44;
+    for (const [k, c] of SHOW) {
+      ctxP.fillStyle = cssv(c); ctxP.fillRect(L + 12, ly - 7, 12, 3);
+      ctxP.fillText(k === "wm" ? "white matter" : k === "gm" ? "grey matter" : k === "csf" ? "CSF" : "lesion",
+                    L + 28, ly - 3);
+      ly += 12;
+    }
+
+    const les = Math.exp(-b * lesionADC * 1e-6), wm = Math.exp(-b * ADC.wm * 1e-6);
+    out.textContent =
+`b = ${b} s/mm²    lesion ADC = ${(lesionADC * 1e-3).toFixed(3)} × 10⁻³ mm²/s   (normal WM ≈ 0.70, CSF ≈ 3.0)
+diffusion attenuation: lesion → ${(les * 100).toFixed(1)} % of its b=0 signal, white matter → ${(wm * 100).toFixed(1)} %
+${lesionADC < 200
+  ? "RESTRICTED diffusion: bright on DWI, dark on the ADC map. Acute infarct, abscess, dense tumour, epidermoid."
+  : lesionADC < 900
+  ? "Diffusion close to normal tissue — the lesion is conspicuous mainly through its T2, not its diffusion."
+  : "FACILITATED diffusion: dark on DWI relative to brain, bright on ADC. Vasogenic oedema, cysts, chronic infarct.\n  Note it may still look brightish on DWI because of T2 shine-through — which is why you check the ADC map."}
+${b === 0 ? "\nAt b = 0 there is no diffusion weighting at all: this is simply a T2-weighted EPI image." : ""}
+${b > 2000 ? "\nVery high b: excellent lesion conspicuity, but signal is approaching the noise floor and ADC estimates become biased." : ""}`;
+  }
+  slider("db", v => (b = v, v + " s/mm²"), render);
+  slider("dl", v => (lesionADC = v, (v * 1e-3).toFixed(3) + " ×10⁻³ mm²/s"), render);
+  slider("dn", v => (noise = v, v === 0 ? "none" : v + " (arb.)"), render);
+  window.addEventListener("themechange", render);
+  render();
+})();
+</script>
+</body>
+</html>

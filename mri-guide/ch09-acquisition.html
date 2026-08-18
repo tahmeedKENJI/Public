@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9 · Signal Acquisition — MRI Visual Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="eyebrow">Part III · Making an Image</p>
+<h1>Signal Acquisition: Coils, Demodulation, Sampling, SNR</h1>
+<p class="dek">The magnetization is rotating. Now it has to become numbers. This chapter follows the
+signal from a few microvolts induced in a loop of copper, through a mixer that strips off a
+127 MHz carrier, into an analogue-to-digital converter — and quantifies exactly what you sacrifice
+at each protocol decision along the way.</p>
+
+<h2>9.1 &nbsp;Detection is Faraday's law, nothing more</h2>
+
+<p>A loop of wire near precessing transverse magnetization experiences a changing magnetic flux, and
+a changing flux induces an EMF. That is the entire detection principle — the same law that runs a
+bicycle dynamo.</p>
+
+<div class="eq">
+  <span class="eq-name">9.1</span>
+  emf = − dΦ/d<var>t</var> &nbsp;&nbsp;∝&nbsp;&nbsp; ω<sub>0</sub> · M<sub>xy</sub> · <var>B</var><sub>1</sub><sup>−</sup>/<var>i</var>
+  <span class="where">The factor ω₀ is why signal grows with field strength <i>twice</i>: once
+  through M₀ ∝ B₀ (Chapter 2) and once through the rate of change here. The last factor is the
+  <b>principle of reciprocity</b>: a coil's receive sensitivity at a point equals the B₁ field it
+  would produce at that point per unit current. This is enormously convenient — you can compute
+  where a coil "sees" by simulating what it would transmit.</span>
+</div>
+
+<p>Signal levels are on the order of microvolts. Thermal noise from the patient's own conductive
+tissue is comparable, and everything else in the universe — FM radio, LED drivers, the lift motor —
+is larger. Hence the Faraday cage, the preamplifier mounted at the coil, and the obsessive attention
+to grounding.</p>
+
+<h2>9.2 &nbsp;Demodulation and quadrature detection</h2>
+
+<p>The raw signal oscillates at 64 or 128 MHz, but the <em>information</em> occupies only a few
+hundred kilohertz around that. Digitising the carrier directly would be wasteful, so the receiver
+mixes the signal down to baseband: multiply by a reference at f₀ and low-pass filter, leaving only
+the difference frequencies — precisely the offsets caused by gradients and chemical shift.</p>
+
+<p>Multiplying by a single reference, however, loses the sign of the offset: a spin 500 Hz above
+resonance and one 500 Hz below produce identical outputs. The fix is <strong>quadrature
+detection</strong> — mix with both cos(ω₀t) and sin(ω₀t), producing two channels, conventionally
+called I (in-phase) and Q (quadrature). Together they form a complex signal whose phase rotates in a
+direction that distinguishes positive from negative offsets.</p>
+
+<figure class="wide">
+<svg viewBox="0 0 860 330" width="860" height="330" role="img" aria-label="The receive chain from coil to k-space">
+  <defs>
+    <marker id="fl" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="var(--ink-faint)"/></marker>
+  </defs>
+  <text class="lbl-b" x="20" y="24">The receive chain</text>
+
+  <g font-family="ui-sans-serif, system-ui">
+    <!-- boxes -->
+    <g>
+      <rect x="20"  y="60" width="104" height="66" rx="6" fill="var(--bg-sunken)" stroke="var(--accent2)" stroke-width="1.6"/>
+      <text x="72" y="86" text-anchor="middle" class="lbl-b">Coil</text>
+      <text x="72" y="104" text-anchor="middle" class="lbl-sm">µV, at f₀</text>
+      <text x="72" y="118" text-anchor="middle" class="lbl-sm">Faraday's law</text>
+
+      <rect x="152" y="60" width="104" height="66" rx="6" fill="var(--bg-sunken)" stroke="var(--accent2)" stroke-width="1.6"/>
+      <text x="204" y="86" text-anchor="middle" class="lbl-b">Preamp</text>
+      <text x="204" y="104" text-anchor="middle" class="lbl-sm">low noise figure</text>
+      <text x="204" y="118" text-anchor="middle" class="lbl-sm">sets system noise</text>
+
+      <rect x="284" y="60" width="120" height="66" rx="6" fill="var(--bg-sunken)" stroke="var(--accent4)" stroke-width="1.6"/>
+      <text x="344" y="86" text-anchor="middle" class="lbl-b">Mixer ×2</text>
+      <text x="344" y="104" text-anchor="middle" class="lbl-sm">cos(ω₀t) and sin(ω₀t)</text>
+      <text x="344" y="118" text-anchor="middle" class="lbl-sm">→ I and Q</text>
+
+      <rect x="432" y="60" width="112" height="66" rx="6" fill="var(--bg-sunken)" stroke="var(--accent4)" stroke-width="1.6"/>
+      <text x="488" y="86" text-anchor="middle" class="lbl-b">Low-pass</text>
+      <text x="488" y="104" text-anchor="middle" class="lbl-sm">anti-alias filter</text>
+      <text x="488" y="118" text-anchor="middle" class="lbl-sm">sets ±BW/2</text>
+
+      <rect x="572" y="60" width="112" height="66" rx="6" fill="var(--bg-sunken)" stroke="var(--accent3)" stroke-width="1.6"/>
+      <text x="628" y="86" text-anchor="middle" class="lbl-b">ADC</text>
+      <text x="628" y="104" text-anchor="middle" class="lbl-sm">dwell Δt = 1/BW</text>
+      <text x="628" y="118" text-anchor="middle" class="lbl-sm">16–18 bits</text>
+
+      <rect x="712" y="60" width="128" height="66" rx="6" fill="var(--bg-sunken)" stroke="var(--accent)" stroke-width="1.6"/>
+      <text x="776" y="86" text-anchor="middle" class="lbl-b">k-space</text>
+      <text x="776" y="104" text-anchor="middle" class="lbl-sm">one complex number</text>
+      <text x="776" y="118" text-anchor="middle" class="lbl-sm">per sample</text>
+    </g>
+    <g stroke="var(--ink-faint)" stroke-width="1.4" fill="none" marker-end="url(#fl)">
+      <line x1="124" y1="93" x2="148" y2="93"/><line x1="256" y1="93" x2="280" y2="93"/>
+      <line x1="404" y1="93" x2="428" y2="93"/><line x1="544" y1="93" x2="568" y2="93"/>
+      <line x1="684" y1="93" x2="708" y2="93"/>
+    </g>
+  </g>
+
+  <!-- waveform illustration -->
+  <g transform="translate(60,180)">
+    <text x="0" y="0" class="lbl-b">at the coil: information hidden on a 127 MHz carrier</text>
+    <path d="M0,60 Q4,20 8,60 T16,60 T24,60 T32,60 T40,60 T48,60 T56,60 T64,60 T72,60 T80,60 T88,60
+             T96,60 T104,60 T112,60 T120,60 T128,60 T136,60 T144,60 T152,60 T160,60 T168,60 T176,60 T184,60"
+          fill="none" stroke="var(--accent2)" stroke-width="1.2"/>
+    <path d="M0,26 C 40,26 60,44 100,50 C 140,56 170,58 190,59" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="4 3"/>
+    <text x="0" y="88" class="lbl-sm">envelope = the signal we want</text>
+  </g>
+  <g transform="translate(330,180)">
+    <text x="0" y="0" class="lbl-b">after mixing: baseband I and Q</text>
+    <path d="M0,60 C 24,30 48,90 72,60 C 96,32 120,88 144,60 C 168,36 186,80 200,62"
+          fill="none" stroke="var(--accent3)" stroke-width="1.8"/>
+    <path d="M0,32 C 24,62 48,30 72,60 C 96,88 120,32 144,60 C 168,86 186,44 200,58"
+          fill="none" stroke="var(--accent4)" stroke-width="1.8"/>
+    <text x="206" y="52" class="lbl-sm" style="fill:var(--accent3)">I</text>
+    <text x="206" y="70" class="lbl-sm" style="fill:var(--accent4)">Q</text>
+    <text x="0" y="88" class="lbl-sm">two channels 90° apart → sign of the offset is preserved</text>
+  </g>
+  <g transform="translate(620,180)">
+    <text x="0" y="0" class="lbl-b">after sampling</text>
+    <g fill="var(--accent)">
+      <circle cx="6" cy="46" r="3"/><circle cx="26" cy="34" r="3"/><circle cx="46" cy="52" r="3"/>
+      <circle cx="66" cy="70" r="3"/><circle cx="86" cy="58" r="3"/><circle cx="106" cy="40" r="3"/>
+      <circle cx="126" cy="56" r="3"/><circle cx="146" cy="66" r="3"/><circle cx="166" cy="54" r="3"/>
+    </g>
+    <line x1="0" y1="86" x2="180" y2="86" class="axis"/>
+    <text x="0" y="108" class="lbl-sm">N complex samples = N points of k-space</text>
+  </g>
+</svg>
+<figcaption><b>Figure 9.1 — From microvolts to k-space.</b> Modern scanners often digitise at an
+intermediate frequency and do the final mixing numerically, and increasingly digitise right at the
+coil to avoid running analogue microvolts down a cable. The logical chain is unchanged. Note that
+the complex nature of MR data is not a mathematical convenience — it is two physical channels,
+and the phase they encode is what diffusion, flow and susceptibility imaging all exploit.</figcaption>
+</figure>
+
+<h2>9.3 &nbsp;Bandwidth, dwell time, and what "bandwidth" means on the console</h2>
+
+<div class="eq">
+  <span class="eq-name">9.2</span>
+  Δ<var>t</var> = 1 / BW<sub>total</sub> &nbsp;&nbsp;&nbsp;
+  <var>T</var><sub>readout</sub> = <var>N</var><sub>x</sub> · Δ<var>t</var> &nbsp;&nbsp;&nbsp;
+  BW<sub>pixel</sub> = BW<sub>total</sub> / <var>N</var><sub>x</sub>
+  <span class="where">Vendors quote this differently and it causes endless confusion: some report
+  total bandwidth in kHz (e.g. ±32 kHz), others report bandwidth per pixel in Hz/px. They describe
+  the same setting. 64 kHz total over a 256 matrix is 250 Hz/px, a dwell time of 15.6 μs and a
+  readout lasting 4 ms.</span>
+</div>
+
+<div class="tablewrap">
+<table>
+<caption>The receive-bandwidth trade, which appears on every protocol you will ever tune.</caption>
+<thead><tr><th></th><th>Low bandwidth (e.g. 100 Hz/px)</th><th>High bandwidth (e.g. 500 Hz/px)</th></tr></thead>
+<tbody>
+<tr><td>SNR</td><td><b>Better</b> — SNR ∝ 1/√BW</td><td>Worse</td></tr>
+<tr><td>Readout duration</td><td>Long — pushes up minimum TE</td><td>Short — enables short TE, more slices per TR</td></tr>
+<tr><td>Chemical shift artifact</td><td><b>Worse</b> — fat displaced by more pixels</td><td>Better</td></tr>
+<tr><td>Susceptibility distortion</td><td>Worse</td><td>Better — the standard fix near metal</td></tr>
+<tr><td>T2* blurring in long readouts</td><td>Worse</td><td>Better</td></tr>
+<tr><td>Typical use</td><td>T1 spin echo, where SNR matters and TE is short anyway</td><td>Near implants, EPI, short-TE gradient echo, fat-water in-phase timing</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>9.4 &nbsp;Signal-to-noise ratio: the master equation</h2>
+
+<p>Noise in MRI is dominated by thermal (Johnson) noise from the conductive tissue in the coil's
+sensitive volume, not by the electronics. It is white across the receive bandwidth. Signal comes
+from the number of spins in a voxel. Putting those together, with all constants absorbed:</p>
+
+<div class="eq">
+  <span class="eq-name">9.3</span>
+  SNR ∝ (Δ<var>x</var> · Δ<var>y</var> · Δ<var>z</var>) · √( <var>N</var><sub>PE</sub> · <var>N</var><sub>freq</sub> · NEX / BW ) · <var>f</var>(B₀, coil, sequence)
+  <span class="where">Read it as: <b>SNR is proportional to voxel volume</b> — the harshest term,
+  since halving each dimension costs a factor of eight — and to the <b>square root of total
+  acquisition time</b>. Everything else is coil design, field strength and how much of the
+  magnetization the sequence manages to use.</span>
+</div>
+
+<figure>
+<div class="widget">
+  <div class="controls">
+    <label><span class="cap">Field of view <output id="s-fov-out"></output></span>
+      <input id="s-fov" type="range" min="100" max="400" step="10" value="240"></label>
+    <label><span class="cap">Matrix <output id="s-mtx-out"></output></span>
+      <input id="s-mtx" type="range" min="64" max="512" step="32" value="256"></label>
+    <label><span class="cap">Slice thickness <output id="s-th-out"></output></span>
+      <input id="s-th" type="range" min="1" max="10" step="0.5" value="5"></label>
+    <label><span class="cap">Averages (NEX) <output id="s-nex-out"></output></span>
+      <input id="s-nex" type="range" min="1" max="8" step="1" value="1"></label>
+    <label><span class="cap">Bandwidth <output id="s-bw-out"></output></span>
+      <input id="s-bw" type="range" min="60" max="800" step="10" value="250"></label>
+    <label><span class="cap">TR <output id="s-tr-out"></output></span>
+      <input id="s-tr" type="range" min="100" max="4000" step="50" value="600"></label>
+    <label><span class="cap">Field strength <output id="s-b0-out"></output></span>
+      <input id="s-b0" type="range" min="0.5" max="7" step="0.5" value="1.5"></label>
+    <label><span class="cap">Parallel imaging factor <output id="s-r-out"></output></span>
+      <input id="s-r" type="range" min="1" max="4" step="1" value="1"></label>
+  </div>
+  <div class="readout" id="sn-out"></div>
+</div>
+<figcaption><b>Interactive 9.1 — The protocol trade-off calculator.</b> Baseline is a typical
+240 mm FOV, 256², 5 mm, 1 NEX, 250 Hz/px, 1.5 T acquisition. Try the experiments that matter:
+double the matrix (resolution up, SNR down four-fold, time unchanged if TR is fixed); halve slice
+thickness (SNR halves); 4 averages (SNR doubles, scan takes four times as long); go to 3 T (SNR
+roughly doubles, free). This one panel explains most of why protocols look the way they do.</figcaption>
+</figure>
+
+<h2>9.5 &nbsp;Coil arrays and how their signals are combined</h2>
+
+<p>A small surface coil has excellent SNR near it and none at depth. A large coil has uniform but
+poor SNR. The phased array resolves the dilemma: many small elements, each with its own receive
+chain, combined afterwards. Two standard combinations:</p>
+
+<ul>
+<li><strong>Root sum of squares</strong> — take |I<sub>1</sub>|² + |I<sub>2</sub>|² + …, then the
+square root. No knowledge of coil sensitivities needed, always works, but discards phase and adds a
+small positive bias in low-signal regions (a noise floor that never reaches zero).</li>
+<li><strong>Sensitivity-weighted (Roemer / adaptive) combination</strong> — weight each channel by
+its estimated complex sensitivity. Optimal SNR, preserves phase (needed for SWI and quantitative
+work), but requires a sensitivity estimate, usually from a fast pre-scan.</li>
+</ul>
+
+<div class="note">
+<span class="label">Why the number of channels stopped being a marketing number</span>
+<p>Adding elements improves SNR only where the new element is close to the anatomy, and each
+element brings its own noise. Beyond a point you are paying for reconstruction burden, not image
+quality. The real benefit of many channels is <b>parallel imaging</b>: distinct spatial sensitivity
+profiles carry independent spatial information, which Chapter 14 converts directly into speed. A
+32-channel head coil is bought for acceleration factor, not for raw SNR.</p>
+</div>
+
+<h2>9.6 &nbsp;Practical details that bite</h2>
+<ul>
+<li><strong>Oversampling in the readout direction is free.</strong> Sampling twice as fast doubles
+the FOV along x at no time cost (the readout is one continuous window), so vendors enable it by
+default and discard the extra afterwards. Aliasing along the readout direction should therefore
+never be seen on a modern scanner — but aliasing along the <em>phase</em> direction costs real time
+to prevent, so it is common.</li>
+<li><strong>NEX is not only for SNR.</strong> Averaging also suppresses incoherent motion artifacts,
+because ghosts add incoherently while signal adds coherently.</li>
+<li><strong>Partial (fractional) echo</strong> samples only part of the readout and reconstructs the
+rest, allowing shorter TE — useful for flow and short-T2* work.</li>
+<li><strong>Prescan is not optional.</strong> Before every acquisition the scanner sets the transmit
+gain (to calibrate B₁), the centre frequency (which drifts with gradient heating and with the
+patient's own susceptibility), and the receiver gain. A failed prescan is the cause of a surprising
+proportion of "the scanner is broken" reports.</li>
+<li><strong>Dynamic range matters.</strong> The DC sample at the centre of k-space is orders of
+magnitude larger than the peripheral samples; the ADC must accommodate the peak without clipping
+while still resolving the smallest. This is why receiver gain is set from a test acquisition, and
+why an incorrectly-gained scan produces bizarre, high-contrast garbage.</li>
+</ul>
+
+<div class="keypoints">
+<h3>Key points</h3>
+<ul>
+<li><b>Detection is Faraday induction</b>, and reciprocity means a coil receives where it would transmit.</li>
+<li><b>Quadrature detection produces complex data</b> — I and Q are physical channels, and MR data is inherently complex.</li>
+<li><b>Δt = 1/BW; readout time = N·Δt.</b> Bandwidth is a single knob trading SNR against distortion and TE.</li>
+<li><b>SNR ∝ voxel volume × √(total sampling time)</b>. Resolution is expensive; time is only square-root effective.</li>
+<li><b>Arrays give SNR near the surface and, more importantly, the spatial diversity that enables acceleration.</b></li>
+<li><b>Noise comes mostly from the patient</b>, which is why cooling the electronics helps less than you would expect.</li>
+</ul>
+</div>
+
+<h2>Going deeper</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://mriquestions.com/" target="_blank" rel="noopener">
+    <span class="k">Reference site</span><span class="t">Q&amp;A in MRI — “Signal &amp; noise”, “Coils”</span>
+    <span class="d">Includes a clear treatment of why vendors quote bandwidth differently, and how to convert.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=MRI+SNR+bandwidth+voxel+size+tradeoff+explained" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">SNR trade-offs in protocol design</span>
+    <span class="d">Radiographer-oriented talks are often better here than physics lectures — they work through real protocol decisions.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=quadrature+detection+IQ+demodulation+explained" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">I/Q demodulation</span>
+    <span class="d">Software-defined-radio tutorials explain this better than most MRI sources, and it is the identical operation.</span></a>
+  <a class="linkcard" href="https://en.wikipedia.org/wiki/Johnson%E2%80%93Nyquist_noise" target="_blank" rel="noopener">
+    <span class="k">Reference</span><span class="t">Johnson–Nyquist noise</span>
+    <span class="d">Where the √BW comes from, and why the dominant noise source is the patient's own conductivity.</span></a>
+</div>
+
+<div class="refs">
+<h3>References</h3>
+<ol>
+<li>Hoult, D. I., Richards, R. E. “The signal-to-noise ratio of the nuclear magnetic resonance experiment.” <i>J. Magn. Reson.</i> 24:71–85, 1976. — The foundational SNR analysis.</li>
+<li>Edelstein, W. A. et al. “The intrinsic signal-to-noise ratio in NMR imaging.” <i>Magnetic Resonance in Medicine</i> 3:604–618, 1986.</li>
+<li>Roemer, P. B. et al. “The NMR phased array.” <i>Magnetic Resonance in Medicine</i> 16:192–225, 1990.</li>
+<li>Wright, S. M., Wald, L. L. “Theory and application of array coils in MR spectroscopy.” <i>NMR in Biomedicine</i> 10:394–410, 1997.</li>
+<li>Bernstein, King, Zhou, <i>Handbook of MRI Pulse Sequences</i>, Ch. 11 (signal acquisition, sampling and filtering).</li>
+</ol>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+<script>
+/* ---------- Interactive 9.1 : SNR / protocol calculator ---------- */
+(function () {
+  const out = document.getElementById("sn-out");
+  let FOV = 240, MTX = 256, TH = 5, NEX = 1, BW = 250, TR = 600, B0 = 1.5, R = 1;
+  const BASE = { FOV: 240, MTX: 256, TH: 5, NEX: 1, BW: 250, B0: 1.5, R: 1 };
+
+  function snrOf(p) {
+    const dx = p.FOV / p.MTX;                     // mm
+    const vox = dx * dx * p.TH;                   // mm^3
+    const samples = p.MTX * p.MTX * p.NEX;        // total k samples acquired
+    return vox * Math.sqrt(samples / p.BW) * (p.B0 / 1.5) / Math.sqrt(p.R);
+  }
+
+  function refresh() {
+    const cur = { FOV, MTX, TH, NEX, BW, B0, R };
+    const rel = snrOf(cur) / snrOf(BASE);
+    const dx = FOV / MTX;
+    const vox = dx * dx * TH;
+    const voxBase = (BASE.FOV / BASE.MTX) ** 2 * BASE.TH;
+    const time = TR * MTX * NEX / 1000 / R;       // s, 2D one echo per TR
+    const timeBase = 600 * 256 / 1000;
+    const bar = n => "█".repeat(Math.max(0, Math.min(40, Math.round(n * 20)))) ;
+
+    out.textContent =
+`voxel            ${dx.toFixed(2)} × ${dx.toFixed(2)} × ${TH} mm  =  ${vox.toFixed(2)} mm³   (baseline ${voxBase.toFixed(2)} mm³)
+scan time        ${time.toFixed(0)} s for one slice group   (baseline ${timeBase.toFixed(0)} s)
+readout          dwell ${(1000 / (BW * MTX) * 1000).toFixed(1)} µs, readout ${(1000 / BW).toFixed(2)} ms, total BW ±${(BW * MTX / 2000).toFixed(1)} kHz
+fat–water shift  ${(220 * B0 / 1.5 / BW).toFixed(2)} px along the readout axis
+
+relative SNR     ${rel.toFixed(2)} ×   ${bar(rel)}
+                 ${rel > 1.15 ? "comfortably better than baseline"
+                   : rel > 0.85 ? "about the same as baseline"
+                   : rel > 0.5 ? "noticeably noisier — consider more averages or a lower bandwidth"
+                   : "very noisy; this protocol would likely be non-diagnostic without acceleration-aware denoising"}
+
+what moved it:
+  voxel volume    ×${(vox / voxBase).toFixed(2)}   (the dominant term — SNR is linear in volume)
+  averaging       ×${Math.sqrt(NEX).toFixed(2)}   (√NEX only, and it costs ${NEX}× the time)
+  bandwidth       ×${Math.sqrt(BASE.BW / BW).toFixed(2)}   (√ ratio; lower BW is cheap SNR but more distortion)
+  field strength  ×${(B0 / 1.5).toFixed(2)}
+  acceleration    ×${(1 / Math.sqrt(R)).toFixed(2)}   (before the g-factor penalty of Chapter 14)`;
+  }
+  slider("s-fov", v => (FOV = v, v + " mm"), refresh);
+  slider("s-mtx", v => (MTX = v, v + " × " + v), refresh);
+  slider("s-th", v => (TH = v, v + " mm"), refresh);
+  slider("s-nex", v => (NEX = v, v + "×"), refresh);
+  slider("s-bw", v => (BW = v, v + " Hz/px"), refresh);
+  slider("s-tr", v => (TR = v, v + " ms"), refresh);
+  slider("s-b0", v => (B0 = v, v + " T"), refresh);
+  slider("s-r", v => (R = v, "R = " + v), refresh);
+  refresh();
+})();
+</script>
+</body>
+</html>

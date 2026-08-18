@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12 · Contrast — MRI Visual Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="eyebrow">Part IV · Sequences and Contrast</p>
+<h1>Contrast: TR, TE, TI and Why Tissues Look Different</h1>
+<p class="dek">This is the chapter where the physics becomes radiology. Two tissues with identical
+proton density can be made to differ by a factor of five, or to look identical, purely by choosing
+two numbers. The simulator below computes real signal from real relaxation times, so you can turn
+those numbers and watch an image change weighting in front of you.</p>
+
+<h2>12.1 &nbsp;The signal equation, and what each factor does</h2>
+
+<div class="eq">
+  <span class="eq-name">12.1</span>
+  S = <var>k</var> · ρ · (1 − e<sup>−TR/T1</sup>) · e<sup>−TE/T2</sup>
+  <span class="where">Spin echo, 90° excitation, long enough TR that the steady state is simple.
+  Three factors, three sources of contrast, and they multiply. The whole art is arranging for
+  <b>exactly one</b> of them to dominate — mixed weighting is the commonest protocol error, because
+  the two effects can cancel and make genuinely different tissues look the same.</span>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Factor</th><th>Emphasised when</th><th>Suppressed when</th><th>What you see</th></tr></thead>
+<tbody>
+<tr><td>ρ — proton density</td><td>Always present</td><td>—</td><td>Sets the ceiling; alone it gives low contrast because tissues differ by only ~20%</td></tr>
+<tr><td>(1 − e<sup>−TR/T1</sup>) — T1 recovery</td><td><b>Short TR</b> (comparable with T1)</td><td>Long TR (everything recovers fully → factor → 1)</td><td>Short-T1 tissue bright: fat white, CSF black</td></tr>
+<tr><td>e<sup>−TE/T2</sup> — T2 decay</td><td><b>Long TE</b> (comparable with T2)</td><td>Short TE (nothing has decayed → factor → 1)</td><td>Long-T2 tissue bright: CSF and oedema white</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note intuition">
+<span class="label">The rule that makes the table unnecessary</span>
+<p><b>Short TR makes it T1-weighted. Long TE makes it T2-weighted. Long TR and short TE leave only
+proton density. You cannot get both T1 and T2 weighting at once</b> — short TR plus long TE gives a
+mixed, low-signal image in which the two contrasts partially cancel, which is why that quadrant of
+the parameter space is simply not used.</p>
+</div>
+
+<h2>12.2 &nbsp;The simulator</h2>
+
+<figure class="wide">
+<div class="widget">
+  <div class="canvas-row">
+    <div class="canvas-cell"><div class="cname">simulated image</div>
+      <canvas id="cimg" width="160" height="160" style="width:300px;height:300px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">signal per tissue</div>
+      <canvas id="cbar" width="440" height="300"></canvas></div>
+  </div>
+  <div class="controls">
+    <label style="min-width:13rem"><span class="cap">Sequence</span>
+      <select id="cseq">
+        <option value="se" selected>Spin echo</option>
+        <option value="ir">Inversion recovery (STIR / FLAIR)</option>
+        <option value="gre">Spoiled gradient echo</option>
+      </select></label>
+    <label><span class="cap">TR <output id="c-tr-out"></output></span>
+      <input id="c-tr" type="range" min="50" max="6000" step="10" value="500"></label>
+    <label><span class="cap">TE <output id="c-te-out"></output></span>
+      <input id="c-te" type="range" min="2" max="200" step="1" value="12"></label>
+    <label id="tiwrap" style="display:none"><span class="cap">TI <output id="c-ti-out"></output></span>
+      <input id="c-ti" type="range" min="30" max="3000" step="10" value="180"></label>
+    <label id="fawrap" style="display:none"><span class="cap">Flip angle <output id="c-fa-out"></output></span>
+      <input id="c-fa" type="range" min="1" max="90" step="1" value="15"></label>
+    <div class="btnrow">
+      <button data-preset="t1">T1-weighted</button>
+      <button data-preset="t2">T2-weighted</button>
+      <button data-preset="pd">Proton density</button>
+      <button data-preset="flair">FLAIR</button>
+      <button data-preset="stir">STIR</button>
+    </div>
+  </div>
+  <div class="readout" id="cout"></div>
+</div>
+<figcaption><b>Interactive 12.1 — Turn the knobs, watch the weighting change.</b> The image is
+computed pixel by pixel from the tissue table below using the signal equation, not shaded in.
+Start with the preset buttons and then move the sliders to see what each one is responsible for.
+The small oval lesion below and to the right of the ventricles has a long T1 and a long T2 — the typical signature of
+oedema, tumour or demyelination — so it is dark on T1, bright on T2, and stays bright on FLAIR
+when CSF is nulled. That last combination is the single most useful observation in neuroimaging.</figcaption>
+</figure>
+
+<h2>12.3 &nbsp;The whole parameter space at once</h2>
+
+<figure class="wide">
+<div class="widget">
+  <div id="grid" style="display:grid;grid-template-columns:auto repeat(5,1fr);gap:6px;align-items:center;font-family:ui-sans-serif,system-ui;font-size:11px"></div>
+  <div class="readout">Rows: TR increasing downward. Columns: TE increasing rightward.
+Top-left (short TR, short TE) is T1-weighted. Bottom-right (long TR, long TE) is T2-weighted.
+Bottom-left (long TR, short TE) is proton-density weighted. Top-right (short TR, long TE) is the
+unused quadrant: mixed weighting, poor signal, and no clinical value.</div>
+</div>
+<figcaption><b>Figure 12.1 — The TR–TE contrast map.</b> Twenty-five reconstructions of the same
+phantom, differing only in two numbers. This single figure contains the practical content of most
+of an introductory MRI course.</figcaption>
+</figure>
+
+<h2>12.4 &nbsp;Standard protocol values, and why</h2>
+<div class="tablewrap">
+<table>
+<caption>Representative 1.5 T brain parameters. At 3 T, T1 values lengthen by roughly 30–40%, so TR
+and TI must be increased — a FLAIR TI of 2200 ms at 1.5 T becomes ~2500 ms at 3 T.</caption>
+<thead><tr><th>Weighting</th><th>TR</th><th>TE</th><th>Other</th><th>Fluid appears</th><th>Fat appears</th></tr></thead>
+<tbody>
+<tr><td>T1-weighted SE</td><td class="num">400–700 ms</td><td class="num">10–20 ms</td><td>—</td><td>Dark</td><td>Bright</td></tr>
+<tr><td>T2-weighted TSE</td><td class="num">3000–6000 ms</td><td class="num">80–120 ms</td><td>ETL 8–16</td><td>Bright</td><td>Bright (TSE) / dark (true SE)</td></tr>
+<tr><td>Proton density</td><td class="num">2000–4000 ms</td><td class="num">10–30 ms</td><td>—</td><td>Mid-grey</td><td>Bright</td></tr>
+<tr><td>FLAIR</td><td class="num">8000–11000 ms</td><td class="num">100–140 ms</td><td>TI 2000–2500 ms</td><td>Dark (nulled)</td><td>Bright</td></tr>
+<tr><td>STIR</td><td class="num">3000–5000 ms</td><td class="num">30–60 ms</td><td>TI 150–180 ms</td><td>Bright</td><td>Dark (nulled)</td></tr>
+<tr><td>MP-RAGE (3D T1)</td><td class="num">1900–2300 ms</td><td class="num">2–4 ms</td><td>TI ~900 ms, α 8–12°</td><td>Dark</td><td>Bright</td></tr>
+<tr><td>T2* GRE / SWI</td><td class="num">30–60 ms</td><td class="num">20–40 ms</td><td>α 15–20°</td><td>Bright</td><td>Bright</td></tr>
+<tr><td>DWI (b = 1000)</td><td class="num">3000–8000 ms</td><td class="num">60–100 ms</td><td>EPI readout</td><td>Dark (free diffusion)</td><td>Suppressed</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>How to identify the weighting of an image you are handed</h3>
+<ol>
+<li><strong>Find CSF.</strong> Bright ventricles → T2-weighted. Dark ventricles → T1-weighted or
+FLAIR. Mid-grey → proton density.</li>
+<li><strong>If CSF is dark, check the grey–white contrast.</strong> On T1 white matter is brighter
+than grey (myelin lipid shortens T1). If CSF is dark but white matter lesions are bright, it is FLAIR.</li>
+<li><strong>Check fat.</strong> Subcutaneous fat dark → some fat suppression is running; on STIR
+everything with a short T1 is dark.</li>
+<li><strong>Check for flow voids and susceptibility.</strong> Prominent blooming around vessels and
+haemorrhage, plus visible venous structure, suggests a T2*-weighted gradient echo.</li>
+</ol>
+
+<h2>12.5 &nbsp;Contrast is not the same as contrast-to-noise</h2>
+
+<div class="eq">
+  <span class="eq-name">12.2</span>
+  CNR<sub>AB</sub> = (S<sub>A</sub> − S<sub>B</sub>) / σ<sub>noise</sub> = SNR<sub>A</sub> − SNR<sub>B</sub>
+  <span class="where">A parameter choice that maximises the <i>difference</i> may do so at the cost
+  of so much signal that the difference disappears into noise. This is why very long TE is not
+  automatically better for T2 lesion detection: past roughly TE ≈ T2 of the lesion, contrast rises
+  while both signals fall, and CNR turns over. As a rule of thumb the optimum TE for detecting a
+  lesion against background is near the T2 of the <em>background</em>.</span>
+</div>
+
+<h2>12.6 &nbsp;What field strength does to contrast</h2>
+<ul>
+<li><strong>T1 lengthens with B₀</strong> (Chapter 4's BPP curve), and lengthens by different amounts
+in different tissues. Grey–white T1 contrast is therefore <em>worse</em> at 3 T for the same TR;
+protocols compensate with longer TR/TI or by using inversion preparation.</li>
+<li><strong>T2 changes little; T2* shortens markedly.</strong> Susceptibility contrast — SWI, BOLD,
+iron-sensitive imaging — improves substantially at higher field. This is the main reason fMRI
+migrated to 3 T and 7 T.</li>
+<li><strong>Chemical shift doubles in Hz</strong> from 1.5 T to 3 T, which makes spectral fat
+suppression easier and chemical-shift misregistration worse.</li>
+<li><strong>SAR quadruples</strong>, constraining the very TSE sequences that provide T2 contrast.</li>
+</ul>
+
+<h2>12.7 &nbsp;Contrast agents in practice</h2>
+<p>Gadolinium shortens T1 wherever it reaches, so enhancement is seen on <em>T1-weighted</em> images
+acquired after injection — always compared against a pre-contrast T1 acquired with identical
+parameters. Enhancement means the agent got there, which means either normal vascularity or a
+breakdown of a barrier that normally excludes it. In the brain, enhancement is essentially a map of
+blood–brain-barrier integrity: high-grade tumour, active demyelination, infection, infarct after a
+few days, and meninges all enhance; normal brain does not.</p>
+
+<div class="note warn">
+<span class="label">Two traps worth remembering</span>
+<p><b>Never run STIR after gadolinium.</b> Enhancing tissue has a shortened T1, close to fat's, so
+STIR will null the very thing you injected contrast to see. Use spectral fat saturation instead.</p>
+<p><b>Very high gadolinium concentration causes signal loss, not gain.</b> The T2* shortening
+overwhelms the T1 shortening — visible in the bladder late in an exam, and in the arterial input
+function of perfusion studies, where it is a genuine quantification problem.</p>
+</div>
+
+<div class="keypoints">
+<h3>Key points</h3>
+<ul>
+<li><b>S = ρ(1−e<sup>−TR/T1</sup>)e<sup>−TE/T2</sup>.</b> Three multiplicative factors; arrange for one to dominate.</li>
+<li><b>Short TR → T1 weighting. Long TE → T2 weighting. Long TR + short TE → proton density.</b></li>
+<li><b>The fourth quadrant is empty</b> because T1 and T2 effects oppose each other there.</li>
+<li><b>TI nulls a tissue at 0.693 × T1</b>; that is the entire difference between STIR and FLAIR.</li>
+<li><b>Optimise CNR, not contrast</b> — the difference divided by the noise is what determines detection.</li>
+<li><b>Contrast changes with field strength</b>, so protocols do not port between scanners unchanged.</li>
+</ul>
+</div>
+
+<h2>Going deeper</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://mriquestions.com/" target="_blank" rel="noopener">
+    <span class="k">Reference site</span><span class="t">Q&amp;A in MRI — image contrast</span>
+    <span class="d">Has the same TR/TE map as Figure 12.1 with real clinical images rather than a phantom.</span></a>
+  <a class="linkcard" href="https://radiopaedia.org/" target="_blank" rel="noopener">
+    <span class="k">Reference site</span><span class="t">Radiopaedia</span>
+    <span class="d">The place to build visual vocabulary: thousands of labelled cases with the sequence stated. Search a pathology and study how it looks across weightings.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=T1+vs+T2+weighted+MRI+how+to+tell+difference" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Telling T1 from T2</span>
+    <span class="d">Short clinical teaching videos; the “find the CSF” heuristic is universal.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=FLAIR+STIR+inversion+recovery+MRI+explained" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Inversion recovery in practice</span>
+    <span class="d">Worth seeing worked examples of TI selection failing — an incorrectly set TI is a common and instructive artifact.</span></a>
+</div>
+
+<div class="refs">
+<h3>References</h3>
+<ol>
+<li>Bydder, G. M., Young, I. R. “MR imaging: clinical use of the inversion recovery sequence.” <i>J. Comput. Assist. Tomogr.</i> 9:659–675, 1985.</li>
+<li>Hajnal, J. V. et al. “Use of fluid attenuated inversion recovery (FLAIR) pulse sequences in MRI of the brain.” <i>J. Comput. Assist. Tomogr.</i> 16:841–844, 1992.</li>
+<li>Stanisz, G. J. et al. “T1, T2 relaxation and magnetization transfer in tissue at 3T.” <i>MRM</i> 54:507–512, 2005. — Source of the tissue parameters used by the simulator.</li>
+<li>McRobbie et al., <i>MRI from Picture to Proton</i>, Ch. 3 and 12 — the clearest clinical treatment of weighting.</li>
+<li>Brown, R. W. et al., <i>MRI: Physical Principles and Sequence Design</i>, Ch. 22 (contrast optimisation and CNR).</li>
+</ol>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+<script src="assets/fft.js"></script>
+<script src="assets/phantom.js"></script>
+<script>
+/* ---------- Interactive 12.1 : contrast simulator ---------- */
+(function () {
+  const N = 160;
+  const lbl = buildPhantom(N);
+  const cI = document.getElementById("cimg");
+  const cB = document.getElementById("cbar"), ctxB = hidpi(cB, 440, 300);
+  const out = document.getElementById("cout");
+  const SHOW = ["fat", "wm", "gm", "csf", "muscle", "lesion"];
+  let seq = "se", TR = 500, TE = 12, TI = 180, FA = 15;
+
+  function sig(t) {
+    if (seq === "se")  return signalSE(t, TR, TE);
+    if (seq === "ir")  return signalIR(t, TR, TE, TI);
+    return signalSPGR(t, TR, TE, FA);
+  }
+
+  function classify() {
+    const S = k => sig(TISSUES[k]);
+    const csf = S("csf"), wm = S("wm"), gm = S("gm"), fat = S("fat");
+    const mx = Math.max(csf, wm, gm, fat, 1e-9);
+    if (seq === "ir" && TI < 400) return "STIR-like: fat is nulled by the short TI.";
+    if (seq === "ir" && TI > 1500) return "FLAIR-like: CSF is nulled by the long TI, so bright lesions stand out against dark fluid.";
+    if (csf / mx > 0.75) return "T2-weighted: fluid is the brightest thing in the image.";
+    if (csf / mx < 0.25 && fat / mx > 0.7) return "T1-weighted: fat bright, fluid dark, white matter brighter than grey.";
+    if (TE < 30 && TR > 2000) return "Proton-density weighted: little T1 or T2 influence, so tissues differ only by how much water they contain.";
+    return "Mixed weighting — T1 and T2 effects are partly cancelling. Rarely useful; move TR down or TE up.";
+  }
+
+  function render() {
+    const max = renderPhantom(cI, lbl, N, sig, {});
+    /* bar chart */
+    ctxB.clearRect(0, 0, 440, 300);
+    ctxB.fillStyle = cssv("--bg-sunken"); ctxB.fillRect(0, 0, 440, 300);
+    ctxB.font = "11px ui-sans-serif, system-ui";
+    const L = 110, R = 424, T = 20, rowh = 40;
+    let mx = 1e-9;
+    for (const k of SHOW) mx = Math.max(mx, sig(TISSUES[k]));
+    SHOW.forEach((k, i) => {
+      const v = sig(TISSUES[k]) / mx;
+      const y = T + i * rowh;
+      ctxB.fillStyle = cssv("--ink-soft");
+      ctxB.textAlign = "right"; ctxB.fillText(TISSUES[k].name, L - 10, y + 16);
+      ctxB.textAlign = "left";
+      ctxB.fillStyle = cssv("--rule"); ctxB.fillRect(L, y, R - L, 20);
+      ctxB.fillStyle = k === "lesion" ? cssv("--accent") : cssv("--accent2");
+      ctxB.fillRect(L, y, (R - L) * v, 20);
+      if (v > 0.85) {
+        ctxB.fillStyle = cssv("--bg-panel"); ctxB.textAlign = "right";
+        ctxB.fillText((v * 100).toFixed(0) + "%", L + (R - L) * v - 6, y + 15);
+        ctxB.textAlign = "left";
+      } else {
+        ctxB.fillStyle = cssv("--ink");
+        ctxB.fillText((v * 100).toFixed(0) + "%", L + (R - L) * v + 6, y + 15);
+      }
+      ctxB.fillStyle = cssv("--ink-faint");
+      ctxB.fillText(`T1 ${TISSUES[k].T1}  T2 ${TISSUES[k].T2}`, L, y + 34);
+    });
+
+    const wm = sig(TISSUES.wm), gm = sig(TISSUES.gm), les = sig(TISSUES.lesion);
+    out.textContent =
+`${classify()}
+
+grey–white contrast   ${(Math.abs(gm - wm) / mx * 100).toFixed(1)} % of peak signal
+lesion vs white matter ${(Math.abs(les - wm) / mx * 100).toFixed(1)} %  → ${Math.abs(les - wm) / mx > 0.2 ? "conspicuous" : Math.abs(les - wm) / mx > 0.08 ? "visible but subtle" : "essentially invisible at this setting"}
+overall signal level  ${(mx * 100).toFixed(0)} % of the theoretical maximum ${mx < 0.25 ? "— low; this protocol would be noisy" : ""}
+${seq === "ir" ? `nulling: TI = ${TI} ms nulls a tissue with T1 = ${(TI / 0.693).toFixed(0)} ms` : ""}`;
+  }
+
+  function syncUI() {
+    document.getElementById("tiwrap").style.display = seq === "ir" ? "" : "none";
+    document.getElementById("fawrap").style.display = seq === "gre" ? "" : "none";
+  }
+  document.getElementById("cseq").addEventListener("change", e => { seq = e.target.value; syncUI(); render(); });
+  slider("c-tr", v => (TR = v, v + " ms"), render);
+  slider("c-te", v => (TE = v, v + " ms"), render);
+  slider("c-ti", v => (TI = v, v + " ms"), render);
+  slider("c-fa", v => (FA = v, v + "°"), render);
+
+  const PRESETS = {
+    t1:   { seq: "se", TR: 500,  TE: 12 },
+    t2:   { seq: "se", TR: 4000, TE: 100 },
+    pd:   { seq: "se", TR: 3000, TE: 15 },
+    flair:{ seq: "ir", TR: 9000, TE: 110, TI: 2400 },
+    stir: { seq: "ir", TR: 4000, TE: 40,  TI: 180 },
+  };
+  document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => {
+    const p = PRESETS[b.dataset.preset];
+    seq = p.seq; document.getElementById("cseq").value = seq; syncUI();
+    const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event("input")); };
+    set("c-tr", p.TR); set("c-te", p.TE);
+    if (p.TI) set("c-ti", p.TI);
+    render();
+  }));
+  window.addEventListener("themechange", render);
+  syncUI(); render();
+})();
+
+/* ---------- Figure 12.1 : TR/TE contrast map ---------- */
+(function () {
+  const N = 72;
+  const lbl = buildPhantom(N);
+  const host = document.getElementById("grid");
+  const TRs = [300, 700, 1500, 3000, 6000];
+  const TEs = [8, 25, 50, 90, 150];
+
+  const corner = document.createElement("div");
+  corner.style.cssText = "color:var(--ink-faint);text-align:right;padding-right:6px";
+  corner.textContent = "TR ↓ / TE →";
+  host.appendChild(corner);
+  for (const te of TEs) {
+    const d = document.createElement("div");
+    d.style.cssText = "text-align:center;color:var(--ink-faint)";
+    d.textContent = "TE " + te;
+    host.appendChild(d);
+  }
+  for (const tr of TRs) {
+    const lab = document.createElement("div");
+    lab.style.cssText = "text-align:right;padding-right:6px;color:var(--ink-faint)";
+    lab.textContent = "TR " + tr;
+    host.appendChild(lab);
+    for (const te of TEs) {
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "text-align:center";
+      const c = document.createElement("canvas");
+      c.width = c.height = N;
+      c.style.cssText = "width:100%;max-width:120px;height:auto;border:1px solid var(--rule);border-radius:3px";
+      renderPhantom(c, lbl, N, t => signalSE(t, tr, te), {});
+      wrap.appendChild(c);
+      host.appendChild(wrap);
+    }
+  }
+})();
+</script>
+</body>
+</html>

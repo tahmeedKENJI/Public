@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>14 · Fast Imaging — MRI Visual Guide</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="eyebrow">Part V · Applications, Speed and Consequences</p>
+<h1>Fast Imaging: Parallel, Compressed Sensing, Learned Reconstruction</h1>
+<p class="dek">Scan time is TR × N<sub>PE</sub> × NEX, and patients cannot hold still forever. Every
+acceleration method answers the same question — how do you skip most of k-space and still get an
+image? — with a different source of extra information: coil geometry, sparsity, or a learned prior.
+Both demos in this chapter run the real algorithms in your browser.</p>
+
+<h2>14.1 &nbsp;The hierarchy of ways to be faster</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Method</th><th>What it skips</th><th>What pays for it</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>Shorter TR / smaller flip</td><td>Waiting for recovery</td><td>Steady-state physics</td><td>Contrast changes; less signal</td></tr>
+<tr><td>Echo trains (TSE, EPI)</td><td>Repeated excitations</td><td>Multiple echoes per excitation</td><td>Blurring, distortion, SAR</td></tr>
+<tr><td>Partial Fourier</td><td>~40% of k-space lines</td><td>Hermitian symmetry</td><td>√ SNR loss, phase-error sensitivity</td></tr>
+<tr><td>Rectangular FOV / partial echo</td><td>Unneeded k-space extent</td><td>Object geometry</td><td>Aliasing if the object is wider than assumed</td></tr>
+<tr><td><b>Parallel imaging</b> (SENSE, GRAPPA)</td><td>Every 2nd–4th line</td><td>Coil sensitivity differences</td><td>SNR/√R, plus a spatially varying g-factor penalty</td></tr>
+<tr><td><b>Simultaneous multi-slice</b></td><td>Whole slices</td><td>Coil sensitivity in the slice direction + CAIPI phase shifts</td><td>Slice leakage; little or no √R penalty, which is why it is so popular</td></tr>
+<tr><td><b>Compressed sensing</b></td><td>60–90% of samples</td><td>Sparsity in some transform + incoherent sampling</td><td>Iterative recon time; risk of smoothing away small features</td></tr>
+<tr><td><b>Deep-learning reconstruction</b></td><td>Even more</td><td>A prior learned from training data</td><td>Hallucination risk; distribution shift; regulatory scrutiny</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>14.2 &nbsp;Parallel imaging: coil geometry as information</h2>
+
+<p>Undersample k-space by a factor R along the phase-encode direction and the FOV shrinks by R,
+so R different locations fold onto the same pixel. In a single-coil image that is fatal: one
+measurement, R unknowns. But with C receive coils you get C measurements of that same pixel, each
+weighted by that coil's sensitivity at each of the R folded locations. If C ≥ R, and if the coil
+sensitivities differ enough, it is an ordinary system of linear equations.</p>
+
+<div class="eq">
+  <span class="eq-name">14.1</span>
+  <b>a</b> = <b>S</b> <b>ρ</b> &nbsp;&nbsp;⟹&nbsp;&nbsp; <b>ρ̂</b> = (<b>S</b><sup>H</sup><b>S</b>)<sup>−1</sup><b>S</b><sup>H</sup> <b>a</b>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <var>g</var><sub>ρ</sub> = √[ (<b>S</b><sup>H</sup><b>S</b>)<sup>−1</sup><sub>ρρ</sub> · (<b>S</b><sup>H</sup><b>S</b>)<sub>ρρ</sub> ] ≥ 1
+  <span class="where"><b>a</b> holds the C aliased pixel values, <b>S</b> is the C×R sensitivity
+  matrix, <b>ρ</b> the R true pixel values. The <b>g-factor</b> measures how ill-conditioned that
+  matrix is at each pixel: SNR falls by √R from the missing samples <i>and</i> by a further factor
+  g from the unfolding itself. Where coil sensitivities are similar — deep in the centre of the
+  body, far from every element — g rises sharply, which is why parallel imaging artifacts appear
+  first in the middle of the image.</span>
+</div>
+
+<figure class="wide">
+<div class="widget">
+  <div class="canvas-row">
+    <div class="canvas-cell"><div class="cname">coil sensitivities</div>
+      <canvas id="pcoils" width="256" height="256" style="width:200px;height:200px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">aliased image, coil 1</div>
+      <canvas id="palias" width="128" height="128" style="width:200px;height:200px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">SENSE reconstruction</div>
+      <canvas id="psense" width="128" height="128" style="width:200px;height:200px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">g-factor map</div>
+      <canvas id="pg" width="128" height="128" style="width:200px;height:200px"></canvas></div>
+  </div>
+  <div class="controls">
+    <label><span class="cap">Acceleration R <output id="pr-out"></output></span>
+      <input id="pr" type="range" min="1" max="4" step="1" value="2"></label>
+    <label><span class="cap">Number of coils <output id="pc-out"></output></span>
+      <input id="pc" type="range" min="2" max="8" step="2" value="4"></label>
+    <label><span class="cap">Coil size (sensitivity width) <output id="pw-out"></output></span>
+      <input id="pw" type="range" min="15" max="120" step="5" value="30"></label>
+    <label><span class="cap">Noise <output id="pn-out"></output></span>
+      <input id="pn" type="range" min="0" max="40" step="1" value="6"></label>
+  </div>
+  <div class="readout" id="pout"></div>
+</div>
+<figcaption><b>Interactive 14.1 — SENSE, actually solved.</b> The aliased image folds R copies of the
+head on top of each other; the reconstruction separates them by solving Equation 14.1 at every pixel.
+Push R to 4 with only 2 coils and the system becomes underdetermined — the reconstruction collapses
+into residual fold-over. Increase the coil count and it recovers. Then watch the g-factor map:
+it is worst wherever the R folded locations happen to see <em>similar</em> coil sensitivities, so the
+noise amplification is highly non-uniform — a fact that matters when you are looking for a small
+lesion in exactly that region. Widen the coils and conditioning collapses everywhere. This is the real reason a 32-channel head coil is
+worth buying.</figcaption>
+</figure>
+
+<h3>SENSE versus GRAPPA</h3>
+<div class="tablewrap">
+<table>
+<thead><tr><th></th><th>SENSE (image domain)</th><th>GRAPPA (k-space domain)</th></tr></thead>
+<tbody>
+<tr><td>Works in</td><td>Image space, after FFT</td><td>k-space, before FFT</td></tr>
+<tr><td>Needs</td><td>Explicit coil sensitivity maps from a pre-scan</td><td>A block of fully-sampled central lines (auto-calibration signal)</td></tr>
+<tr><td>Method</td><td>Solve the folding equations per pixel</td><td>Learn linear weights that predict missing k-space lines from neighbouring acquired lines across coils</td></tr>
+<tr><td>Fails when</td><td>Sensitivity maps are wrong — motion between pre-scan and scan, or FOV smaller than the object</td><td>Calibration region is too small or corrupted; residual artifact is diffuse rather than a clean fold</td></tr>
+<tr><td>Artifact appearance</td><td>Coherent central band or residual ghost</td><td>Noise-like amplification and subtle mottling</td></tr>
+<tr><td>Vendor names</td><td>SENSE (Philips), mSENSE (Siemens), ASSET (GE)</td><td>GRAPPA (Siemens), ARC (GE)</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+<span class="label">Simultaneous multi-slice — the acceleration that is nearly free</span>
+<p>Excite several slices at once with a multiband RF pulse, then separate them afterwards using coil
+sensitivity variation along the slice direction. Because you are not skipping k-space samples, the
+√R noise penalty of in-plane acceleration does not apply; only the g-factor cost remains, and
+CAIPIRINHA phase shifts reduce even that by shifting the simultaneous slices relative to one
+another. This is why modern diffusion and fMRI protocols routinely run multiband factors of 3–8 and
+acquire whole-brain volumes in well under a second.</p>
+</div>
+
+<h2>14.3 &nbsp;Compressed sensing: sparsity as information</h2>
+
+<p>MR images are compressible — a JPEG or wavelet representation throws away most coefficients with
+no visible loss. Compressed sensing asks the obvious follow-up: if the image is mostly zeros in some
+transform, why acquire full data and then discard it? Three conditions must hold:</p>
+
+<ol>
+<li><strong>Sparsity.</strong> The image has a concise representation in some transform (wavelets,
+finite differences, or across time for dynamic imaging, where it is dramatic).</li>
+<li><strong>Incoherent sampling.</strong> Undersample <em>randomly</em>, not regularly. Regular
+undersampling produces coherent replicas — crisp ghosts that look exactly like real anatomy.
+Random undersampling produces diffuse, noise-like interference which a denoising algorithm can
+distinguish from structure.</li>
+<li><strong>Non-linear reconstruction.</strong> Solve min ‖Ψx‖₁ subject to the acquired samples,
+iteratively — no closed-form inverse exists.</li>
+</ol>
+
+<figure class="wide">
+<div class="widget">
+  <div class="canvas-row">
+    <div class="canvas-cell"><div class="cname">sampling pattern</div>
+      <canvas id="csmask" width="128" height="128" style="width:210px;height:210px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">zero-filled reconstruction</div>
+      <canvas id="cszf" width="128" height="128" style="width:210px;height:210px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">after iterative reconstruction</div>
+      <canvas id="cscs" width="128" height="128" style="width:210px;height:210px"></canvas></div>
+    <div class="canvas-cell"><div class="cname">fully sampled reference</div>
+      <canvas id="csref" width="128" height="128" style="width:210px;height:210px"></canvas></div>
+  </div>
+  <div class="controls">
+    <label style="min-width:13rem"><span class="cap">Sampling</span>
+      <select id="cspat">
+        <option value="random" selected>Random, density-weighted to the centre</option>
+        <option value="regular">Regular every Rth line</option>
+        <option value="uniformrand">Uniformly random (no centre weighting)</option>
+      </select></label>
+    <label><span class="cap">Acceleration <output id="csr-out"></output></span>
+      <input id="csr" type="range" min="1" max="6" step="0.5" value="3"></label>
+    <label><span class="cap">Sparsity threshold λ <output id="csl-out"></output></span>
+      <input id="csl" type="range" min="0" max="20" step="1" value="6"></label>
+    <label><span class="cap">Iterations <output id="csi-out"></output></span>
+      <input id="csi" type="range" min="0" max="60" step="5" value="30"></label>
+  </div>
+  <div class="readout" id="csout"></div>
+</div>
+<figcaption><b>Interactive 14.2 — Incoherence is the whole trick.</b> Compare the two sampling
+patterns at the same acceleration. Regular undersampling gives a clean, structured fold-over that
+no algorithm can distinguish from anatomy. Random undersampling gives diffuse interference that
+looks like noise — and noise is something an iterative sparsity-promoting reconstruction can remove.
+Push λ too high and watch the danger: soft thresholding erases everything below the threshold —
+first the residual artifact, which is what you wanted, then genuine low-signal tissue, which is not.
+With a wavelet or total-variation prior the same failure removes small low-contrast lesions instead
+of dimming the whole image, and it does so without looking like an error. That is the central safety
+question in accelerated MRI.</figcaption>
+</figure>
+
+<div class="note warn">
+<span class="label">The honest caveat about learned reconstruction</span>
+<p>Replacing the hand-designed sparsity prior with a neural network trained on thousands of image
+pairs (variational networks, unrolled optimisation, diffusion-model priors) produces sharper images
+at higher accelerations, and is now shipping on clinical scanners under names like Deep Resolve,
+AIR Recon DL and SmartSpeed. The unresolved concern is that a strong learned prior can synthesise
+plausible structure that was never measured — and the failure mode is not noisy and obvious, it is
+clean and confident. The fastMRI challenge found reconstructions with excellent SSIM scores that
+nonetheless removed or invented small pathology. Evaluate these methods on lesion detection, not on
+pixel-wise similarity metrics.</p>
+</div>
+
+<h2>14.4 &nbsp;Choosing an acceleration strategy</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Situation</th><th>Reasonable approach</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Breath-hold abdominal 3D T1</td><td>Parallel imaging R = 2–3 + partial Fourier + CS</td><td>Time is bounded by the breath-hold, and SNR is plentiful at high field with a body array</td></tr>
+<tr><td>Brain diffusion / fMRI</td><td>Multiband 3–6 + in-plane R = 2</td><td>Shortens the EPI train, which also reduces distortion and T2* blurring</td></tr>
+<tr><td>Cardiac cine</td><td>Retrospective gating + CS across time frames</td><td>Dynamic series are exceptionally sparse in the temporal frequency domain</td></tr>
+<tr><td>Paediatric / uncooperative patient</td><td>Radial or PROPELLER + high acceleration</td><td>Motion robustness matters more than peak SNR</td></tr>
+<tr><td>Low-field system</td><td>Deep-learning reconstruction</td><td>SNR-starved regime where a learned prior gives the largest gain — and where the hallucination risk is correspondingly highest</td></tr>
+<tr><td>Quantitative mapping</td><td>Conservative acceleration, validated recon</td><td>Bias introduced by aggressive priors propagates directly into the parameter estimates</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="keypoints">
+<h3>Key points</h3>
+<ul>
+<li><b>Undersampling causes aliasing</b>; acceleration methods differ only in what extra information they use to undo it.</li>
+<li><b>Parallel imaging uses coil sensitivity differences</b>; SNR falls by √R × g, and g is worst where coils overlap most.</li>
+<li><b>SENSE unfolds in image space; GRAPPA interpolates in k-space</b>; their artifacts look different.</li>
+<li><b>Simultaneous multi-slice avoids the √R penalty</b> because no k-space samples are skipped.</li>
+<li><b>Compressed sensing needs sparsity plus incoherent sampling plus non-linear recon</b> — all three, or it fails.</li>
+<li><b>Learned reconstruction is powerful and requires task-based validation</b>, not similarity metrics.</li>
+</ul>
+</div>
+
+<h2>Going deeper</h2>
+<div class="linkgrid">
+  <a class="linkcard" href="https://fastmri.org/" target="_blank" rel="noopener">
+    <span class="k">Dataset</span><span class="t">fastMRI</span>
+    <span class="d">Open raw k-space datasets from NYU and Meta, plus baseline models and the challenge results. The natural place to start if you want to build reconstruction models yourself.</span></a>
+  <a class="linkcard" href="https://mrirecon.github.io/bart/" target="_blank" rel="noopener">
+    <span class="k">Software</span><span class="t">BART</span>
+    <span class="d">Reference implementations of ESPIRiT, SENSE, GRAPPA and CS reconstruction, with tutorials that run on the fastMRI data.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=SENSE+GRAPPA+parallel+imaging+MRI+explained" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Parallel imaging explained</span>
+    <span class="d">Look for the pixel-unfolding walkthrough — seeing the 2×2 system solved by hand makes the whole method obvious.</span></a>
+  <a class="linkcard" href="https://www.youtube.com/results?search_query=compressed+sensing+MRI+lustig+explained" target="_blank" rel="noopener">
+    <span class="k">Video search</span><span class="t">Compressed sensing in MRI</span>
+    <span class="d">Michael Lustig’s talks are the canonical source and unusually clear on why random sampling is essential.</span></a>
+</div>
+
+<div class="refs">
+<h3>References</h3>
+<ol>
+<li>Pruessmann, K. P. et al. “SENSE: sensitivity encoding for fast MRI.” <i>Magnetic Resonance in Medicine</i> 42:952–962, 1999.</li>
+<li>Griswold, M. A. et al. “Generalized autocalibrating partially parallel acquisitions (GRAPPA).” <i>MRM</i> 47:1202–1210, 2002.</li>
+<li>Lustig, M., Donoho, D., Pauly, J. M. “Sparse MRI: the application of compressed sensing for rapid MR imaging.” <i>MRM</i> 58:1182–1195, 2007.</li>
+<li>Setsompop, K. et al. “Blipped-CAIPIRINHA for simultaneous multi-slice EPI with reduced g-factor penalty.” <i>MRM</i> 67:1210–1224, 2012.</li>
+<li>Uecker, M. et al. “ESPIRiT — an eigenvalue approach to autocalibrating parallel MRI.” <i>MRM</i> 71:990–1001, 2014.</li>
+<li>Knoll, F. et al. “Advancing machine learning for MR image reconstruction with an open competition: overview of the 2019 fastMRI challenge.” <i>MRM</i> 84:3054–3070, 2020.</li>
+</ol>
+</div>
+
+</main>
+<script src="assets/site.js"></script>
+<script src="assets/fft.js"></script>
+<script src="assets/phantom.js"></script>
+<script>
+/* ================= Interactive 14.1 : SENSE ================= */
+(function () {
+  // 120 rather than 128 so that every acceleration factor offered (1–4) divides
+  // the matrix exactly; this widget needs no FFT, so it is not tied to a power of two
+  const N = 120;
+  const lbl = buildPhantom(N);
+  const cC = document.getElementById("pcoils"), cA = document.getElementById("palias");
+  const cS = document.getElementById("psense"), cG = document.getElementById("pg");
+  const out = document.getElementById("pout");
+
+  const img = new Float64Array(N * N);
+  {
+    const lut = TISSUE_KEYS.map(k => signalSE(TISSUES[k], 600, 12));
+    let mx = 0; for (const v of lut) mx = Math.max(mx, v);
+    for (let i = 0; i < N * N; i++) img[i] = lut[lbl[i]] / mx;
+  }
+
+  let R = 2, C = 4, width = 30, noise = 6;
+
+  function sens() {
+    const s = [];
+    for (let c = 0; c < C; c++) {
+      const th = 2 * Math.PI * c / C;
+      const cx = N / 2 + 0.62 * N / 2 * Math.cos(th), cy = N / 2 + 0.62 * N / 2 * Math.sin(th);
+      const m = new Float64Array(N * N);
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++)
+        m[j * N + i] = Math.exp(-((i - cx) ** 2 + (j - cy) ** 2) / (2 * width * width)) + 0.05;
+      s.push(m);
+    }
+    return s;
+  }
+
+  function render() {
+    const S = sens();
+
+    /* coil montage */
+    const mont = new Float64Array(256 * 256);
+    const cols = C <= 2 ? 2 : C <= 4 ? 2 : 4, rows = Math.ceil(C / cols);
+    const tw = Math.floor(256 / cols), thh = Math.floor(256 / rows);
+    for (let c = 0; c < C; c++) {
+      const ox = (c % cols) * tw, oy = Math.floor(c / cols) * thh;
+      for (let j = 0; j < thh; j++) for (let i = 0; i < tw; i++) {
+        const si = Math.floor(i * N / tw), sj = Math.floor(j * N / thh);
+        mont[(oy + j) * 256 + ox + i] = S[c][sj * N + si];
+      }
+    }
+    paint(cC, mont, 256, 256, { gamma: 0.8, tint: [0.55, 0.8, 1] });
+
+    /* aliased coil images: fold R copies */
+    const step = Math.round(N / R);          // exact for N = 120 and R = 1..4
+    const alias = [];
+    for (let c = 0; c < C; c++) {
+      const a = new Float64Array(N * N);
+      for (let j = 0; j < step; j++) for (let i = 0; i < N; i++) {
+        let v = 0;
+        for (let r = 0; r < R; r++) {
+          const jj = j + r * step;
+          v += S[c][jj * N + i] * img[jj * N + i];
+        }
+        v += (Math.random() - .5) * noise * 0.01;
+        for (let r = 0; r < R; r++) a[(j + r * step) * N + i] = v;   // replicate for display
+      }
+      alias.push(a);
+    }
+    paint(cA, alias[0], N, N, { gamma: 0.9 });
+
+    /* SENSE unfolding */
+    const rec = new Float64Array(N * N), gmap = new Float64Array(N * N);
+    const lam = 1e-3;
+    for (let j = 0; j < step; j++) {
+      for (let i = 0; i < N; i++) {
+        // build C x R matrix
+        const M = [];                                     // M[c][r]
+        for (let c = 0; c < C; c++) {
+          const row = [];
+          for (let r = 0; r < R; r++) row.push(S[c][(j + r * step) * N + i]);
+          M.push(row);
+        }
+        // A = M^T M (R x R), b = M^T a
+        const A = [], b = [];
+        for (let r = 0; r < R; r++) {
+          const rowA = [];
+          for (let q = 0; q < R; q++) {
+            let s0 = 0; for (let c = 0; c < C; c++) s0 += M[c][r] * M[c][q];
+            rowA.push(s0 + (r === q ? lam : 0));
+          }
+          A.push(rowA);
+          let s1 = 0; for (let c = 0; c < C; c++) s1 += M[c][r] * alias[c][j * N + i];
+          b.push(s1);
+        }
+        // Gauss-Jordan on [A | I | b]
+        const aug = A.map((row, r) => row.concat(
+          Array.from({ length: R }, (_, q) => (q === r ? 1 : 0)), [b[r]]));
+        for (let p = 0; p < R; p++) {
+          let piv = p;
+          for (let r = p + 1; r < R; r++) if (Math.abs(aug[r][p]) > Math.abs(aug[piv][p])) piv = r;
+          const t = aug[p]; aug[p] = aug[piv]; aug[piv] = t;
+          const d = aug[p][p] || 1e-12;
+          for (let q = p; q < 2 * R + 1; q++) aug[p][q] /= d;
+          for (let r = 0; r < R; r++) {
+            if (r === p) continue;
+            const f = aug[r][p];
+            for (let q = p; q < 2 * R + 1; q++) aug[r][q] -= f * aug[p][q];
+          }
+        }
+        for (let r = 0; r < R; r++) {
+          const jj = j + r * step;
+          rec[jj * N + i] = Math.abs(aug[r][2 * R]);
+          const invD = aug[r][R + r];                     // (A^-1)_rr
+          const AD = A[r][r];
+          gmap[jj * N + i] = Math.sqrt(Math.max(1, invD * AD));
+        }
+      }
+    }
+    paint(cS, rec, N, N, { gamma: 0.9 });
+
+    let gmax = 0, gsum = 0, gn = 0;
+    for (let k = 0; k < N * N; k++) if (img[k] > 0.05) { gmax = Math.max(gmax, gmap[k]); gsum += gmap[k]; gn++; }
+    const gmean = gn ? gsum / gn : 1;
+    // display g − 1, autoscaled, so the map stays informative at every acceleration
+    const gdisp = new Float64Array(N * N);
+    for (let k = 0; k < N * N; k++) gdisp[k] = Math.max(0, gmap[k] - 1);
+    paint(cG, gdisp, N, N, { max: Math.max(0.25, gmax - 1), gamma: 0.8, tint: [1, 0.62, 0.45] });
+
+    out.textContent =
+`R = ${R}, ${C} coils  →  ${R === 1 ? "no acceleration" : "scan time cut to " + (100 / R).toFixed(0) + "%"}
+${C < R ? "⚠ UNDERDETERMINED: fewer coils than fold-overs. No algorithm can separate them; residual aliasing is unavoidable."
+        : "system is determined (" + C + " equations, " + R + " unknowns per pixel)"}
+mean g-factor over tissue  ${gmean.toFixed(2)}      worst g  ${gmax.toFixed(2)}
+g-map display scale: black = g of 1 (no penalty), brightest = g of ${gmax.toFixed(2)}
+total SNR penalty ≈ √R × g = ${(Math.sqrt(R) * gmean).toFixed(2)}×  →  ${(100 / (Math.sqrt(R) * gmean)).toFixed(0)} % of the unaccelerated SNR
+${width > 70 ? "Large, broadly-overlapping coils: sensitivities are too similar, conditioning is poor, g climbs."
+             : width < 25 ? "Small coils: excellent conditioning and low g, but each element sees only a shallow region."
+             : "Coil size is in a reasonable range for this acceleration."}
+(these sensitivities are real-valued and idealised; a real 32-channel head array reaches g ≈ 1.1 at R = 2,
+ so read the numbers here as showing the trend, not as a benchmark)`;
+  }
+  slider("pr", v => (R = Math.round(v), "R = " + Math.round(v)), render);
+  slider("pc", v => (C = Math.round(v), Math.round(v) + " coils"), render);
+  slider("pw", v => (width = v, v + " px"), render);
+  slider("pn", v => (noise = v, v === 0 ? "none" : v + " (arb.)"), render);
+  window.addEventListener("themechange", render);
+  render();
+})();
+
+/* ================= Interactive 14.2 : compressed sensing ================= */
+(function () {
+  const N = 128;
+  const lbl = buildPhantom(N);
+  const cM = document.getElementById("csmask"), cZ = document.getElementById("cszf");
+  const cR = document.getElementById("cscs"), cF = document.getElementById("csref");
+  const out = document.getElementById("csout");
+
+  const img = new Float64Array(N * N);
+  {
+    const lut = TISSUE_KEYS.map(k => signalSE(TISSUES[k], 3500, 95));
+    let mx = 0; for (const v of lut) mx = Math.max(mx, v);
+    for (let i = 0; i < N * N; i++) img[i] = lut[lbl[i]] / mx;
+  }
+  paint(cF, img, N, N, { gamma: 0.9 });
+  const RE0 = Float64Array.from(img), IM0 = new Float64Array(N * N);
+  fft2d(RE0, IM0, N, N, false);
+  const REc = fftshift(RE0, N, N), IMc = fftshift(IM0, N, N);
+
+  let pattern = "random", R = 3, lam = 6, iters = 30;
+
+  function buildMask() {
+    const m = new Uint8Array(N);
+    if (pattern === "regular") {
+      const step = Math.max(1, Math.round(R));
+      for (let j = 0; j < N; j++) if ((j - N / 2) % step === 0) m[j] = 1;
+    } else {
+      const keep = Math.round(N / R);
+      // always keep a central calibration band
+      const band = Math.max(4, Math.round(keep * 0.25));
+      for (let j = N / 2 - band / 2; j < N / 2 + band / 2; j++) m[Math.round(j)] = 1;
+      let have = band;
+      let guard = 0;
+      while (have < keep && guard++ < 10000) {
+        let j;
+        if (pattern === "random") {
+          // density weighted toward the centre
+          const u = (Math.random() + Math.random() + Math.random()) / 3 - 0.5;
+          j = Math.round(N / 2 + u * N);
+        } else {
+          j = Math.floor(Math.random() * N);
+        }
+        if (j >= 0 && j < N && !m[j]) { m[j] = 1; have++; }
+      }
+    }
+    return m;
+  }
+
+  function run() {
+    const mask = buildMask();
+    let kept = 0; for (let j = 0; j < N; j++) kept += mask[j];
+
+    // mask display
+    const mv = new Float64Array(N * N);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) mv[j * N + i] = mask[j];
+    paint(cM, mv, N, N, { tint: [1, .78, .6] });
+
+    // measured k-space
+    const mRE = new Float64Array(N * N), mIM = new Float64Array(N * N);
+    for (let j = 0; j < N; j++) if (mask[j]) for (let i = 0; i < N; i++) {
+      mRE[j * N + i] = REc[j * N + i]; mIM[j * N + i] = IMc[j * N + i];
+    }
+
+    function inv(re, im) {
+      const a = fftshift(re, N, N), b = fftshift(im, N, N);
+      fft2d(a, b, N, N, true);
+      return [a, b];
+    }
+    let [zr, zi] = inv(Float64Array.from(mRE), Float64Array.from(mIM));
+    const zf = magnitude(zr, zi);
+    paint(cZ, zf, N, N, { gamma: 0.9 });
+
+    // iterative soft-thresholding with data consistency (POCS / ISTA style)
+    let xr = Float64Array.from(zr), xi = Float64Array.from(zi);
+    const th = lam / 400;
+    for (let it = 0; it < iters; it++) {
+      // sparsify: soft-threshold the image (this phantom is sparse against a black background)
+      for (let k = 0; k < N * N; k++) {
+        const m = Math.hypot(xr[k], xi[k]);
+        if (m < 1e-12) { xr[k] = xi[k] = 0; continue; }
+        const s = Math.max(0, m - th) / m;
+        xr[k] *= s; xi[k] *= s;
+      }
+      // back to k-space, enforce measured samples
+      const fr = Float64Array.from(xr), fi = Float64Array.from(xi);
+      fft2d(fr, fi, N, N, false);
+      const sr = fftshift(fr, N, N), si = fftshift(fi, N, N);
+      for (let j = 0; j < N; j++) if (mask[j]) for (let i = 0; i < N; i++) {
+        sr[j * N + i] = REc[j * N + i]; si[j * N + i] = IMc[j * N + i];
+      }
+      const r2 = inv(sr, si);
+      xr = r2[0]; xi = r2[1];
+    }
+    const cs = magnitude(xr, xi);
+    paint(cR, cs, N, N, { gamma: 0.9 });
+
+    // error metrics
+    function nrmse(a) {
+      let mxv = 0; for (const v of a) mxv = Math.max(mxv, v);
+      let mxi = 0; for (const v of img) mxi = Math.max(mxi, v);
+      let s = 0, n = 0;
+      for (let k = 0; k < N * N; k++) { const d = a[k] / (mxv || 1) - img[k] / (mxi || 1); s += d * d; n++; }
+      return Math.sqrt(s / n);
+    }
+    const eZ = nrmse(zf), eC = nrmse(cs);
+    out.textContent =
+`${kept} of ${N} phase-encode lines acquired  →  ${(N / kept).toFixed(2)}× acceleration
+sampling: ${pattern === "regular" ? "REGULAR — aliasing is coherent: exact replicas of the anatomy, indistinguishable from real structure"
+          : pattern === "random" ? "RANDOM with centre weighting — artifacts are incoherent and noise-like, and the dense centre preserves contrast"
+          : "UNIFORMLY RANDOM — incoherent, but with the centre under-sampled the image loses contrast and low-frequency fidelity"}
+error vs the fully-sampled reference:  zero-filled ${eZ.toFixed(4)}  →  after ${iters} iterations ${eC.toFixed(4)}` +
+`\n${lam > 12 ? "⚠ λ is high: everything dimmer than the threshold is being erased — residual artifact, but also genuine low-signal tissue. Compare against the reference before believing a clean image."
+   : lam === 0 ? "λ = 0: no sparsity prior at all, so the iterations do nothing but re-insert the measured data."
+   : "λ is in a reasonable range: artifacts suppressed, structure retained."}` +
+`\n${pattern === "regular" ? "Note that iterating does NOT help here — no prior can separate coherent aliasing. Incoherent sampling is a prerequisite, not an optimisation." : ""}`;
+  }
+  document.getElementById("cspat").addEventListener("change", e => { pattern = e.target.value; run(); });
+  slider("csr", v => (R = v, v.toFixed(1) + "×"), run);
+  slider("csl", v => (lam = v, v === 0 ? "off" : v + " (arb.)"), run);
+  slider("csi", v => (iters = v, v + " iterations"), run);
+  run();
+})();
+</script>
+</body>
+</html>
