@@ -1681,6 +1681,148 @@ def from_onnx(path):
 # ==========================================================================
 
 
+# ==========================================================================
+# architecture from your own class + weights from a checkpoint
+# ==========================================================================
+#
+# A state_dict has no architecture in it. If you still have the class that
+# built the model, instantiating it and loading the weights in reconstructs
+# the real thing -- and then the full fx path applies, giving true dataflow
+# and shapes observed from an actual forward pass.
+
+
+def _parse_class_expr(expr, mod):
+    """'Net' or 'Net(num_classes=7)' -> (class, args, kwargs)."""
+    import ast
+    expr = (expr or "").strip()
+    if not expr:
+        raise RuntimeError("empty --class expression")
+    if "(" not in expr:
+        name, args, kwargs = expr, [], {}
+    else:
+        try:
+            call = ast.parse(expr, mode="eval").body
+            if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Name):
+                raise ValueError
+            name = call.func.id
+            args = [ast.literal_eval(a) for a in call.args]
+            kwargs = {kw.arg: ast.literal_eval(kw.value) for kw in call.keywords}
+        except Exception:
+            raise RuntimeError(
+                f"Could not read --class {expr!r}. Use a plain name (MyNet) or a call with "
+                f"literal arguments only (MyNet(num_classes=7)).")
+    if not hasattr(mod, name):
+        avail = ", ".join(sorted(find_model_classes(mod))) or "none found"
+        raise RuntimeError(f"'{name}' is not defined in that file. nn.Module classes there: {avail}")
+    return getattr(mod, name), args, kwargs
+
+
+def find_model_classes(mod):
+    """Names of nn.Module subclasses actually defined in this module."""
+    import inspect
+    import torch.nn as nn
+    out = []
+    for name in dir(mod):
+        obj = getattr(mod, name)
+        if (inspect.isclass(obj) and issubclass(obj, nn.Module)
+                and obj.__module__ == mod.__name__ and obj is not nn.Module):
+            out.append(name)
+    return out
+
+
+def load_state_into(model, weights_path, gb):
+    """Load a checkpoint into a live model, reporting how well the keys matched."""
+    import torch
+    try:
+        obj = torch.load(weights_path, map_location="cpu", weights_only=True)
+    except Exception:
+        obj = torch.load(weights_path, map_location="cpu", weights_only=False)
+
+    for key in ("state_dict", "model_state_dict", "model", "net", "weights"):
+        if isinstance(obj, dict) and key in obj and isinstance(obj[key], dict):
+            gb.warnings.append(f"Checkpoint is a training dict; took the weights from its '{key}' entry.")
+            obj = obj[key]
+            break
+    if not isinstance(obj, dict):
+        raise RuntimeError(f"{os.path.basename(weights_path)} does not contain a state_dict.")
+
+    sd = {}
+    stripped = 0
+    for k, v in obj.items():
+        if k.startswith("module."):
+            k = k[7:]
+            stripped += 1
+        sd[k] = v
+    if stripped:
+        gb.warnings.append(f"Stripped the DataParallel 'module.' prefix from {stripped} keys.")
+
+    incompat = model.load_state_dict(sd, strict=False)
+    missing, unexpected = list(incompat.missing_keys), list(incompat.unexpected_keys)
+    own = len(model.state_dict())
+    if missing and len(missing) >= own:
+        raise RuntimeError(
+            f"None of the {own} parameters in {type(model).__name__} matched the checkpoint. "
+            f"This is almost certainly the wrong class, or the wrong constructor arguments.\n"
+            f"  checkpoint keys start with: {', '.join(list(sd)[:4])}\n"
+            f"  the class expects:          {', '.join(list(model.state_dict())[:4])}")
+    if missing or unexpected:
+        gb.warnings.append(
+            f"Weights loaded with {len(missing)} missing and {len(unexpected)} unexpected keys — the "
+            f"class and the checkpoint do not match exactly. The architecture drawn here is the "
+            f"class's, which is what you asked for; check the constructor arguments if that is a "
+            f"surprise. First missing: {', '.join(missing[:3]) or '—'}.")
+    else:
+        gb.warnings.append(
+            f"All {own} parameter tensors matched the checkpoint exactly — this is the real "
+            f"trained model, not a reconstruction.")
+    return model
+
+
+def from_class(code_path, class_expr=None, weights=None, input_shape=None):
+    """Build the model from your own class, optionally fill it from a checkpoint."""
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        raise RuntimeError("PyTorch is needed to instantiate a model class:  pip install torch")
+
+    mod = load_model_code(code_path)
+    if not class_expr:
+        found = find_model_classes(mod)
+        if len(found) == 1:
+            class_expr = found[0]
+        elif not found:
+            raise RuntimeError(f"No nn.Module subclass is defined in {code_path}.")
+        else:
+            raise RuntimeError(
+                f"{code_path} defines several nn.Module classes: {', '.join(sorted(found))}.\n"
+                f"Say which one with --class, e.g.  --class {sorted(found)[0]}")
+
+    cls, args, kwargs = _parse_class_expr(class_expr, mod)
+    try:
+        model = cls(*args, **kwargs)
+    except TypeError as exc:
+        import inspect
+        try:
+            sig = str(inspect.signature(cls.__init__)).replace("(self, ", "(").replace("(self)", "()")
+        except Exception:
+            sig = "(...)"
+        raise RuntimeError(
+            f"{cls.__name__}{sig} could not be constructed: {exc}\n"
+            f"Pass its arguments inline, e.g.  --class \"{cls.__name__}(num_classes=10)\"")
+
+    gb = GraphBuilder("pytorch", "your class" + (" + checkpoint weights" if weights else ""), weights or code_path)
+    gb.meta["extractor"] = "instantiated from source + torch.fx symbolic trace"
+    gb.meta["model_class"] = cls.__name__
+    gb.input_shape = input_shape
+    if weights:
+        load_state_into(model, weights, gb)
+    else:
+        gb.warnings.append(
+            "No checkpoint given, so this is the architecture with freshly initialised weights. "
+            "Structure, shapes and parameter counts are exact; the numbers are not the trained ones.")
+    return _from_torch_module(model, code_path, input_shape, gb).result()
+
+
 def load_model_code(py_path):
     """Execute a user module so pickled classes defined in it can be resolved.
 

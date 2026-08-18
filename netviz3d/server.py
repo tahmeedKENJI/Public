@@ -129,6 +129,16 @@ def parse_shape(text):
     return [int(x) for x in str(text).replace("x", ",").replace(" ", "").split(",") if x]
 
 
+def _is_weights_file(path):
+    """True when the file is a plain state_dict rather than a pickled module."""
+    try:
+        import torch
+        obj = torch.load(path, map_location="meta", weights_only=True)
+        return isinstance(obj, dict)
+    except Exception:
+        return False
+
+
 def free_port(preferred):
     for port in [preferred] + list(range(preferred + 1, preferred + 40)):
         with socket.socket() as s:
@@ -144,30 +154,41 @@ def main(argv=None):
     ap = argparse.ArgumentParser(
         prog="netviz3d",
         description="Interactive 3D viewer for PyTorch / TensorFlow / Keras / ONNX model files.")
-    ap.add_argument("model", nargs="?", help="model file or SavedModel directory")
+    ap.add_argument("model", nargs="?",
+                    help="model file or SavedModel directory. Optional when --code is used, "
+                         "which then shows the architecture alone.")
     ap.add_argument("--input-shape", help="input shape for shape tracing, e.g. 1,3,224,224")
     ap.add_argument("--port", type=int, default=8017)
     ap.add_argument("--no-browser", action="store_true", help="do not open a browser")
     ap.add_argument("--allow-unsafe-unpickle", action="store_true",
                     help="allow torch.load to execute pickled code; gives true dataflow and observed shapes")
     ap.add_argument("--code", metavar="model_def.py",
-                    help="python file defining the model's classes, so a pickled nn.Module resolves")
+                    help="python file defining your model class. With a .pth checkpoint this "
+                         "rebuilds the real architecture instead of inferring it from weight shapes.")
+    ap.add_argument("--class", metavar="MyNet", dest="class_name",
+                    help="which class in --code to instantiate. Accepts constructor arguments: "
+                         "--class \"MyNet(num_classes=7)\". Auto-detected if the file defines only one.")
     ap.add_argument("--standalone", metavar="OUT.html",
                     help="write a single self-contained HTML file instead of serving")
     ap.add_argument("--json", metavar="OUT.json", dest="json_out",
                     help="also dump the extracted graph as JSON")
     args = ap.parse_args(argv)
 
-    if not args.model:
+    if not args.model and not args.code:
         ap.print_help()
         return 1
 
-    print(f"[netviz3d] reading {args.model}")
+    shape = parse_shape(args.input_shape)
     try:
-        graph = extract.extract(args.model,
-                                input_shape=parse_shape(args.input_shape),
-                                allow_unsafe=args.allow_unsafe_unpickle,
-                                code=args.code)
+        if args.code and (args.class_name or _is_weights_file(args.model)):
+            print(f"[netviz3d] building {args.class_name or 'the model class'} from {args.code}"
+                  + (f", loading weights from {args.model}" if args.model else ""))
+            graph = extract.from_class(args.code, args.class_name, weights=args.model,
+                                       input_shape=shape)
+        else:
+            print(f"[netviz3d] reading {args.model}")
+            graph = extract.extract(args.model, input_shape=shape,
+                                    allow_unsafe=args.allow_unsafe_unpickle, code=args.code)
     except Exception as exc:
         print(f"\n[netviz3d] could not read the model:\n  {exc}\n", file=sys.stderr)
         return 2
