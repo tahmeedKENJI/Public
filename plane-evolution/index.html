@@ -20,7 +20,7 @@
 
   /* top bar */
   #topbar { position: fixed; top: 0; left: 0; right: 0; display: flex; gap: 8px; align-items: center; padding: max(10px, env(safe-area-inset-top)) 12px 10px; pointer-events: none; }
-  .pill { background: var(--panel); border-radius: 999px; padding: 6px 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; pointer-events: auto; }
+  .pill { background: var(--panel); border-radius: 999px; padding: 6px 14px; font-weight: 700; white-space: nowrap; display: flex; align-items: center; gap: 6px; pointer-events: auto; }
   .coin { display: inline-block; width: 1em; height: 1em; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff4b0, var(--gold) 45%, #c98a00); box-shadow: 0 0 0 2px #a86f00 inset; vertical-align: -0.12em; }
   #topbar .spacer { flex: 1; }
   .iconbtn { background: var(--panel); border-radius: 50%; width: 38px; height: 38px; font-size: 18px; pointer-events: auto; display: grid; place-items: center; }
@@ -32,7 +32,7 @@
   #planeTitle .sub { font-size: 13px; opacity: .9; }
   #evoBar { width: min(420px, 90vw); height: 10px; background: rgba(0,0,0,.3); border-radius: 99px; overflow: hidden; margin: 6px auto 0; }
   #evoBar > div { height: 100%; background: linear-gradient(90deg, #7cf, #c7f); width: 0; transition: width .3s; }
-  #cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; width: 100%; max-width: 760px; }
+  #cards { display: grid; grid-template-columns: repeat(var(--n, 5), 1fr); gap: 8px; width: 100%; max-width: 760px; }
   .card { background: var(--panel); border-radius: 14px; padding: 8px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .card .hd { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 14px; }
   .card .ic { font-size: 18px; }
@@ -41,6 +41,8 @@
   .card .val b { color: #9fe39f; font-weight: 700; }
   .card button { background: linear-gradient(#3ecf80, #22a45e); border-radius: 10px; padding: 7px 4px; font-weight: 800; font-size: 14px; box-shadow: 0 3px 0 #16723f; }
   .card button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #16723f; }
+  .card button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card button.long { font-size: 12px; }
   .card button:disabled { background: #4a5468; box-shadow: 0 3px 0 #2e3544; color: #b8c0d0; cursor: default; }
   .card button.max { background: #6c5a9e; box-shadow: 0 3px 0 #463872; color: #fff; }
   #actions { display: flex; gap: 10px; width: 100%; max-width: 760px; }
@@ -58,6 +60,18 @@
   #hudRow .pill { pointer-events: none; }
   #fuelWrap { width: min(260px, 60vw); height: 12px; background: rgba(0,0,0,.35); border-radius: 99px; overflow: hidden; margin-top: 8px; border: 2px solid rgba(255,255,255,.5); }
   #fuelBar { height: 100%; width: 100%; background: linear-gradient(90deg, #ff7a3d, #ffd23d); }
+  #reserveWrap { width: min(260px, 60vw); height: 8px; background: rgba(0,0,0,.35); border-radius: 99px; overflow: hidden; margin-top: 4px; border: 2px solid rgba(160,220,255,.6); }
+  #reserveBar { height: 100%; width: 100%; background: linear-gradient(90deg, #3d8bff, #7de8ff); }
+  #reserveWrap.on { box-shadow: 0 0 10px #7de8ff; }
+
+  /* flight controls */
+  #ctls { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 14px max(14px, env(safe-area-inset-bottom)); pointer-events: none; }
+  .ctl { pointer-events: auto; width: 84px; height: 84px; border-radius: 50%; background: rgba(18, 28, 48, .55); border: 3px solid rgba(255,255,255,.55); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 30px; font-weight: 900; line-height: 1; touch-action: none; }
+  .ctl small { font-size: 10px; letter-spacing: 1px; margin-top: 4px; opacity: .85; }
+  .ctl.active { background: rgba(255,255,255,.35); transform: scale(.95); }
+  .ctl.res { width: auto; height: 60px; border-radius: 16px; padding: 0 16px; font-size: 15px; margin-bottom: 12px; opacity: .45; border-color: rgba(125,232,255,.7); }
+  .ctl.res.ready { opacity: 1; background: rgba(40, 110, 200, .7); animation: pulse 1s infinite; }
+  .ctl.res.active { animation: none; background: rgba(125,232,255,.6); }
   #hint { position: fixed; bottom: 16%; left: 0; right: 0; text-align: center; font-size: 22px; font-weight: 900; text-shadow: 0 2px 6px rgba(0,0,0,.5); pointer-events: none; animation: bob 1s infinite ease-in-out; }
   @keyframes bob { 50% { transform: translateY(-6px); } }
   #bestFlag { color: var(--gold); }
@@ -88,8 +102,10 @@
   @media (max-width: 640px) {
     #cards { grid-template-columns: repeat(6, 1fr); gap: 6px; }
     .card { grid-column: span 2; padding: 7px; }
-    .card:nth-child(4) { grid-column: 2 / span 2; }
-    .card .hd { font-size: 13px; }
+    #cards.five .card:nth-child(4) { grid-column: 2 / span 2; }
+    .card .hd { font-size: 13px; flex-wrap: wrap; row-gap: 0; }
+    .card .lv { flex-basis: 100%; margin-left: 0; }
+    .pill { padding: 6px 10px; font-size: 14px; }
     .card .val { font-size: 11px; }
     #planeTitle .name { font-size: 22px; }
     .big { padding: 12px; font-size: 20px; }
@@ -133,6 +149,12 @@
     <div class="pill"><span class="coin"></span> <span id="hudCoins">0</span></div>
   </div>
   <div id="fuelWrap"><div id="fuelBar"></div></div>
+  <div id="reserveWrap" class="hidden"><div id="reserveBar"></div></div>
+</div>
+<div id="ctls" class="hidden">
+  <div class="ctl" data-role="down">▼<small>DIVE</small></div>
+  <div class="ctl res hidden" data-role="reserve" id="ctlRes">RESERVE<small id="resTxt">SPACE</small></div>
+  <div class="ctl" data-role="up">▲<small>CLIMB</small></div>
 </div>
 <div id="hint" class="hidden"></div>
 
@@ -182,10 +204,14 @@ const STATS = [
   { id: 'fuel',   name: 'Fuel',   icon: '⛽', base: 16 },
   { id: 'aero',   name: 'Aero',   icon: '🪶', base: 16 },
   { id: 'income', name: 'Income', icon: '💰', base: 30 },
+  { id: 'reserve', name: 'Reserve', icon: '🛢️', base: 2500 },
 ];
+const RESERVE_TIER = 4; // reserve tank unlocks with the Jet Fighter
 const FLIGHT_STATS = ['launch', 'engine', 'fuel', 'aero'];
 const LEVELS_PER_TIER = 5;
-const capFor = t => LEVELS_PER_TIER * (t + 1);
+const baseCap = t => LEVELS_PER_TIER * (t + 1);
+const capFor = (t, id) => id === 'reserve' ? Math.max(0, baseCap(t) - LEVELS_PER_TIER * RESERVE_TIER) : baseCap(t);
+const statUnlocked = (id, t) => id !== 'reserve' || t >= RESERVE_TIER;
 const upgradeCost = (id, lvl) => Math.ceil(STATS.find(s => s.id === id).base * Math.pow(1.24, lvl));
 const evolveCost = t => Math.ceil(250 * Math.pow(3.5, t));
 const MILESTONES = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000];
@@ -198,16 +224,49 @@ const BIOMES = [ // distance (m) -> ground colours
   { at: 40000, name: 'Alien',    top: '#8a64c4', dirt: '#5b3f8c', tree: '#3fe0c0' },
 ];
 
-/* ---------- save ---------- */
+/* ---------- save ----------
+   Saves are versioned. When the save format changes:
+     1. bump SAVE_VERSION,
+     2. add a MIGRATIONS[oldVersion] step that upgrades the old shape in place.
+   Never remove old migration steps: any save (or exported code) from any earlier
+   version must keep loading. The storage key name is permanent — the version lives
+   inside the save. Before a save is migrated, the original is kept as a backup. */
 const SAVE_KEY = 'planeEvolution.save.v1';
-const defaultSave = () => ({ v: 1, coins: 0, tier: 0, lv: { launch: 0, engine: 0, fuel: 0, aero: 0, income: 0 },
-  best: 0, bestAlt: 0, ms: 0, runs: 0, sound: true, last: Date.now(), tipSeen: false });
+const SAVE_VERSION = 2;
+const MIGRATIONS = {
+  1: s => { s.lv = Object.assign({ reserve: 0 }, s.lv); return s; }, // v1 -> v2: reserve tank upgrade
+};
+const defaultSave = () => ({ v: SAVE_VERSION, coins: 0, tier: 0, lv: { launch: 0, engine: 0, fuel: 0, aero: 0, income: 0, reserve: 0 },
+  best: 0, bestAlt: 0, ms: 0, runs: 0, sound: true, last: Date.now(), tipSeen: false, tip2Seen: false });
+function migrateSave(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('not a save');
+  let s = JSON.parse(JSON.stringify(raw));
+  let v = Number.isInteger(s.v) && s.v > 0 ? s.v : 1;
+  while (v < SAVE_VERSION) { if (MIGRATIONS[v]) s = MIGRATIONS[v](s); v++; }
+  // merge onto defaults so any missing field gets a sane value; unknown fields are kept
+  const d = defaultSave();
+  const out = Object.assign(d, s, { lv: Object.assign(d.lv, s.lv) });
+  out.v = Math.max(v, SAVE_VERSION);
+  const num = (x, def = 0) => (typeof x === 'number' && isFinite(x) && x >= 0) ? x : def;
+  out.coins = num(out.coins); out.best = num(out.best); out.bestAlt = num(out.bestAlt);
+  out.ms = Math.floor(num(out.ms)); out.runs = Math.floor(num(out.runs)); out.last = num(out.last, Date.now());
+  out.tier = Math.min(MAX_TIER, Math.floor(num(out.tier)));
+  for (const k in out.lv) out.lv[k] = Math.floor(num(out.lv[k]));
+  return out;
+}
 function loadSave() {
+  let rawText = null;
+  try { rawText = localStorage.getItem(SAVE_KEY); } catch (e) {}
+  if (!rawText) return defaultSave();
   try {
-    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (s && s.v === 1) { const d = defaultSave(); return Object.assign(d, s, { lv: Object.assign(d.lv, s.lv) }); }
-  } catch (e) {}
-  return defaultSave();
+    const raw = JSON.parse(rawText);
+    const oldV = Number.isInteger(raw.v) ? raw.v : 1;
+    if (oldV < SAVE_VERSION) { try { const bk = SAVE_KEY + '.backup.v' + oldV; if (!localStorage.getItem(bk)) localStorage.setItem(bk, rawText); } catch (e) {} }
+    return migrateSave(raw);
+  } catch (e) {
+    try { localStorage.setItem(SAVE_KEY + '.unreadable', rawText); } catch (e2) {}
+    return defaultSave();
+  }
 }
 let save = loadSave();
 function persist() { save.last = Date.now(); try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
@@ -217,7 +276,7 @@ addEventListener('pagehide', persist);
 
 /* ---------- derived stats ---------- */
 function statsFor(tier, lv) {
-  const { launch: L, engine: E, fuel: F, aero: A, income: I } = lv;
+  const { launch: L, engine: E, fuel: F, aero: A, income: I, reserve: Rv = 0 } = lv;
   const Se = Math.pow(1.05, E) * Math.pow(1.12, tier);
   const Sa = Math.pow(1.05, A) * Math.pow(1.12, tier);
   const Sv = Math.sqrt(Se * Sa);
@@ -229,6 +288,8 @@ function statsFor(tier, lv) {
     ind: 60 * Sv * Sv / (1 + 0.03 * A),
     ld: 5 + 0.1 * A + 0.5 * tier,
     income: 1 + 0.12 * I,
+    reserve: tier >= RESERVE_TIER && E > 0 ? 2.5 * (1 + 0.15 * Rv) : 0, // seconds of burn
+    drain: 40 / (1 + 0.15 * Rv), // % of the tank per second
     Sv,
   };
   st.top = st.thrust > 0 ? Math.sqrt(st.thrust / st.drag) : 0;
@@ -239,13 +300,7 @@ const curStats = () => statsFor(save.tier, save.lv);
 /* ---------- utils ---------- */
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
-function fmt(n) {
-  n = Math.floor(n);
-  if (n < 10000) return n.toLocaleString('en-US');
-  const u = ['K', 'M', 'B', 'T', 'Qa', 'Qi'];
-  let i = -1; while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; }
-  return (n < 100 ? n.toFixed(1) : Math.round(n)) + u[i];
-}
+function fmt(n) { return Math.floor(n).toLocaleString('en-US'); }
 function fmtDist(m) { return m < 10000 ? Math.floor(m).toLocaleString('en-US') + ' m' : (m / 1000).toFixed(m < 100000 ? 2 : 1) + ' km'; }
 function hash(n) { n = (n ^ 61) ^ (n >>> 16); n = Math.imul(n, 9); n ^= n >>> 4; n = Math.imul(n, 0x27d4eb2d); n ^= n >>> 15; return (n >>> 0) / 4294967296; }
 function rng(seed) { let s = seed >>> 0 || 1; return () => { s = Math.imul(s ^ (s >>> 15), 1 | s); s ^= s + Math.imul(s ^ (s >>> 7), 61 | s); return ((s ^ (s >>> 14)) >>> 0) / 4294967296; }; }
@@ -423,30 +478,39 @@ function makeWorld(st) {
 /* ---------- game state ---------- */
 let mode = 'hangar'; // hangar | launch | fly | done
 let P = null, world = null, runSt = null;
-let holding = false, meterT = 0, camZ = 6, camX = 0, camOff = 0, time = 0, hangarT = 0;
+let meterT = 0, camZ = 6, camX = 0, camOff = 0, time = 0, hangarT = 0;
 let particles = [], floaters = [];
 let run = null;
 
 function newRun() {
   runSt = curStats();
   world = makeWorld(runSt);
-  P = { x: 0, y: 2.2, a: 0.45, v: 0, fuel: runSt.fuel, maxY: 0, maxV: 0, grounded: false, stopT: 0, crashed: false };
-  run = { coins: 0, rings: 0, t: 0, taken: new Set(), hintT: 0, power: 1, msBonus: 0, msHit: [] };
+  P = { x: 0, y: 2.2, a: 0.45, v: 0, fuel: runSt.fuel, reserve: runSt.reserve, reserveOn: false, maxY: 0, maxV: 0, grounded: false, stopT: 0, crashed: false };
+  run = { reserveToast: false, coins: 0, rings: 0, t: 0, taken: new Set(), hintT: 0, power: 1, msBonus: 0, msHit: [] };
   camX = 0; camOff = 0; camZ = clamp(Math.min(W, H * 1.6) / 60, 3, 12);
   particles = []; floaters = [];
 }
+
+/* ---------- controls ---------- */
+// keys: 'up' | 'down' | 'reserve' held on the keyboard; ptrs: pointerId -> role
+const ctl = { keys: new Set(), ptrs: new Map() };
+const ctlOn = role => ctl.keys.has(role) || [...ctl.ptrs.values()].includes(role);
 
 /* ---------- physics (keep in sync with the balance sim in README) ---------- */
 function physStep(dt) {
   const st = runSt;
   if (!P.grounded) {
-    if (holding) P.a = Math.min(1.0, P.a + 1.3 * dt);
+    const up = ctlOn('up'), down = ctlOn('down');
+    if (up && !down) P.a = Math.min(1.0, P.a + 1.3 * dt);
+    else if (down && !up) P.a = Math.max(-1.1, P.a - 1.3 * dt);
     else if (P.a > -0.35) P.a = Math.max(-0.35, P.a - 0.6 * dt);
     else P.a += 0.4 * dt;
     if (P.v < 7) P.a -= (7 - P.v) * 0.22 * dt; // stall: nose drops
     P.a = clamp(P.a, -1.3, 1.0);
     let T = 0;
+    P.reserveOn = false;
     if (P.fuel > 0 && st.thrust > 0) { T = st.thrust; P.fuel -= dt; }
+    else if (P.reserve > 0 && ctlOn('reserve')) { T = st.thrust; P.reserve -= dt; P.reserveOn = true; }
     P.thrusting = T > 0;
     P.v += (T - 9.8 * Math.sin(P.a) - st.drag * P.v * P.v) * dt;
     if (P.v < 0.3) P.v = 0.3;
@@ -712,6 +776,7 @@ function statText(id, st) {
     case 'fuel':   return `${st.fuel.toFixed(1)} s burn`;
     case 'aero':   return `Glide ×${(0.008 / st.drag).toFixed(2)}`;
     case 'income': return `Coins ×${st.income.toFixed(2)}`;
+    case 'reserve': return `${st.reserve.toFixed(1)} s · drain ${Math.round(st.drain)}%/s`;
   }
 }
 
@@ -719,7 +784,7 @@ function renderHangar() {
   $('#coins').textContent = fmt(save.coins);
   $('#best').textContent = fmtDist(save.best);
   $('#soundBtn').textContent = save.sound ? '🔊' : '🔇';
-  const t = save.tier, cap = capFor(t);
+  const t = save.tier;
   $('#tierLabel').textContent = `Evolution ${t + 1} / ${TIERS.length}`;
   $('#planeName').textContent = TIERS[t].name;
   $('#planeDesc').textContent = TIERS[t].desc;
@@ -735,8 +800,11 @@ function renderHangar() {
       cards.appendChild(d);
     }
   }
+  let shown = 0;
   for (const d of cards.children) {
-    const id = d.dataset.id, lvl = save.lv[id];
+    const id = d.dataset.id, lvl = save.lv[id], cap = capFor(t, id);
+    const unlocked = statUnlocked(id, t);
+    d.classList.toggle('hidden', !unlocked); if (!unlocked) continue; shown++;
     d.querySelector('.lv').textContent = `Lv ${lvl}/${cap}`;
     const btn = d.querySelector('button');
     if (lvl >= cap) {
@@ -747,12 +815,13 @@ function renderHangar() {
       const nx = statsFor(t, Object.assign({}, save.lv, { [id]: lvl + 1 }));
       d.querySelector('.val').innerHTML = `${statText(id, st)}<br>→ <b>${statText(id, nx)}</b>`;
       const c = upgradeCost(id, lvl);
-      btn.className = ''; btn.disabled = save.coins < c;
+      btn.className = fmt(c).length > 8 ? 'long' : ''; btn.disabled = save.coins < c;
       btn.innerHTML = `<span class="coin"></span> ${fmt(c)}`;
     }
   }
+  cards.style.setProperty('--n', shown); cards.classList.toggle('five', shown === 5);
   const evo = $('#evoBtn');
-  const ready = t < MAX_TIER && FLIGHT_STATS.every(id => save.lv[id] >= cap);
+  const ready = t < MAX_TIER && FLIGHT_STATS.every(id => save.lv[id] >= capFor(t));
   evo.classList.toggle('hidden', !ready);
   if (ready) {
     const c = evolveCost(t);
@@ -762,7 +831,7 @@ function renderHangar() {
 }
 
 function buy(id) {
-  const lvl = save.lv[id]; if (lvl >= capFor(save.tier)) return;
+  const lvl = save.lv[id]; if (!statUnlocked(id, save.tier) || lvl >= capFor(save.tier, id)) return;
   const c = upgradeCost(id, lvl); if (save.coins < c) return;
   save.coins -= c; save.lv[id]++; sfx.buy(); persist(); renderHangar();
   evolvePulse = 0.4;
@@ -785,6 +854,8 @@ function setMode(m) {
   $('#topbar').classList.toggle('hidden', m !== 'hangar');
   $('#hud').classList.toggle('hidden', !(m === 'fly' || m === 'launch' || m === 'done'));
   $('#launchUI').classList.toggle('hidden', m !== 'launch');
+  $('#ctls').classList.toggle('hidden', m !== 'fly');
+  if (m !== 'fly') { ctl.ptrs.clear(); document.querySelectorAll('.ctl.active').forEach(el => el.classList.remove('active')); }
   $('#hint').classList.add('hidden');
   if (m === 'hangar') renderHangar();
 }
@@ -792,6 +863,8 @@ function setMode(m) {
 $('#flyBtn').addEventListener('click', () => {
   audio(); newRun(); meterT = 0; setMode('launch');
   $('#fuelWrap').classList.toggle('hidden', !(runSt.thrust > 0));
+  $('#reserveWrap').classList.toggle('hidden', !(runSt.reserve > 0));
+  $('#ctlRes').classList.toggle('hidden', !(runSt.reserve > 0));
   updateHud();
 });
 $('#soundBtn').addEventListener('click', () => { save.sound = !save.sound; persist(); renderHangar(); });
@@ -821,9 +894,10 @@ function openSettings() {
     $('#clsBtn').onclick = closeModal;
     $('#okBtn').onclick = () => {
       try {
-        const s = JSON.parse(decodeURIComponent(escape(atob($('#codeBox').value.trim()))));
-        if (!s || s.v !== 1 || typeof s.coins !== 'number') throw 0;
-        const d = defaultSave(); save = Object.assign(d, s, { lv: Object.assign(d.lv, s.lv) }); persist(); closeModal(); renderHangar(); showToast('Save imported!');
+        const txt = $('#codeBox').value.trim();
+        const raw = JSON.parse(txt.startsWith('{') ? txt : decodeURIComponent(escape(atob(txt))));
+        if (typeof raw.coins !== 'number' || typeof raw.tier !== 'number') throw 0;
+        save = migrateSave(raw); persist(); closeModal(); renderHangar(); showToast('Save imported!');
       } catch (e) { $('#okBtn').textContent = 'Invalid code — try again'; }
     };
   };
@@ -841,6 +915,14 @@ function updateHud() {
   $('#hudSpd').textContent = fmt(P.v * 3.6) + ' km/h';
   $('#hudCoins').textContent = fmt(run.coins);
   if (runSt.thrust > 0) $('#fuelBar').style.width = clamp(P.fuel / runSt.fuel * 100, 0, 100) + '%';
+  if (runSt.reserve > 0) {
+    $('#reserveBar').style.width = clamp(P.reserve / runSt.reserve * 100, 0, 100) + '%';
+    const ready = P.fuel <= 0 && P.reserve > 0 && !P.grounded;
+    $('#reserveWrap').classList.toggle('on', P.reserveOn);
+    const b = $('#ctlRes'); b.classList.toggle('ready', ready); b.classList.toggle('active', P.reserveOn);
+    $('#resTxt').textContent = P.reserve > 0 ? (P.fuel > 0 ? 'after main fuel' : `${Math.max(0, P.reserve).toFixed(1)} s · SPACE`) : 'EMPTY';
+    if (ready && !run.reserveToast && mode === 'fly') { run.reserveToast = true; showToast('RESERVE READY — hold SPACE', '#7de8ff'); }
+  }
 }
 
 function finishRun() {
@@ -870,27 +952,40 @@ function finishRun() {
 }
 
 /* ---------- input ---------- */
-function press(e) {
-  if (e && e.target && e.target.closest && e.target.closest('button, .modal, textarea')) return;
+// Touch/mouse: the ▲ / ▼ / RESERVE pads do what they say; tapping anywhere else climbs.
+// Keyboard: ↑/W climb, ↓/S dive, Space = reserve tank (Jet Fighter and up; climbs on earlier planes).
+function paintCtls() { document.querySelectorAll('.ctl').forEach(el => el.classList.toggle('active', ctlOn(el.dataset.role))); }
+addEventListener('pointerdown', e => {
+  if (e.target.closest && e.target.closest('button, .modal, textarea')) return;
   audio();
   if (mode === 'launch') { doLaunch(); return; }
-  if (mode === 'fly') holding = true;
-}
-function release() { holding = false; }
-addEventListener('pointerdown', press);
-addEventListener('pointerup', release);
-addEventListener('pointercancel', release);
-addEventListener('blur', release);
-addEventListener('keydown', e => {
-  if (e.repeat) return;
-  if (['Space', 'ArrowUp', 'KeyW', 'Enter'].includes(e.code)) {
-    e.preventDefault();
-    if (mode === 'hangar' && $('#modalBg').classList.contains('hidden') && e.code !== 'ArrowUp' && e.code !== 'KeyW') { $('#flyBtn').click(); return; }
-    if (mode === 'done' && !$('#modalBg').classList.contains('hidden') && $('#colBtn')) { $('#colBtn').click(); return; }
-    press();
-  }
+  if (mode !== 'fly') return;
+  const pad = e.target.closest && e.target.closest('.ctl');
+  ctl.ptrs.set(e.pointerId, pad ? pad.dataset.role : 'up'); paintCtls();
 });
-addEventListener('keyup', e => { if (['Space', 'ArrowUp', 'KeyW', 'Enter'].includes(e.code)) release(); });
+const lift = e => { ctl.ptrs.delete(e.pointerId); paintCtls(); };
+addEventListener('pointerup', lift);
+addEventListener('pointercancel', lift);
+addEventListener('blur', () => { ctl.ptrs.clear(); ctl.keys.clear(); paintCtls(); });
+function keyRole(code) {
+  if (code === 'ArrowUp' || code === 'KeyW') return 'up';
+  if (code === 'ArrowDown' || code === 'KeyS') return 'down';
+  if (code === 'Space') return save.tier >= RESERVE_TIER ? 'reserve' : 'up';
+  return null;
+}
+addEventListener('keydown', e => {
+  const role = keyRole(e.code);
+  if (!role && e.code !== 'Enter') return;
+  if (e.target.closest && e.target.closest('textarea')) return;
+  e.preventDefault();
+  if (e.repeat) return;
+  const modalOpen = !$('#modalBg').classList.contains('hidden');
+  if (mode === 'hangar') { if (!modalOpen && (e.code === 'Space' || e.code === 'Enter')) $('#flyBtn').click(); return; }
+  if (mode === 'done') { if (modalOpen && $('#colBtn') && (e.code === 'Space' || e.code === 'Enter')) $('#colBtn').click(); return; }
+  if (mode === 'launch') { audio(); doLaunch(); return; }
+  if (mode === 'fly' && role) { ctl.keys.add(role); paintCtls(); }
+});
+addEventListener('keyup', e => { const role = keyRole(e.code); if (role) { ctl.keys.delete(role); paintCtls(); } });
 addEventListener('contextmenu', e => e.preventDefault());
 
 function meterValue() { const p = (meterT * 0.9) % 2; return p < 1 ? p : 2 - p; }
@@ -903,7 +998,7 @@ function doLaunch() {
   if (perfect) { sfx.perfect(); showToast('PERFECT LAUNCH!', '#8dff9a'); }
   else if (m > 0.6) showToast('Good!', '#fff');
   setMode('fly');
-  if (!save.tipSeen) { $('#hint').textContent = 'Hold to pull up · release to dive'; $('#hint').classList.remove('hidden'); run.hintT = 4; }
+  if (!save.tipSeen || !save.tip2Seen) { $('#hint').textContent = 'Hold ▲ to climb · ▼ to dive'; $('#hint').classList.remove('hidden'); run.hintT = 4; }
 }
 
 /* ---------- main loop ---------- */
@@ -918,9 +1013,9 @@ function frame(now) {
       const sub = Math.ceil(dt / (1 / 120));
       for (let i = 0; i < sub; i++) physStep(dt / sub);
       run.t += dt;
-      if (run.hintT > 0) { run.hintT -= dt; if (run.hintT <= 0) { $('#hint').classList.add('hidden'); save.tipSeen = true; } }
+      if (run.hintT > 0) { run.hintT -= dt; if (run.hintT <= 0) { $('#hint').classList.add('hidden'); save.tipSeen = save.tip2Seen = true; } }
       // exhaust / trail
-      if (P.thrusting && Math.random() < 0.8) particles.push({ x: P.x - Math.cos(P.a) * 3 * world.scale, y: P.y + 0.3, vx: -P.v * 0.1, vy: 0.5, life: 1, c: 'rgba(230,230,230,.7)', r: 4, grow: true });
+      if (P.thrusting && Math.random() < 0.8) particles.push({ x: P.x - Math.cos(P.a) * 3 * world.scale, y: P.y + 0.3, vx: -P.v * 0.1, vy: 0.5, life: 1, c: P.reserveOn ? 'rgba(125,232,255,.8)' : 'rgba(230,230,230,.7)', r: 4, grow: true });
       if (P.grounded && P.stopT > 0.6) finishRun();
       if (P.grounded && P.v > 1 && Math.random() < 0.5) particles.push({ x: P.x, y: 0.2, vx: -2, vy: 2, life: 0.8, c: '#a7875f', r: 3 });
       // safety net: extremely long flights end after 5 minutes
