@@ -1,0 +1,997 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#3d8fe0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Plane Evolution</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+  :root { --ui: #ffffff; --ink: #1d2433; --gold: #ffc233; --good: #2fbf71; --bad: #e0524b; --panel: rgba(18, 28, 48, .88); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #3d8fe0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ui); touch-action: none; user-select: none; -webkit-user-select: none; }
+  canvas { display: block; position: fixed; inset: 0; }
+  .hidden { display: none !important; }
+  button { font: inherit; border: 0; cursor: pointer; color: inherit; }
+
+  /* top bar */
+  #topbar { position: fixed; top: 0; left: 0; right: 0; display: flex; gap: 8px; align-items: center; padding: max(10px, env(safe-area-inset-top)) 12px 10px; pointer-events: none; }
+  .pill { background: var(--panel); border-radius: 999px; padding: 6px 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; pointer-events: auto; }
+  .coin { display: inline-block; width: 1em; height: 1em; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff4b0, var(--gold) 45%, #c98a00); box-shadow: 0 0 0 2px #a86f00 inset; vertical-align: -0.12em; }
+  #topbar .spacer { flex: 1; }
+  .iconbtn { background: var(--panel); border-radius: 50%; width: 38px; height: 38px; font-size: 18px; pointer-events: auto; display: grid; place-items: center; }
+
+  /* hangar */
+  #hangar { position: fixed; left: 0; right: 0; bottom: 0; padding: 0 10px max(10px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  #planeTitle { text-align: center; text-shadow: 0 2px 6px rgba(0,0,0,.35); }
+  #planeTitle .name { font-size: 26px; font-weight: 900; letter-spacing: .5px; }
+  #planeTitle .sub { font-size: 13px; opacity: .9; }
+  #evoBar { width: min(420px, 90vw); height: 10px; background: rgba(0,0,0,.3); border-radius: 99px; overflow: hidden; margin: 6px auto 0; }
+  #evoBar > div { height: 100%; background: linear-gradient(90deg, #7cf, #c7f); width: 0; transition: width .3s; }
+  #cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; width: 100%; max-width: 760px; }
+  .card { background: var(--panel); border-radius: 14px; padding: 8px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .card .hd { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 14px; }
+  .card .ic { font-size: 18px; }
+  .card .lv { margin-left: auto; font-size: 11px; opacity: .75; font-weight: 600; white-space: nowrap; }
+  .card .val { font-size: 12px; opacity: .85; min-height: 30px; line-height: 1.25; }
+  .card .val b { color: #9fe39f; font-weight: 700; }
+  .card button { background: linear-gradient(#3ecf80, #22a45e); border-radius: 10px; padding: 7px 4px; font-weight: 800; font-size: 14px; box-shadow: 0 3px 0 #16723f; }
+  .card button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #16723f; }
+  .card button:disabled { background: #4a5468; box-shadow: 0 3px 0 #2e3544; color: #b8c0d0; cursor: default; }
+  .card button.max { background: #6c5a9e; box-shadow: 0 3px 0 #463872; color: #fff; }
+  #actions { display: flex; gap: 10px; width: 100%; max-width: 760px; }
+  .big { flex: 1; border-radius: 16px; padding: 14px; font-size: 22px; font-weight: 900; letter-spacing: 1px; }
+  #flyBtn { background: linear-gradient(#ffcf4d, #f5a300); color: #4a2a00; box-shadow: 0 5px 0 #b87400; }
+  #flyBtn:active { transform: translateY(3px); box-shadow: 0 2px 0 #b87400; }
+  #evoBtn { font-size: 18px; line-height: 1.2; background: linear-gradient(#c78bff, #8a4dff); box-shadow: 0 5px 0 #5a2bb0; animation: pulse 1.2s infinite; }
+  #evoBtn:disabled { animation: none; background: #4a5468; box-shadow: 0 5px 0 #2e3544; color: #b8c0d0; }
+  @keyframes pulse { 50% { filter: brightness(1.2); transform: scale(1.02); } }
+
+  /* flight HUD */
+  #hud { position: fixed; top: 0; left: 0; right: 0; pointer-events: none; padding: max(10px, env(safe-area-inset-top)) 12px 0; display: flex; flex-direction: column; align-items: center; }
+  #hudDist { font-size: 40px; font-weight: 900; text-shadow: 0 3px 8px rgba(0,0,0,.4); line-height: 1; margin-top: 44px; }
+  #hudRow { display: flex; gap: 8px; margin-top: 6px; font-size: 13px; font-weight: 700; flex-wrap: wrap; justify-content: center; }
+  #hudRow .pill { pointer-events: none; }
+  #fuelWrap { width: min(260px, 60vw); height: 12px; background: rgba(0,0,0,.35); border-radius: 99px; overflow: hidden; margin-top: 8px; border: 2px solid rgba(255,255,255,.5); }
+  #fuelBar { height: 100%; width: 100%; background: linear-gradient(90deg, #ff7a3d, #ffd23d); }
+  #hint { position: fixed; bottom: 16%; left: 0; right: 0; text-align: center; font-size: 22px; font-weight: 900; text-shadow: 0 2px 6px rgba(0,0,0,.5); pointer-events: none; animation: bob 1s infinite ease-in-out; }
+  @keyframes bob { 50% { transform: translateY(-6px); } }
+  #bestFlag { color: var(--gold); }
+
+  /* launch meter */
+  #launchUI { position: fixed; left: 0; right: 0; bottom: 18%; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
+  #meter { width: min(360px, 80vw); height: 26px; border-radius: 99px; background: linear-gradient(90deg, #e0524b 0%, #ffb13d 55%, #7ee07e 84%, #2fbf71 85%, #2fbf71 100%); border: 3px solid #fff; position: relative; box-shadow: 0 4px 10px rgba(0,0,0,.3); }
+  #needle { position: absolute; top: -8px; bottom: -8px; width: 6px; margin-left: -3px; background: #fff; border-radius: 3px; box-shadow: 0 0 0 2px #1d2433; }
+  #launchUI .t { font-size: 22px; font-weight: 900; text-shadow: 0 2px 6px rgba(0,0,0,.5); }
+
+  /* popups */
+  #toast { position: fixed; top: 34%; left: 0; right: 0; text-align: center; font-size: 34px; font-weight: 900; pointer-events: none; text-shadow: 0 3px 10px rgba(0,0,0,.5); opacity: 0; transition: opacity .25s, transform .25s; }
+  #toast.show { opacity: 1; transform: scale(1.08); }
+  .modalBg { position: fixed; inset: 0; background: rgba(8, 14, 28, .55); display: grid; place-items: center; padding: 16px; }
+  .modal { background: #1b2740; border-radius: 20px; padding: 20px; width: min(380px, 100%); box-shadow: 0 10px 40px rgba(0,0,0,.5); text-align: center; }
+  .modal h2 { margin: 0 0 12px; font-size: 26px; }
+  .modal .row { display: flex; justify-content: space-between; padding: 7px 2px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 15px; }
+  .modal .row b { font-weight: 800; }
+  .modal .total { font-size: 28px; font-weight: 900; margin: 14px 0 4px; color: var(--gold); }
+  .modal .nb { color: var(--gold); font-weight: 900; font-size: 18px; margin-bottom: 6px; }
+  .modal .btns { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .modal .btns button { border-radius: 12px; padding: 12px; font-weight: 800; font-size: 16px; background: #34486e; }
+  .modal .btns button.primary { background: linear-gradient(#3ecf80, #22a45e); box-shadow: 0 4px 0 #16723f; font-size: 19px; }
+  .modal .btns button.danger { background: #7d2f2c; }
+  .modal p { opacity: .85; font-size: 14px; line-height: 1.45; margin: 6px 0; }
+  .modal textarea { width: 100%; height: 90px; border-radius: 10px; border: 0; padding: 8px; font-family: ui-monospace, monospace; font-size: 11px; background: #0e1627; color: #cfe; resize: none; user-select: text; -webkit-user-select: text; }
+
+  @media (max-width: 640px) {
+    #cards { grid-template-columns: repeat(6, 1fr); gap: 6px; }
+    .card { grid-column: span 2; padding: 7px; }
+    .card:nth-child(4) { grid-column: 2 / span 2; }
+    .card .hd { font-size: 13px; }
+    .card .val { font-size: 11px; }
+    #planeTitle .name { font-size: 22px; }
+    .big { padding: 12px; font-size: 20px; }
+  }
+  @media (max-height: 520px) {
+    #planeTitle .sub, #evoBar { display: none; }
+    .card .val { min-height: 0; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="topbar">
+  <div class="pill"><span class="coin"></span><span id="coins">0</span></div>
+  <div class="pill" id="bestPill">🏁 <span id="best">0 m</span></div>
+  <div class="spacer"></div>
+  <button class="iconbtn" id="soundBtn" title="Sound">🔊</button>
+  <button class="iconbtn" id="menuBtn" title="Settings">⚙️</button>
+</div>
+
+<div id="hangar">
+  <div id="planeTitle">
+    <div class="sub" id="tierLabel">Evolution 1 / 9</div>
+    <div class="name" id="planeName">Paper Plane</div>
+    <div class="sub" id="planeDesc"></div>
+    <div id="evoBar"><div></div></div>
+  </div>
+  <div id="cards"></div>
+  <div id="actions">
+    <button class="big hidden" id="evoBtn">EVOLVE</button>
+    <button class="big" id="flyBtn">FLY!</button>
+  </div>
+</div>
+
+<div id="hud" class="hidden">
+  <div id="hudDist">0 m</div>
+  <div id="hudRow">
+    <div class="pill">⬆ <span id="hudAlt">0 m</span></div>
+    <div class="pill">💨 <span id="hudSpd">0 km/h</span></div>
+    <div class="pill"><span class="coin"></span> <span id="hudCoins">0</span></div>
+  </div>
+  <div id="fuelWrap"><div id="fuelBar"></div></div>
+</div>
+<div id="hint" class="hidden"></div>
+
+<div id="launchUI" class="hidden">
+  <div class="t">Tap to launch!</div>
+  <div id="meter"><div id="needle"></div></div>
+</div>
+
+<div id="toast"></div>
+
+<div class="modalBg hidden" id="modalBg"><div class="modal" id="modal"></div></div>
+
+<script>
+'use strict';
+/* ==========================================================================
+   Plane Evolution — offline, ad-free launch-and-glide plane game.
+   Everything (art, physics, save) lives in this one file.
+   ========================================================================== */
+
+const $ = s => document.querySelector(s);
+const cv = $('#c'), ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = innerWidth; H = innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+}
+addEventListener('resize', resize); resize();
+
+/* ---------- data ---------- */
+const TIERS = [
+  { name: 'Paper Plane',    desc: 'Folded from last week\'s homework.' },
+  { name: 'Balsa Glider',   desc: 'Light wood, long wings, big dreams.' },
+  { name: 'Biplane',        desc: 'Two wings are better than one.' },
+  { name: 'Prop Plane',     desc: 'A real engine. Finally.' },
+  { name: 'Jet Fighter',    desc: 'Afterburners online.' },
+  { name: 'Supersonic Jet', desc: 'Breakfast in London, lunch in New York.' },
+  { name: 'Rocket Plane',   desc: 'Barely a plane anymore.' },
+  { name: 'Space Shuttle',  desc: 'Next stop: orbit.' },
+  { name: 'UFO',            desc: 'Where did you even get this?' },
+];
+const MAX_TIER = TIERS.length - 1;
+const STATS = [
+  { id: 'launch', name: 'Launch', icon: '🏹', base: 12 },
+  { id: 'engine', name: 'Engine', icon: '⚙️', base: 20 },
+  { id: 'fuel',   name: 'Fuel',   icon: '⛽', base: 16 },
+  { id: 'aero',   name: 'Aero',   icon: '🪶', base: 16 },
+  { id: 'income', name: 'Income', icon: '💰', base: 30 },
+];
+const FLIGHT_STATS = ['launch', 'engine', 'fuel', 'aero'];
+const LEVELS_PER_TIER = 5;
+const capFor = t => LEVELS_PER_TIER * (t + 1);
+const upgradeCost = (id, lvl) => Math.ceil(STATS.find(s => s.id === id).base * Math.pow(1.24, lvl));
+const evolveCost = t => Math.ceil(250 * Math.pow(3.5, t));
+const MILESTONES = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000];
+const BIOMES = [ // distance (m) -> ground colours
+  { at: 0,     name: 'Meadow',   top: '#6cc24a', dirt: '#4f8f35', tree: '#2f7d32' },
+  { at: 800,   name: 'Farmland', top: '#b5cf4a', dirt: '#8a9c34', tree: '#4d8a2a' },
+  { at: 2500,  name: 'Desert',   top: '#ecc978', dirt: '#c9a052', tree: '#5c9a3a' },
+  { at: 6000,  name: 'Tundra',   top: '#eef5f8', dirt: '#b9cbd6', tree: '#2c5d4a' },
+  { at: 15000, name: 'Volcanic', top: '#5d4d4a', dirt: '#3a2f2d', tree: '#e0572f' },
+  { at: 40000, name: 'Alien',    top: '#8a64c4', dirt: '#5b3f8c', tree: '#3fe0c0' },
+];
+
+/* ---------- save ---------- */
+const SAVE_KEY = 'planeEvolution.save.v1';
+const defaultSave = () => ({ v: 1, coins: 0, tier: 0, lv: { launch: 0, engine: 0, fuel: 0, aero: 0, income: 0 },
+  best: 0, bestAlt: 0, ms: 0, runs: 0, sound: true, last: Date.now(), tipSeen: false });
+function loadSave() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (s && s.v === 1) { const d = defaultSave(); return Object.assign(d, s, { lv: Object.assign(d.lv, s.lv) }); }
+  } catch (e) {}
+  return defaultSave();
+}
+let save = loadSave();
+function persist() { save.last = Date.now(); try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
+setInterval(persist, 15000);
+document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
+addEventListener('pagehide', persist);
+
+/* ---------- derived stats ---------- */
+function statsFor(tier, lv) {
+  const { launch: L, engine: E, fuel: F, aero: A, income: I } = lv;
+  const Se = Math.pow(1.05, E) * Math.pow(1.12, tier);
+  const Sa = Math.pow(1.05, A) * Math.pow(1.12, tier);
+  const Sv = Math.sqrt(Se * Sa);
+  const st = {
+    launch: 15 * Math.pow(1.05, L) * Math.pow(1.15, tier),
+    thrust: E > 0 ? 5 * Se : 0,
+    fuel: 1 + 0.4 * F + 0.5 * tier,
+    drag: 0.008 / Sa,
+    ind: 60 * Sv * Sv / (1 + 0.03 * A),
+    ld: 5 + 0.1 * A + 0.5 * tier,
+    income: 1 + 0.12 * I,
+    Sv,
+  };
+  st.top = st.thrust > 0 ? Math.sqrt(st.thrust / st.drag) : 0;
+  return st;
+}
+const curStats = () => statsFor(save.tier, save.lv);
+
+/* ---------- utils ---------- */
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+function fmt(n) {
+  n = Math.floor(n);
+  if (n < 10000) return n.toLocaleString('en-US');
+  const u = ['K', 'M', 'B', 'T', 'Qa', 'Qi'];
+  let i = -1; while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; }
+  return (n < 100 ? n.toFixed(1) : Math.round(n)) + u[i];
+}
+function fmtDist(m) { return m < 10000 ? Math.floor(m).toLocaleString('en-US') + ' m' : (m / 1000).toFixed(m < 100000 ? 2 : 1) + ' km'; }
+function hash(n) { n = (n ^ 61) ^ (n >>> 16); n = Math.imul(n, 9); n ^= n >>> 4; n = Math.imul(n, 0x27d4eb2d); n ^= n >>> 15; return (n >>> 0) / 4294967296; }
+function rng(seed) { let s = seed >>> 0 || 1; return () => { s = Math.imul(s ^ (s >>> 15), 1 | s); s ^= s + Math.imul(s ^ (s >>> 7), 61 | s); return ((s ^ (s >>> 14)) >>> 0) / 4294967296; }; }
+function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+function mixHex(a, b, t) { const A = hexToRgb(a), B = hexToRgb(b); return `rgb(${A.map((v, i) => Math.round(lerp(v, B[i], t))).join(',')})`; }
+function biomeAt(x) {
+  let i = 0; while (i < BIOMES.length - 1 && x >= BIOMES[i + 1].at) i++;
+  const b = BIOMES[i], n = BIOMES[i + 1];
+  if (!n) return { top: b.top, dirt: b.dirt, tree: b.tree };
+  const t = clamp((x - (n.at - 300)) / 300, 0, 1);
+  return { top: mixHex(b.top, n.top, t), dirt: mixHex(b.dirt, n.dirt, t), tree: t > .5 ? n.tree : b.tree };
+}
+
+/* ---------- audio (tiny synth, no files) ---------- */
+let actx = null;
+function audio() { if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (actx && actx.state === 'suspended') actx.resume(); return actx; }
+function beep(freq, dur = 0.08, type = 'square', vol = 0.06, slide = 0) {
+  if (!save.sound) return; const a = audio(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain(), t = a.currentTime;
+  o.type = type; o.frequency.setValueAtTime(freq, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, freq + slide), t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+const sfx = {
+  coin: () => beep(1200 + Math.random() * 200, 0.07, 'square', 0.035, 500),
+  buy: () => { beep(660, 0.06); setTimeout(() => beep(990, 0.09), 60); },
+  launch: () => beep(220, 0.35, 'sawtooth', 0.05, 600),
+  ring: () => { beep(700, 0.1, 'triangle', 0.08, 700); },
+  fuel: () => beep(500, 0.12, 'triangle', 0.07, 300),
+  hit: () => beep(160, 0.2, 'sawtooth', 0.07, -100),
+  land: () => beep(110, 0.25, 'triangle', 0.1, -60),
+  evolve: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.16, 'triangle', 0.08), i * 110)),
+  perfect: () => { beep(880, 0.08, 'triangle', 0.08); setTimeout(() => beep(1320, 0.12, 'triangle', 0.08), 70); },
+};
+
+/* ---------- plane art (side view, facing right, ~80px long at scale 1) ---------- */
+function drawPlane(g, tier, thrusting, time) {
+  const flame = (x, y, len, w, c1 = '#fff3a0', c2 = '#ff7b1c') => {
+    if (!thrusting) return;
+    const l = len * (0.8 + Math.random() * 0.4);
+    const gr = g.createLinearGradient(x, y, x - l, y);
+    gr.addColorStop(0, c1); gr.addColorStop(0.4, c2); gr.addColorStop(1, 'rgba(255,60,0,0)');
+    g.fillStyle = gr; g.beginPath(); g.moveTo(x, y - w); g.quadraticCurveTo(x - l * .5, y - w * 1.2, x - l, y); g.quadraticCurveTo(x - l * .5, y + w * 1.2, x, y + w); g.fill();
+  };
+  const prop = (x, y, r) => {
+    g.fillStyle = '#333'; g.fillRect(x, y - 2, 5, 4);
+    g.fillStyle = 'rgba(60,60,60,.55)'; const s = thrusting ? Math.abs(Math.sin(time * 40)) : 1;
+    g.fillRect(x + 4, y - r * s, 3, r * 2 * s);
+  };
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  switch (tier) {
+    case 0: { // paper plane
+      flame(-34, 0, 18, 3, '#fff', '#ffd27a');
+      g.fillStyle = '#d9e2ec'; g.beginPath(); g.moveTo(40, 0); g.lineTo(-36, -4); g.lineTo(-30, 12); g.closePath(); g.fill();
+      g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(40, 0); g.lineTo(-38, -18); g.lineTo(-28, 2); g.closePath(); g.fill();
+      g.strokeStyle = '#9fb0c4'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(40, 0); g.lineTo(-28, 2); g.stroke();
+      g.strokeStyle = '#6b8ab5'; g.lineWidth = 1; g.beginPath(); g.moveTo(10, -6); g.lineTo(-20, -9); g.moveTo(8, -3); g.lineTo(-22, -4); g.stroke();
+      break;
+    }
+    case 1: { // balsa glider
+      g.fillStyle = '#d7a86e'; g.beginPath(); g.moveTo(38, 0); g.quadraticCurveTo(30, -6, 0, -4); g.lineTo(-36, -2); g.lineTo(-36, 2); g.lineTo(0, 4); g.quadraticCurveTo(30, 5, 38, 0); g.fill();
+      g.fillStyle = '#c28f52'; g.beginPath(); g.moveTo(-26, -2); g.lineTo(-38, -18); g.lineTo(-32, -18); g.lineTo(-18, -2); g.fill();
+      g.fillStyle = '#e8c48f'; g.fillRect(-10, -3, 26, 5);
+      g.fillStyle = '#b5824a'; g.beginPath(); g.ellipse(4, 0, 30, 2.4, 0, 0, Math.PI * 2); g.fill();
+      prop(37, 0, 9);
+      break;
+    }
+    case 2: { // biplane
+      g.fillStyle = '#b22d2d'; g.fillRect(-8, -16, 34, 4); // top wing
+      g.strokeStyle = '#6b4a2a'; g.lineWidth = 2; g.beginPath(); g.moveTo(-2, -12); g.lineTo(-2, 4); g.moveTo(20, -12); g.lineTo(20, 4); g.stroke();
+      g.fillStyle = '#d63a3a'; g.beginPath(); g.moveTo(34, -5); g.lineTo(34, 6); g.lineTo(-28, 3); g.lineTo(-36, -1); g.lineTo(-28, -5); g.closePath(); g.fill();
+      g.fillStyle = '#b22d2d'; g.beginPath(); g.moveTo(-24, -4); g.lineTo(-38, -18); g.lineTo(-32, -18); g.lineTo(-14, -4); g.fill();
+      g.fillStyle = '#8c1f1f'; g.fillRect(-8, 3, 34, 4); // bottom wing
+      g.fillStyle = '#333'; g.beginPath(); g.arc(10, -6, 4, Math.PI, 0); g.fill();
+      g.fillStyle = '#5a5a5a'; g.beginPath(); g.arc(28, 13, 3.5, 0, 7); g.fill(); g.strokeStyle = '#555'; g.beginPath(); g.moveTo(24, 6); g.lineTo(28, 12); g.stroke();
+      g.fillStyle = '#e9e9e9'; g.fillRect(34, -4, 4, 9);
+      prop(37, 0, 14);
+      break;
+    }
+    case 3: { // prop plane
+      g.fillStyle = '#f2c230'; g.beginPath(); g.moveTo(38, -4); g.quadraticCurveTo(40, 0, 38, 6); g.lineTo(-30, 3); g.lineTo(-38, -2); g.lineTo(-30, -6); g.lineTo(10, -8); g.quadraticCurveTo(30, -8, 38, -4); g.fill();
+      g.fillStyle = '#1f5fa8'; g.beginPath(); g.moveTo(-24, -5); g.lineTo(-38, -22); g.lineTo(-30, -22); g.lineTo(-12, -5); g.fill();
+      g.fillStyle = '#9fd4ff'; g.beginPath(); g.moveTo(8, -8); g.quadraticCurveTo(14, -17, 26, -7); g.fill();
+      g.fillStyle = '#1f5fa8'; g.beginPath(); g.moveTo(-4, 1); g.lineTo(22, 1); g.lineTo(18, 6); g.lineTo(-8, 6); g.fill();
+      g.fillStyle = '#1f5fa8'; g.fillRect(-30, -2, 60, 2);
+      prop(39, 1, 16);
+      break;
+    }
+    case 4: { // jet fighter
+      flame(-36, 0, 34, 5);
+      g.fillStyle = '#7d8a99'; g.beginPath(); g.moveTo(46, 1); g.lineTo(20, -6); g.lineTo(-30, -6); g.lineTo(-36, -4); g.lineTo(-36, 4); g.lineTo(-20, 6); g.lineTo(20, 6); g.closePath(); g.fill();
+      g.fillStyle = '#5e6a78'; g.beginPath(); g.moveTo(-18, -6); g.lineTo(-36, -24); g.lineTo(-28, -24); g.lineTo(-4, -6); g.fill();
+      g.fillStyle = '#5e6a78'; g.beginPath(); g.moveTo(10, 2); g.lineTo(-22, 2); g.lineTo(-26, 8); g.lineTo(-8, 8); g.fill();
+      g.fillStyle = '#3aa0ff'; g.beginPath(); g.moveTo(26, -5); g.quadraticCurveTo(16, -14, 4, -6); g.fill();
+      g.fillStyle = '#39424d'; g.fillRect(-36, -4, 5, 8);
+      break;
+    }
+    case 5: { // supersonic
+      flame(-40, 2, 36, 4); flame(-40, -1, 30, 3);
+      g.fillStyle = '#f4f6f8'; g.beginPath(); g.moveTo(54, 4); g.quadraticCurveTo(40, -4, 20, -5); g.lineTo(-38, -4); g.lineTo(-40, 1); g.lineTo(-30, 5); g.lineTo(30, 5); g.closePath(); g.fill();
+      g.fillStyle = '#dfe3e8'; g.beginPath(); g.moveTo(-30, -4); g.lineTo(-40, -22); g.lineTo(-33, -22); g.lineTo(-16, -4); g.fill();
+      g.fillStyle = '#c9ced6'; g.beginPath(); g.moveTo(18, 3); g.lineTo(-30, 3); g.lineTo(-34, 8); g.lineTo(-2, 7); g.fill();
+      g.fillStyle = '#1a3a7a'; g.fillRect(-20, -1, 40, 1.6);
+      g.fillStyle = '#2a2f36'; for (let i = 0; i < 8; i++) g.fillRect(28 - i * 6, -2.6, 2, 1.6);
+      break;
+    }
+    case 6: { // rocket plane (X-15 style)
+      flame(-38, 0, 60, 6, '#e0f4ff', '#56a8ff');
+      g.fillStyle = '#20232a'; g.beginPath(); g.moveTo(52, 0); g.quadraticCurveTo(40, -7, 20, -7); g.lineTo(-38, -6); g.lineTo(-38, 6); g.lineTo(20, 7); g.quadraticCurveTo(40, 7, 52, 0); g.fill();
+      g.fillStyle = '#353a44'; g.beginPath(); g.moveTo(-20, -6); g.lineTo(-36, -26); g.lineTo(-28, -26); g.lineTo(-6, -6); g.fill();
+      g.beginPath(); g.moveTo(-20, 6); g.lineTo(-34, 18); g.lineTo(-28, 18); g.lineTo(-8, 6); g.fill();
+      g.fillStyle = '#ffcc00'; g.fillRect(-8, -1, 30, 2);
+      g.fillStyle = '#7fd1ff'; g.beginPath(); g.moveTo(34, -5); g.quadraticCurveTo(26, -12, 16, -6); g.fill();
+      break;
+    }
+    case 7: { // space shuttle
+      flame(-40, -2, 50, 5); flame(-40, 4, 40, 4);
+      g.fillStyle = '#f5f5f2'; g.beginPath(); g.moveTo(46, 2); g.quadraticCurveTo(44, -8, 26, -9); g.lineTo(-36, -8); g.lineTo(-40, -4); g.lineTo(-40, 7); g.lineTo(30, 8); g.quadraticCurveTo(44, 8, 46, 2); g.fill();
+      g.fillStyle = '#1e1e1e'; g.beginPath(); g.moveTo(46, 2); g.quadraticCurveTo(45, -2, 40, -5); g.lineTo(40, 8); g.quadraticCurveTo(45, 7, 46, 2); g.fill();
+      g.fillRect(-36, 5, 72, 3);
+      g.fillStyle = '#e8e8e4'; g.beginPath(); g.moveTo(-24, -8); g.lineTo(-38, -30); g.lineTo(-30, -30); g.lineTo(-10, -8); g.fill();
+      g.fillStyle = '#2d2d2d'; g.beginPath(); g.moveTo(34, -8); g.lineTo(26, -4); g.lineTo(20, -4); g.lineTo(22, -8); g.fill();
+      g.fillStyle = '#3456a8'; g.font = 'bold 6px sans-serif'; g.fillText('EVO', -8, 0);
+      break;
+    }
+    default: { // UFO
+      g.save(); g.rotate(-0.0);
+      const glow = g.createRadialGradient(0, 8, 2, 0, 8, 40); glow.addColorStop(0, 'rgba(120,255,200,.35)'); glow.addColorStop(1, 'rgba(120,255,200,0)');
+      g.fillStyle = glow; g.beginPath(); g.arc(0, 8, 40, 0, 7); g.fill();
+      g.fillStyle = 'rgba(160,230,255,.85)'; g.beginPath(); g.ellipse(0, -6, 14, 12, 0, Math.PI, 0); g.fill();
+      g.fillStyle = '#9aa4b4'; g.beginPath(); g.ellipse(0, 0, 40, 9, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#6d7686'; g.beginPath(); g.ellipse(0, 3, 26, 5, 0, 0, Math.PI); g.fill();
+      for (let i = 0; i < 7; i++) { const on = Math.floor(time * 6 + i) % 3 === 0; g.fillStyle = on ? '#fffa7a' : '#ff5ad1'; g.beginPath(); g.arc(-30 + i * 10, 1, 2.2, 0, 7); g.fill(); }
+      g.fillStyle = '#7dffa8'; g.beginPath(); g.arc(2, -8, 3, 0, 7); g.fill();
+      g.restore();
+    }
+  }
+}
+
+/* ---------- world objects ---------- */
+// Items are generated per chunk from a deterministic seed so a run is stable while you fly.
+function makeWorld(st) {
+  const scale = Math.max(1, st.Sv);
+  const CH = 45 * scale;
+  const chunks = new Map();
+  const runSeed = (Math.random() * 1e9) | 0;
+  function chunk(i) {
+    if (chunks.has(i)) return chunks.get(i);
+    const r = rng(runSeed + i * 7919), items = [];
+    if (i >= 0) {
+      const x0 = i * CH + (i === 0 ? 14 * scale : 0);
+      const ceil = (18 + Math.min(i * 3, 160)) * scale;
+      const roll = r();
+      if (roll < 0.58) { // coin arc
+        const n = 5 + Math.floor(r() * 5), y0 = (3 + r() * ceil), step = 4 * scale, amp = (2 + r() * 6) * scale;
+        const sx = x0 + r() * CH * 0.4;
+        for (let k = 0; k < n; k++) items.push({ k: 'coin', x: sx + k * step, y: y0 + Math.sin(k / (n - 1) * Math.PI) * amp });
+      } else if (roll < 0.72) {
+        items.push({ k: 'ring', x: x0 + r() * CH * 0.6, y: 6 * scale + r() * ceil * 0.8 });
+      } else if (roll < 0.83) {
+        items.push({ k: st.thrust > 0 ? 'fuel' : 'coin', x: x0 + r() * CH * 0.6, y: 4 * scale + r() * ceil * 0.8 });
+      } else {
+        const k = r() < 0.5 ? 'bird' : 'balloon';
+        items.push({ k, x: x0 + r() * CH * 0.7, y: 5 * scale + r() * ceil * 0.9, ph: r() * 6 });
+      }
+      if (r() < 0.25) items.push({ k: 'coin', x: x0 + r() * CH, y: 2 * scale + r() * 10 * scale });
+    }
+    chunks.set(i, items);
+    if (chunks.size > 120) { const first = chunks.keys().next().value; chunks.delete(first); }
+    return items;
+  }
+  return { CH, chunk, scale };
+}
+
+/* ---------- game state ---------- */
+let mode = 'hangar'; // hangar | launch | fly | done
+let P = null, world = null, runSt = null;
+let holding = false, meterT = 0, camZ = 6, camX = 0, camOff = 0, time = 0, hangarT = 0;
+let particles = [], floaters = [];
+let run = null;
+
+function newRun() {
+  runSt = curStats();
+  world = makeWorld(runSt);
+  P = { x: 0, y: 2.2, a: 0.45, v: 0, fuel: runSt.fuel, maxY: 0, maxV: 0, grounded: false, stopT: 0, crashed: false };
+  run = { coins: 0, rings: 0, t: 0, taken: new Set(), hintT: 0, power: 1, msBonus: 0, msHit: [] };
+  camX = 0; camOff = 0; camZ = clamp(Math.min(W, H * 1.6) / 60, 3, 12);
+  particles = []; floaters = [];
+}
+
+/* ---------- physics (keep in sync with the balance sim in README) ---------- */
+function physStep(dt) {
+  const st = runSt;
+  if (!P.grounded) {
+    if (holding) P.a = Math.min(1.0, P.a + 1.3 * dt);
+    else if (P.a > -0.35) P.a = Math.max(-0.35, P.a - 0.6 * dt);
+    else P.a += 0.4 * dt;
+    if (P.v < 7) P.a -= (7 - P.v) * 0.22 * dt; // stall: nose drops
+    P.a = clamp(P.a, -1.3, 1.0);
+    let T = 0;
+    if (P.fuel > 0 && st.thrust > 0) { T = st.thrust; P.fuel -= dt; }
+    P.thrusting = T > 0;
+    P.v += (T - 9.8 * Math.sin(P.a) - st.drag * P.v * P.v) * dt;
+    if (P.v < 0.3) P.v = 0.3;
+    const sink = P.v * Math.cos(P.a) / st.ld + st.ind / (P.v * P.v + 4);
+    const ox = P.x, oy = P.y;
+    P.x += P.v * Math.cos(P.a) * dt;
+    P.y += (P.v * Math.sin(P.a) - sink) * dt;
+    P.maxY = Math.max(P.maxY, P.y); P.maxV = Math.max(P.maxV, P.v);
+    collide(ox, oy);
+    if (P.y <= 0) {
+      P.y = 0; P.grounded = true;
+      const vy = P.v * Math.sin(P.a);
+      P.crashed = vy < -Math.max(14, P.v * 0.5);
+      P.v = P.v * Math.cos(P.a) * (P.crashed ? 0.25 : 0.8);
+      P.a = 0; P.thrusting = false;
+      sfx.land(); shake = P.crashed ? 14 : 5;
+      for (let i = 0; i < 18; i++) particles.push({ x: P.x, y: 0.3, vx: (Math.random() - .3) * P.v * .4 + 2, vy: Math.random() * 6 * world.scale, life: 1, c: '#8b6b4a', r: 3 + Math.random() * 4 });
+      if (P.crashed) showToast('CRASH!', '#ff8a7a');
+    }
+  } else {
+    // sliding along the ground
+    const fr = 12 * Math.max(1, world.scale * 0.5);
+    P.v = Math.max(0, P.v - fr * dt);
+    P.x += P.v * dt; P.thrusting = false;
+    if (P.v < 0.5) P.stopT += dt;
+  }
+}
+
+function collide(ox, oy) {
+  // segment-vs-point test so fast planes never skip items
+  const R = Math.max(2.2 * world.scale, 26 / camZ);
+  const i0 = Math.floor(Math.min(ox, P.x) / world.CH), i1 = Math.floor(Math.max(ox, P.x) / world.CH);
+  const dx = P.x - ox, dy = P.y - oy, L2 = dx * dx + dy * dy || 1;
+  for (let i = i0 - 1; i <= i1; i++) {
+    const items = world.chunk(i);
+    for (let j = 0; j < items.length; j++) {
+      const it = items[j]; const key = i * 64 + j;
+      if (run.taken.has(key)) continue;
+      const t = clamp(((it.x - ox) * dx + (it.y - oy) * dy) / L2, 0, 1);
+      const ex = ox + dx * t - it.x, ey = oy + dy * t - it.y;
+      const rr = it.k === 'ring' ? R * 1.9 : it.k === 'coin' ? R * 1.1 : R;
+      if (ex * ex + ey * ey > rr * rr) continue;
+      run.taken.add(key);
+      if (it.k === 'coin') {
+        const v = Math.ceil(runSt.income * world.scale * 1.6 * (1 + it.x / (500 * world.scale)));
+        run.coins += v; sfx.coin(); floaters.push({ x: it.x, y: it.y, txt: '+' + fmt(v), c: '#ffd23d', life: 1 });
+      } else if (it.k === 'ring') {
+        P.v += 7 * world.scale + P.v * 0.12; run.rings++; sfx.ring();
+        floaters.push({ x: it.x, y: it.y, txt: 'BOOST!', c: '#7dfcff', life: 1 });
+      } else if (it.k === 'fuel') {
+        P.fuel = Math.min(runSt.fuel, P.fuel + 1.5); sfx.fuel();
+        floaters.push({ x: it.x, y: it.y, txt: '+FUEL', c: '#ffa94d', life: 1 });
+      } else {
+        P.v *= 0.7; P.a -= 0.25; sfx.hit(); shake = 8;
+        floaters.push({ x: it.x, y: it.y, txt: it.k === 'bird' ? 'BONK!' : 'POP!', c: '#ff8a7a', life: 1 });
+        for (let k = 0; k < 10; k++) particles.push({ x: it.x, y: it.y, vx: (Math.random() - .5) * 20, vy: (Math.random() - .5) * 20, life: 1, c: it.k === 'bird' ? '#fff' : '#ff5a7a', r: 3 });
+      }
+    }
+  }
+}
+
+/* ---------- camera + drawing ---------- */
+let shake = 0;
+const toScreen = (x, y) => [ (x - camX) * camZ + W * 0.32, H * 0.78 - y * camZ + camOff ];
+
+function skyColors(alt) {
+  const stops = [[0, '#3d8fe0', '#bfe6ff'], [1500, '#2a6cc4', '#8ccbff'], [5000, '#132a6b', '#3f6fc0'], [15000, '#03061a', '#1a2a5a']];
+  let i = 0; while (i < stops.length - 1 && alt >= stops[i + 1][0]) i++;
+  const a = stops[i], b = stops[Math.min(i + 1, stops.length - 1)];
+  const t = a === b ? 0 : clamp((alt - a[0]) / (b[0] - a[0]), 0, 1);
+  return [mixHex(a[1], b[1], t), mixHex(a[2], b[2], t), clamp((alt - 3000) / 8000, 0, 1)];
+}
+
+function drawScene(focusX, focusY, dt) {
+  const g = ctx;
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const viewAlt = Math.max(0, (camOff - H * 0.3) / camZ);
+  const [top, bot, starA] = skyColors(Math.max(viewAlt, focusY * 0.9));
+  const sky = g.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, top); sky.addColorStop(1, bot);
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  if (shake > 0) { g.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake); shake = Math.max(0, shake - dt * 40); }
+
+  // stars
+  if (starA > 0) {
+    g.fillStyle = `rgba(255,255,255,${starA})`;
+    for (let i = 0; i < 120; i++) { const sx = (hash(i * 3 + 1) * W * 1.3 - camX * camZ * 0.01) % W, sy = hash(i * 3 + 2) * H; g.fillRect((sx + W) % W, sy, 1.6, 1.6); }
+  }
+  // sun
+  g.fillStyle = 'rgba(255,245,200,.9)'; g.beginPath(); g.arc(W * 0.82, H * 0.16 + camOff * 0.02, 34, 0, 7); g.fill();
+
+  // far hills (parallax, screen-space)
+  const gy = H * 0.78 + camOff;
+  const bio = biomeAt(camX);
+  if (gy < H + 200) {
+    for (let layer = 0; layer < 2; layer++) {
+      const par = layer ? 0.25 : 0.1, hgt = layer ? 70 : 110;
+      g.fillStyle = layer ? 'rgba(70,130,100,.55)' : 'rgba(80,120,160,.45)';
+      g.beginPath(); g.moveTo(0, gy);
+      const off = camX * camZ * par * 0.02 + camX * par;
+      for (let x = 0; x <= W + 20; x += 20) {
+        const u = (x + off) * 0.004;
+        g.lineTo(x, gy - hgt * (0.55 + 0.25 * Math.sin(u * 1.3 + layer) + 0.2 * Math.sin(u * 3.1 + 2 * layer)));
+      }
+      g.lineTo(W, gy); g.closePath(); g.fill();
+    }
+  }
+
+  // clouds (world-space cells)
+  {
+    const cs = 160 * world.scale, vs = 120 * world.scale;
+    const x0 = camX - W * 0.4 / camZ, x1 = camX + W / camZ;
+    const yTop = (H * 0.78 + camOff) / camZ, yBot = (H * 0.78 + camOff - H) / camZ;
+    const cx0 = Math.floor(x0 / cs), cx1 = Math.ceil(x1 / cs), cy0 = Math.max(0, Math.floor(yBot / vs)), cy1 = Math.ceil(yTop / vs);
+    if ((cx1 - cx0) * (cy1 - cy0) < 500) {
+      g.fillStyle = 'rgba(255,255,255,.75)';
+      for (let cx = cx0; cx <= cx1; cx++) for (let cy = Math.max(cy0, 1); cy <= cy1; cy++) {
+        const h = hash(cx * 73856093 ^ cy * 19349663);
+        if (h > 0.28) continue;
+        const wx = (cx + hash(cx * 31 + cy)) * cs, wy = (cy + hash(cy * 17 + cx)) * vs;
+        const [sx, sy] = toScreen(wx, wy); const s = clamp(30 * world.scale * camZ / 6, 18, 90);
+        g.beginPath(); g.arc(sx, sy, s, 0, 7); g.arc(sx + s, sy + s * .2, s * .8, 0, 7); g.arc(sx - s, sy + s * .25, s * .7, 0, 7); g.arc(sx + s * .3, sy - s * .5, s * .7, 0, 7); g.fill();
+      }
+    }
+  }
+
+  // ground
+  if (gy < H + 40) {
+    // draw biome bands across the view
+    const xs0 = camX - W * 0.32 / camZ, xs1 = xs0 + W / camZ;
+    const stepPx = 24;
+    for (let px = 0; px < W + stepPx; px += stepPx) {
+      const wx = xs0 + px / camZ; const b = biomeAt(wx);
+      g.fillStyle = b.dirt; g.fillRect(px, gy + 8, stepPx + 1, H - gy);
+      g.fillStyle = b.top; g.fillRect(px, gy, stepPx + 1, 10);
+    }
+    // decorations (trees / rocks), cell size grows as we zoom out to keep count sane
+    let cell = 14; while (cell * camZ < 22) cell *= 2;
+    for (let c = Math.floor(xs0 / cell) - 1; c <= Math.ceil(xs1 / cell); c++) {
+      const h = hash(c * 2654435761 + cell);
+      if (h > 0.45) continue;
+      const wx = (c + hash(c + 99)) * cell; const [sx] = toScreen(wx, 0);
+      const s = clamp(camZ * 3.2, 5, 26) * (0.7 + h);
+      const b = biomeAt(wx);
+      g.fillStyle = '#5a3d25'; g.fillRect(sx - s * 0.12, gy - s * 0.9, s * 0.24, s);
+      g.fillStyle = b.tree; g.beginPath(); g.moveTo(sx, gy - s * 2.4); g.lineTo(sx + s * 0.7, gy - s * 0.6); g.lineTo(sx - s * 0.7, gy - s * 0.6); g.fill();
+    }
+    // distance markers
+    let step = 10; const nice = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000];
+    for (const n of nice) { step = n; if (n * camZ >= 140) break; }
+    g.font = 'bold 12px system-ui, sans-serif'; g.textAlign = 'center';
+    for (let m = Math.max(0, Math.floor(xs0 / step)) * step; m <= xs1; m += step) {
+      if (m === 0) continue;
+      const [sx] = toScreen(m, 0);
+      g.fillStyle = 'rgba(255,255,255,.85)'; g.fillRect(sx - 1.5, gy - 22, 3, 22);
+      g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(sx - 22, gy - 38, 44, 16);
+      g.fillStyle = '#fff'; g.fillText(fmtDist(m), sx, gy - 26);
+    }
+    // best flag
+    if (save.best > 0) {
+      const [sx] = toScreen(save.best, 0);
+      if (sx > -50 && sx < W + 50) {
+        g.fillStyle = '#fff'; g.fillRect(sx - 1.5, gy - 60, 3, 60);
+        g.fillStyle = '#ffc233'; g.beginPath(); g.moveTo(sx + 1.5, gy - 60); g.lineTo(sx + 34, gy - 52); g.lineTo(sx + 1.5, gy - 44); g.fill();
+        g.fillStyle = '#4a2a00'; g.font = 'bold 10px system-ui'; g.fillText('BEST', sx + 14, gy - 49);
+      }
+    }
+    // launch ramp
+    {
+      const [rx, ry] = toScreen(0, 0); const s = camZ;
+      if (rx > -400 && rx < W + 200) {
+        g.fillStyle = '#8a5a34'; g.beginPath(); g.moveTo(rx - 8 * s, ry); g.lineTo(rx + 1 * s, ry - 2.2 * s); g.lineTo(rx + 1 * s, ry); g.fill();
+        g.fillStyle = '#b77b47'; g.beginPath(); g.moveTo(rx - 8 * s, ry); g.lineTo(rx + 1 * s, ry - 2.2 * s); g.lineTo(rx + 1 * s, ry - 2.2 * s + Math.max(2, .3 * s)); g.lineTo(rx - 8 * s, ry + Math.max(2, .3 * s)); g.fill();
+      }
+    }
+  }
+
+  // items
+  if (world && run) {
+    const xs0 = camX - W * 0.32 / camZ - 20, xs1 = xs0 + W / camZ + 40;
+    for (let i = Math.floor(xs0 / world.CH); i <= Math.floor(xs1 / world.CH); i++) {
+      if (i < 0) continue;
+      const items = world.chunk(i);
+      for (let j = 0; j < items.length; j++) {
+        if (run.taken.has(i * 64 + j)) continue;
+        const it = items[j]; const [sx, sy] = toScreen(it.x, it.y);
+        if (sx < -60 || sx > W + 60 || sy < -60 || sy > H + 60) continue;
+        drawItem(g, it, sx, sy);
+      }
+    }
+  }
+
+  // particles
+  for (const p of particles) {
+    const [sx, sy] = toScreen(p.x, p.y);
+    g.globalAlpha = clamp(p.life, 0, 1); g.fillStyle = p.c; g.beginPath(); g.arc(sx, sy, p.r * (p.grow ? (2 - p.life) : 1), 0, 7); g.fill();
+  }
+  g.globalAlpha = 1;
+}
+
+function drawItem(g, it, sx, sy) {
+  const s = clamp(camZ * 1.6 * world.scale, 7, 14);
+  if (it.k === 'coin') {
+    const w = Math.abs(Math.sin(time * 4 + it.x * 0.1));
+    g.fillStyle = '#c98a00'; g.beginPath(); g.ellipse(sx, sy, s * Math.max(.2, w), s, 0, 0, 7); g.fill();
+    g.fillStyle = '#ffd23d'; g.beginPath(); g.ellipse(sx, sy, s * Math.max(.15, w) * .78, s * .78, 0, 0, 7); g.fill();
+  } else if (it.k === 'ring') {
+    g.lineWidth = 5; g.strokeStyle = '#3ff0ff'; g.beginPath(); g.ellipse(sx, sy, s * 1.1, s * 3, 0, 0, 7); g.stroke();
+    g.lineWidth = 2; g.strokeStyle = '#fff'; g.beginPath(); g.ellipse(sx, sy, s * 1.1, s * 3, 0, 0, 7); g.stroke();
+  } else if (it.k === 'fuel') {
+    g.fillStyle = '#e8402f'; g.fillRect(sx - s * .8, sy - s, s * 1.6, s * 2); g.fillStyle = '#fff'; g.fillRect(sx - s * .5, sy - s * .2, s, s * .4);
+    g.fillStyle = '#333'; g.fillRect(sx - s * .3, sy - s * 1.35, s * .6, s * .4);
+  } else if (it.k === 'bird') {
+    const f = Math.sin(time * 14 + it.ph) * s * .8;
+    g.strokeStyle = '#222'; g.lineWidth = 3; g.beginPath(); g.moveTo(sx - s * 1.3, sy - f); g.quadraticCurveTo(sx - s * .5, sy - s * .5, sx, sy); g.quadraticCurveTo(sx + s * .5, sy - s * .5, sx + s * 1.3, sy - f); g.stroke();
+  } else if (it.k === 'balloon') {
+    const bob = Math.sin(time * 2 + it.ph) * 3;
+    g.strokeStyle = '#555'; g.lineWidth = 1; g.beginPath(); g.moveTo(sx, sy + s + bob); g.lineTo(sx, sy + s * 2.6 + bob); g.stroke();
+    g.fillStyle = '#ff4f7b'; g.beginPath(); g.ellipse(sx, sy + bob, s * .9, s * 1.15, 0, 0, 7); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.5)'; g.beginPath(); g.ellipse(sx - s * .3, sy - s * .4 + bob, s * .2, s * .3, 0, 0, 7); g.fill();
+  }
+}
+
+function drawPlaneAt(x, y, a, scale) {
+  const [sx, sy] = toScreen(x, y);
+  ctx.save(); ctx.translate(sx, sy - 6 * scale); ctx.rotate(-a); ctx.scale(scale, scale);
+  drawPlane(ctx, save.tier, P && P.thrusting, time);
+  ctx.restore();
+}
+
+function drawFloaters() {
+  ctx.font = 'bold 16px system-ui, sans-serif'; ctx.textAlign = 'center';
+  for (const f of floaters) {
+    const [sx, sy] = toScreen(f.x, f.y);
+    ctx.globalAlpha = clamp(f.life * 1.5, 0, 1);
+    ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillText(f.txt, sx + 1, sy - (1 - f.life) * 40 + 1);
+    ctx.fillStyle = f.c; ctx.fillText(f.txt, sx, sy - (1 - f.life) * 40);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function speedLines() {
+  if (!P || P.v < 25 * world.scale) return;
+  const n = Math.min(24, (P.v / (25 * world.scale) - 1) * 10);
+  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 2;
+  for (let i = 0; i < n; i++) {
+    const y = hash(i * 7 + Math.floor(time * 20)) * H, x = hash(i * 13 + Math.floor(time * 20)) * W;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 60, y + Math.sin(P.a) * 60); ctx.stroke();
+  }
+}
+
+/* ---------- UI ---------- */
+function showToast(t, color = '#fff') {
+  const el = $('#toast'); el.textContent = t; el.style.color = color; el.classList.add('show');
+  clearTimeout(showToast.h); showToast.h = setTimeout(() => el.classList.remove('show'), 1100);
+}
+function openModal(html) { $('#modal').innerHTML = html; $('#modalBg').classList.remove('hidden'); }
+function closeModal() { $('#modalBg').classList.add('hidden'); }
+
+function statText(id, st) {
+  switch (id) {
+    case 'launch': return `${Math.round(st.launch * 3.6)} km/h`;
+    case 'engine': return st.thrust > 0 ? `Top ${fmt(st.top * 3.6)} km/h` : 'No engine';
+    case 'fuel':   return `${st.fuel.toFixed(1)} s burn`;
+    case 'aero':   return `Glide ×${(0.008 / st.drag).toFixed(2)}`;
+    case 'income': return `Coins ×${st.income.toFixed(2)}`;
+  }
+}
+
+function renderHangar() {
+  $('#coins').textContent = fmt(save.coins);
+  $('#best').textContent = fmtDist(save.best);
+  $('#soundBtn').textContent = save.sound ? '🔊' : '🔇';
+  const t = save.tier, cap = capFor(t);
+  $('#tierLabel').textContent = `Evolution ${t + 1} / ${TIERS.length}`;
+  $('#planeName').textContent = TIERS[t].name;
+  $('#planeDesc').textContent = TIERS[t].desc;
+  const done = FLIGHT_STATS.reduce((s, id) => s + (save.lv[id] - LEVELS_PER_TIER * t), 0);
+  $('#evoBar > div').style.width = (t === MAX_TIER ? 100 : done / (FLIGHT_STATS.length * LEVELS_PER_TIER) * 100) + '%';
+  const st = curStats();
+  const cards = $('#cards');
+  if (!cards.children.length) {
+    for (const s of STATS) {
+      const d = document.createElement('div'); d.className = 'card'; d.dataset.id = s.id;
+      d.innerHTML = `<div class="hd"><span class="ic">${s.icon}</span>${s.name}<span class="lv"></span></div><div class="val"></div><button></button>`;
+      d.querySelector('button').addEventListener('click', () => buy(s.id));
+      cards.appendChild(d);
+    }
+  }
+  for (const d of cards.children) {
+    const id = d.dataset.id, lvl = save.lv[id];
+    d.querySelector('.lv').textContent = `Lv ${lvl}/${cap}`;
+    const btn = d.querySelector('button');
+    if (lvl >= cap) {
+      d.querySelector('.val').innerHTML = statText(id, st);
+      btn.disabled = true; btn.className = 'max';
+      btn.textContent = t < MAX_TIER && FLIGHT_STATS.includes(id) ? 'MAX · evolve!' : 'MAX';
+    } else {
+      const nx = statsFor(t, Object.assign({}, save.lv, { [id]: lvl + 1 }));
+      d.querySelector('.val').innerHTML = `${statText(id, st)}<br>→ <b>${statText(id, nx)}</b>`;
+      const c = upgradeCost(id, lvl);
+      btn.className = ''; btn.disabled = save.coins < c;
+      btn.innerHTML = `<span class="coin"></span> ${fmt(c)}`;
+    }
+  }
+  const evo = $('#evoBtn');
+  const ready = t < MAX_TIER && FLIGHT_STATS.every(id => save.lv[id] >= cap);
+  evo.classList.toggle('hidden', !ready);
+  if (ready) {
+    const c = evolveCost(t);
+    evo.innerHTML = `EVOLVE → ${TIERS[t + 1].name}<br><span style="font-size:14px"><span class="coin"></span> ${fmt(c)}</span>`;
+    evo.disabled = save.coins < c;
+  }
+}
+
+function buy(id) {
+  const lvl = save.lv[id]; if (lvl >= capFor(save.tier)) return;
+  const c = upgradeCost(id, lvl); if (save.coins < c) return;
+  save.coins -= c; save.lv[id]++; sfx.buy(); persist(); renderHangar();
+  evolvePulse = 0.4;
+}
+let evolvePulse = 0, evolveFlash = 0;
+function evolve() {
+  const t = save.tier; if (t >= MAX_TIER) return;
+  if (!FLIGHT_STATS.every(id => save.lv[id] >= capFor(t))) return;
+  const c = evolveCost(t); if (save.coins < c) return;
+  save.coins -= c; save.tier++; persist(); sfx.evolve(); evolveFlash = 1;
+  showToast(`EVOLVED! ${TIERS[save.tier].name}`, '#e3b8ff');
+  renderHangar();
+}
+$('#evoBtn').addEventListener('click', evolve);
+
+function setMode(m) {
+  mode = m;
+  $('#hangar').classList.toggle('hidden', m !== 'hangar');
+  $('#bestPill').classList.toggle('hidden', m !== 'hangar');
+  $('#topbar').classList.toggle('hidden', m !== 'hangar');
+  $('#hud').classList.toggle('hidden', !(m === 'fly' || m === 'launch' || m === 'done'));
+  $('#launchUI').classList.toggle('hidden', m !== 'launch');
+  $('#hint').classList.add('hidden');
+  if (m === 'hangar') renderHangar();
+}
+
+$('#flyBtn').addEventListener('click', () => {
+  audio(); newRun(); meterT = 0; setMode('launch');
+  $('#fuelWrap').classList.toggle('hidden', !(runSt.thrust > 0));
+  updateHud();
+});
+$('#soundBtn').addEventListener('click', () => { save.sound = !save.sound; persist(); renderHangar(); });
+$('#menuBtn').addEventListener('click', openSettings);
+
+function openSettings() {
+  openModal(`<h2>Settings</h2>
+    <p>Everything runs offline in your browser. Progress is saved automatically on this device.</p>
+    <div class="btns">
+      <button id="expBtn">Export save (backup)</button>
+      <button id="impBtn">Import save</button>
+      <button id="rstBtn" class="danger">Reset all progress</button>
+      <button id="clsBtn" class="primary">Close</button>
+    </div>`);
+  $('#clsBtn').onclick = closeModal;
+  $('#expBtn').onclick = () => {
+    const code = btoa(unescape(encodeURIComponent(JSON.stringify(save))));
+    openModal(`<h2>Your save code</h2><p>Copy this somewhere safe. Paste it into “Import save” to restore.</p>
+      <textarea readonly id="codeBox">${code}</textarea><div class="btns"><button id="cpBtn">Copy</button><button class="primary" id="clsBtn">Done</button></div>`);
+    const box = $('#codeBox'); box.addEventListener('focus', () => box.select());
+    $('#cpBtn').onclick = () => { box.select(); (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).catch(() => document.execCommand('copy')); $('#cpBtn').textContent = 'Copied!'; };
+    $('#clsBtn').onclick = closeModal;
+  };
+  $('#impBtn').onclick = () => {
+    openModal(`<h2>Import save</h2><p>Paste a save code. This replaces your current progress.</p>
+      <textarea id="codeBox" placeholder="Paste code here"></textarea><div class="btns"><button class="primary" id="okBtn">Import</button><button id="clsBtn">Cancel</button></div>`);
+    $('#clsBtn').onclick = closeModal;
+    $('#okBtn').onclick = () => {
+      try {
+        const s = JSON.parse(decodeURIComponent(escape(atob($('#codeBox').value.trim()))));
+        if (!s || s.v !== 1 || typeof s.coins !== 'number') throw 0;
+        const d = defaultSave(); save = Object.assign(d, s, { lv: Object.assign(d.lv, s.lv) }); persist(); closeModal(); renderHangar(); showToast('Save imported!');
+      } catch (e) { $('#okBtn').textContent = 'Invalid code — try again'; }
+    };
+  };
+  $('#rstBtn').onclick = () => {
+    openModal(`<h2>Reset everything?</h2><p>All coins, upgrades and evolutions will be lost. This can’t be undone.</p>
+      <div class="btns"><button class="danger" id="yesBtn">Yes, reset</button><button class="primary" id="clsBtn">Cancel</button></div>`);
+    $('#clsBtn').onclick = closeModal;
+    $('#yesBtn').onclick = () => { save = defaultSave(); persist(); closeModal(); renderHangar(); };
+  };
+}
+
+function updateHud() {
+  $('#hudDist').textContent = fmtDist(P.x);
+  $('#hudAlt').textContent = fmtDist(Math.max(0, P.y));
+  $('#hudSpd').textContent = fmt(P.v * 3.6) + ' km/h';
+  $('#hudCoins').textContent = fmt(run.coins);
+  if (runSt.thrust > 0) $('#fuelBar').style.width = clamp(P.fuel / runSt.fuel * 100, 0, 100) + '%';
+}
+
+function finishRun() {
+  setMode('done');
+  const dist = P.x;
+  const distCoins = Math.floor(dist * 0.5 * runSt.income);
+  let msBonus = 0; const hit = [];
+  while (save.ms < MILESTONES.length && dist >= MILESTONES[save.ms]) { msBonus += Math.ceil(MILESTONES[save.ms] * 0.5); hit.push(MILESTONES[save.ms]); save.ms++; }
+  const total = distCoins + run.coins + msBonus;
+  const newBest = dist > save.best;
+  save.coins += total; save.runs++;
+  if (newBest) save.best = dist;
+  save.bestAlt = Math.max(save.bestAlt, P.maxY);
+  persist();
+  openModal(`<h2>${P.crashed ? 'Crash landing!' : 'Landed!'}</h2>
+    ${newBest ? '<div class="nb">🏆 NEW BEST DISTANCE!</div>' : ''}
+    <div class="row"><span>Distance</span><b>${fmtDist(dist)}</b></div>
+    <div class="row"><span>Max altitude</span><b>${fmtDist(P.maxY)}</b></div>
+    <div class="row"><span>Top speed</span><b>${fmt(P.maxV * 3.6)} km/h</b></div>
+    <div class="row"><span>Distance reward</span><b><span class="coin"></span> ${fmt(distCoins)}</b></div>
+    <div class="row"><span>Coins collected</span><b><span class="coin"></span> ${fmt(run.coins)}</b></div>
+    ${msBonus ? `<div class="row"><span>Milestone ${hit.map(fmtDist).join(', ')}</span><b><span class="coin"></span> ${fmt(msBonus)}</b></div>` : ''}
+    <div class="total"><span class="coin"></span> +${fmt(total)}</div>
+    <div class="btns"><button class="primary" id="colBtn">Collect</button></div>`);
+  $('#colBtn').onclick = () => { closeModal(); setMode('hangar'); };
+  if (hit.length) sfx.evolve();
+}
+
+/* ---------- input ---------- */
+function press(e) {
+  if (e && e.target && e.target.closest && e.target.closest('button, .modal, textarea')) return;
+  audio();
+  if (mode === 'launch') { doLaunch(); return; }
+  if (mode === 'fly') holding = true;
+}
+function release() { holding = false; }
+addEventListener('pointerdown', press);
+addEventListener('pointerup', release);
+addEventListener('pointercancel', release);
+addEventListener('blur', release);
+addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (['Space', 'ArrowUp', 'KeyW', 'Enter'].includes(e.code)) {
+    e.preventDefault();
+    if (mode === 'hangar' && $('#modalBg').classList.contains('hidden') && e.code !== 'ArrowUp' && e.code !== 'KeyW') { $('#flyBtn').click(); return; }
+    if (mode === 'done' && !$('#modalBg').classList.contains('hidden') && $('#colBtn')) { $('#colBtn').click(); return; }
+    press();
+  }
+});
+addEventListener('keyup', e => { if (['Space', 'ArrowUp', 'KeyW', 'Enter'].includes(e.code)) release(); });
+addEventListener('contextmenu', e => e.preventDefault());
+
+function meterValue() { const p = (meterT * 0.9) % 2; return p < 1 ? p : 2 - p; }
+function doLaunch() {
+  const m = meterValue();
+  const perfect = m >= 0.85;
+  run.power = perfect ? 1.1 : 0.55 + 0.4 * (m / 0.85);
+  P.v = runSt.launch * run.power;
+  sfx.launch();
+  if (perfect) { sfx.perfect(); showToast('PERFECT LAUNCH!', '#8dff9a'); }
+  else if (m > 0.6) showToast('Good!', '#fff');
+  setMode('fly');
+  if (!save.tipSeen) { $('#hint').textContent = 'Hold to pull up · release to dive'; $('#hint').classList.remove('hidden'); run.hintT = 4; }
+}
+
+/* ---------- main loop ---------- */
+let lastT = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now; time += dt;
+
+  if (mode === 'hangar') drawHangar(dt);
+  else {
+    if (mode === 'launch') meterT += dt;
+    if (mode === 'fly') {
+      const sub = Math.ceil(dt / (1 / 120));
+      for (let i = 0; i < sub; i++) physStep(dt / sub);
+      run.t += dt;
+      if (run.hintT > 0) { run.hintT -= dt; if (run.hintT <= 0) { $('#hint').classList.add('hidden'); save.tipSeen = true; } }
+      // exhaust / trail
+      if (P.thrusting && Math.random() < 0.8) particles.push({ x: P.x - Math.cos(P.a) * 3 * world.scale, y: P.y + 0.3, vx: -P.v * 0.1, vy: 0.5, life: 1, c: 'rgba(230,230,230,.7)', r: 4, grow: true });
+      if (P.grounded && P.stopT > 0.6) finishRun();
+      if (P.grounded && P.v > 1 && Math.random() < 0.5) particles.push({ x: P.x, y: 0.2, vx: -2, vy: 2, life: 0.8, c: '#a7875f', r: 3 });
+      // safety net: extremely long flights end after 5 minutes
+      if (run.t > 300 && !P.grounded) { P.grounded = true; P.v = 0; P.y = 0; }
+    }
+    for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy -= 9.8 * dt * 0.3; p.life -= dt * 1.2; }
+    particles = particles.filter(p => p.life > 0).slice(-250);
+    for (const f of floaters) f.life -= dt * 1.1;
+    floaters = floaters.filter(f => f.life > 0);
+
+    // camera
+    const targetZ = clamp(Math.min(W, H * 1.6) / (55 + P.v * 2.4), 0.12, 12);
+    camZ = lerp(camZ, targetZ, 1 - Math.exp(-dt * 2.5));
+    camX = P.x;
+    camOff = Math.max(0, P.y * camZ - H * 0.38);
+
+    drawScene(P.x, P.y, dt);
+    const ps = clamp(0.8 + camZ * 0.03, 0.85, 1.1);
+    drawPlaneAt(P.x, P.y, P.a, ps);
+    drawFloaters();
+    speedLines();
+    if (mode === 'launch') $('#needle').style.left = (meterValue() * 100) + '%';
+    updateHud();
+  }
+  requestAnimationFrame(frame);
+}
+
+function drawHangar(dt) {
+  hangarT += dt;
+  if (!world) world = makeWorld(curStats());
+  // a pleasant idle scene: the plane bobbing above the launch ramp
+  camZ = clamp(Math.min(W, H) / 70, 4, 12); camX = -4; camOff = H * 0.12;
+  P = null;
+  drawScene(0, 0, dt);
+  const s = clamp(Math.min(W, H) / 260, 1.3, 2.6) * (1 + evolvePulse * 0.15);
+  evolvePulse = Math.max(0, evolvePulse - dt);
+  const cx = W / 2, cy = Math.min(H * 0.34, H - 330) + Math.sin(hangarT * 2) * 8;
+  // pedestal glow
+  const gl = ctx.createRadialGradient(cx, cy, 10, cx, cy, 140 * s / 2);
+  gl.addColorStop(0, 'rgba(255,255,255,.45)'); gl.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(cx, cy, 140 * s / 2, 0, 7); ctx.fill();
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(Math.sin(hangarT * 1.3) * 0.05 - 0.05); ctx.scale(s, s);
+  drawPlane(ctx, save.tier, save.lv.engine > 0, hangarT); ctx.restore();
+  if (evolveFlash > 0) { ctx.fillStyle = `rgba(255,255,255,${evolveFlash})`; ctx.fillRect(0, 0, W, H); evolveFlash = Math.max(0, evolveFlash - dt * 1.2); }
+}
+
+/* ---------- offline earnings ---------- */
+function offlineEarnings() {
+  const away = (Date.now() - (save.last || Date.now())) / 60000; // minutes
+  if (away < 2 || save.runs === 0) return;
+  const mins = Math.min(away, 240);
+  const rate = Math.max(1, 0.15 * Math.pow(3.2, save.tier) * curStats().income);
+  const earn = Math.floor(rate * mins);
+  if (earn <= 0) return;
+  save.coins += earn; persist();
+  openModal(`<h2>Welcome back!</h2>
+    <p>Your hangar crew polished planes while you were away${away > 240 ? ' (up to 4 hours counts)' : ''}.</p>
+    <div class="total"><span class="coin"></span> +${fmt(earn)}</div>
+    <div class="btns"><button class="primary" id="clsBtn">Nice</button></div>`);
+  $('#clsBtn').onclick = () => { closeModal(); renderHangar(); };
+}
+
+setMode('hangar');
+offlineEarnings();
+persist();
+requestAnimationFrame(frame);
+
+/* ---------- offline install (PWA) ---------- */
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
