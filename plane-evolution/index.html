@@ -561,8 +561,16 @@ function collide(ox, oy) {
         P.v += 7 * world.scale + P.v * 0.12; run.rings++; sfx.ring();
         floaters.push({ x: it.x, y: it.y, txt: 'BOOST!', c: '#7dfcff', life: 1 });
       } else if (it.k === 'fuel') {
-        P.fuel = Math.min(runSt.fuel, P.fuel + 1.5); sfx.fuel();
-        floaters.push({ x: it.x, y: it.y, txt: '+FUEL', c: '#ffa94d', life: 1 });
+        // Once the main tank is dry, cans top up the reserve instead, so they never re-open the
+        // main tank and lock the reserve out again.
+        if (P.fuel <= 0 && runSt.reserve > 0) {
+          P.reserve = Math.min(runSt.reserve, Math.max(0, P.reserve) + 1.5);
+          floaters.push({ x: it.x, y: it.y, txt: '+RESERVE', c: '#7de8ff', life: 1 });
+        } else {
+          P.fuel = Math.min(runSt.fuel, P.fuel + 1.5);
+          floaters.push({ x: it.x, y: it.y, txt: '+FUEL', c: '#ffa94d', life: 1 });
+        }
+        sfx.fuel();
       } else {
         P.v *= 0.7; P.a -= 0.25; sfx.hit(); shake = 8;
         floaters.push({ x: it.x, y: it.y, txt: it.k === 'bird' ? 'BONK!' : 'POP!', c: '#ff8a7a', life: 1 });

@@ -18,7 +18,8 @@ network, no accounts**. One HTML file; progress is saved in your browser.
    **fuel cans**; avoid birds and balloons.
    - **Reserve tank** (Jet Fighter and later): once the main fuel is empty, hold **Space** (or the
      RESERVE button) to burn the reserve. Upgrading *Reserve* lowers its drain rate, so it lasts
-     longer. On the earlier planes, Space still climbs.
+     longer. Fuel cans picked up after the main tank is empty refill the reserve instead.
+     On the earlier planes, Space still climbs.
 3. **Upgrade** — spend coins on Launch, Engine, Fuel, Aero and Income (5 levels per stage), plus
    Reserve from the Jet Fighter on.
 4. **Evolve** — max the four flight stats and pay to evolve:
