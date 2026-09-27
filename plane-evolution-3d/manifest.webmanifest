@@ -1,0 +1,14 @@
+{
+  "name": "Plane Evolution 3D",
+  "short_name": "Plane Evo 3D",
+  "description": "Launch, glide, upgrade and evolve your plane, in 3D. Offline, no ads.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#3d8fe0",
+  "theme_color": "#3d8fe0",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

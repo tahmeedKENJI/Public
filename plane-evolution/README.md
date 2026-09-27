@@ -3,6 +3,9 @@
 A launch-and-glide plane game in the style of *Epic Plane Evolution* — with **no ads, no
 network, no accounts**. One HTML file; progress is saved in your browser.
 
+There is also a **3D version** with realistic terrain in [`../plane-evolution-3d`](../plane-evolution-3d). It is the same game
+and uses the same save, so progress carries over when both are served from the same site.
+
 ## Play
 
 - **Easiest:** open `index.html` in any browser (double-click it). Works fully offline.

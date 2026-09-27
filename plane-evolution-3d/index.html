@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#3d8fe0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Plane Evolution 3D</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+  :root { --ui: #ffffff; --ink: #1d2433; --gold: #ffc233; --good: #2fbf71; --bad: #e0524b; --panel: rgba(18, 28, 48, .88); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #3d8fe0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ui); touch-action: none; user-select: none; -webkit-user-select: none; }
+  canvas { display: block; position: fixed; inset: 0; }
+  #fx { pointer-events: none; }
+  #vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,20,.3) 100%); }
+  #flash { position: fixed; inset: 0; pointer-events: none; background: #fff0e6; opacity: 0; }
+  .hidden { display: none !important; }
+  button { font: inherit; border: 0; cursor: pointer; color: inherit; }
+
+  /* top bar */
+  #topbar { position: fixed; top: 0; left: 0; right: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: max(10px, env(safe-area-inset-top)) 12px 10px; pointer-events: none; }
+  #topbar .pills { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+  #topbar .tbtns { display: flex; gap: 8px; }
+  .pill { background: var(--panel); border-radius: 999px; padding: 6px 14px; font-weight: 700; white-space: nowrap; display: flex; align-items: center; gap: 6px; pointer-events: auto; }
+  .coin { display: inline-block; width: 1em; height: 1em; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff4b0, var(--gold) 45%, #c98a00); box-shadow: 0 0 0 2px #a86f00 inset; vertical-align: -0.12em; }
+  .iconbtn { background: var(--panel); border-radius: 50%; width: 38px; height: 38px; font-size: 18px; pointer-events: auto; display: grid; place-items: center; }
+
+  /* hangar */
+  #hangar { position: fixed; left: 0; right: 0; bottom: 0; padding: 0 10px max(10px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  #planeTitle { text-align: center; text-shadow: 0 2px 6px rgba(0,0,0,.45); }
+  #planeTitle .name { font-size: 26px; font-weight: 900; letter-spacing: .5px; }
+  #planeTitle .sub { font-size: 13px; opacity: .92; }
+  #chips { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; width: 100%; max-width: 900px; }
+  .chip { background: var(--panel); border-radius: 12px; padding: 6px 2px 5px; display: flex; flex-direction: column; align-items: center; gap: 1px; position: relative; border: 2px solid transparent; font-size: 12px; font-weight: 800; min-width: 0; }
+  .chip .ic { font-size: 20px; line-height: 1.15; }
+  .chip .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .chip .lv { font-size: 11px; opacity: .8; font-weight: 600; white-space: nowrap; }
+  .chip.sel { border-color: var(--gold); background: rgba(40, 56, 90, .96); }
+  .chip.afford::after { content: ''; position: absolute; top: 5px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: #3ecf80; box-shadow: 0 0 6px #3ecf80; }
+  .chip.locked { opacity: .55; }
+  .chip.maxed .lv { color: #c9b3ff; }
+  #detail { background: var(--panel); border-radius: 14px; padding: 10px 12px; width: 100%; max-width: 900px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 14px; align-items: center; }
+  #detail .dh { font-weight: 800; font-size: 16px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  #detail .dh .lv { font-size: 12px; opacity: .75; font-weight: 600; }
+  #detail .look, #detail .eff { font-size: 13px; line-height: 1.35; }
+  #detail .look b { color: #ffe08a; }
+  #detail .eff b { color: #9fe39f; }
+  #detail .desc { opacity: .72; font-size: 12px; line-height: 1.35; }
+  #upBtn { grid-column: 2; grid-row: 1 / span 4; min-width: 180px; background: linear-gradient(#3ecf80, #22a45e); border-radius: 12px; padding: 12px 14px; font-weight: 900; font-size: 16px; box-shadow: 0 4px 0 #16723f; white-space: nowrap; }
+  #upBtn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 2px 0 #16723f; }
+  #upBtn:disabled { background: #4a5468; box-shadow: 0 4px 0 #2e3544; color: #b8c0d0; cursor: default; }
+  #upBtn.max { background: #6c5a9e; box-shadow: 0 4px 0 #463872; color: #fff; }
+  #actions { display: flex; gap: 10px; width: 100%; max-width: 900px; }
+  .big { flex: 1; border-radius: 16px; padding: 14px; font-size: 22px; font-weight: 900; letter-spacing: 1px; }
+  #flyBtn { background: linear-gradient(#ffcf4d, #f5a300); color: #4a2a00; box-shadow: 0 5px 0 #b87400; }
+  #flyBtn:active { transform: translateY(3px); box-shadow: 0 2px 0 #b87400; }
+  @keyframes pulse { 50% { filter: brightness(1.2); transform: scale(1.02); } }
+
+  /* flight HUD */
+  #hud { position: fixed; top: 0; left: 0; right: 0; pointer-events: none; padding: max(10px, env(safe-area-inset-top)) 12px 0; display: flex; flex-direction: column; align-items: center; }
+  #hudDist { font-size: 40px; font-weight: 900; text-shadow: 0 3px 8px rgba(0,0,0,.45); line-height: 1; margin-top: 44px; }
+  #hudRow { display: flex; gap: 8px; margin-top: 6px; font-size: 13px; font-weight: 700; flex-wrap: wrap; justify-content: center; }
+  #hudRow .pill { pointer-events: none; }
+  #fuelWrap { width: min(260px, 60vw); height: 12px; background: rgba(0,0,0,.35); border-radius: 99px; overflow: hidden; margin-top: 8px; border: 2px solid rgba(255,255,255,.5); }
+  #fuelBar { height: 100%; width: 100%; background: linear-gradient(90deg, #ff7a3d, #ffd23d); }
+  #reserveWrap { width: min(260px, 60vw); height: 8px; background: rgba(0,0,0,.35); border-radius: 99px; overflow: hidden; margin-top: 4px; border: 2px solid rgba(160,220,255,.6); }
+  #reserveBar { height: 100%; width: 100%; background: linear-gradient(90deg, #3d8bff, #7de8ff); }
+  #reserveWrap.on { box-shadow: 0 0 10px #7de8ff; }
+  #flightBtns { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; padding: max(10px, env(safe-area-inset-top)) 12px 0; pointer-events: none; }
+  #flightBtns .iconbtn { width: 42px; height: 42px; font-size: 18px; font-weight: 900; }
+  #flightBtns .grp { display: flex; gap: 8px; }
+
+  /* flight controls */
+  #ctls { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 14px max(14px, env(safe-area-inset-bottom)); pointer-events: none; }
+  .ctl { pointer-events: auto; width: 84px; height: 84px; border-radius: 50%; background: rgba(18, 28, 48, .55); border: 3px solid rgba(255,255,255,.55); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 30px; font-weight: 900; line-height: 1; touch-action: none; }
+  .ctl small { font-size: 10px; letter-spacing: 1px; margin-top: 4px; opacity: .85; }
+  .ctl.active { background: rgba(255,255,255,.35); transform: scale(.95); }
+  .ctl.res { width: auto; height: 60px; border-radius: 16px; padding: 0 16px; font-size: 15px; margin-bottom: 12px; opacity: .45; border-color: rgba(125,232,255,.7); }
+  .ctl.res.ready { opacity: 1; background: rgba(40, 110, 200, .7); animation: pulse 1s infinite; }
+  .ctl.res.active { animation: none; background: rgba(125,232,255,.6); }
+  #hint { position: fixed; bottom: 16%; left: 0; right: 0; text-align: center; font-size: 22px; font-weight: 900; text-shadow: 0 2px 6px rgba(0,0,0,.5); pointer-events: none; animation: bob 1s infinite ease-in-out; }
+  @keyframes bob { 50% { transform: translateY(-6px); } }
+
+  /* launch meter */
+  #launchUI { position: fixed; left: 0; right: 0; bottom: 18%; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
+  #meter { width: min(360px, 80vw); height: 26px; border-radius: 99px; background: linear-gradient(90deg, #e0524b 0%, #ffb13d 55%, #7ee07e 84%, #2fbf71 85%, #2fbf71 100%); border: 3px solid #fff; position: relative; box-shadow: 0 4px 10px rgba(0,0,0,.3); }
+  #needle { position: absolute; top: -8px; bottom: -8px; width: 6px; margin-left: -3px; background: #fff; border-radius: 3px; box-shadow: 0 0 0 2px #1d2433; }
+  #launchUI .t { font-size: 22px; font-weight: 900; text-shadow: 0 2px 6px rgba(0,0,0,.5); }
+
+  /* area title, in the style of a souls-like "area reached" banner */
+  #areaTitle { position: fixed; left: 0; right: 0; top: 36%; text-align: center; pointer-events: none; opacity: 0; transition: opacity 1.4s ease;
+    padding: 26px 0 22px; background: linear-gradient(transparent, rgba(0,0,0,.42) 28%, rgba(0,0,0,.42) 72%, transparent);
+    font-family: "Palatino Linotype", "Book Antiqua", Palatino, "Iowan Old Style", Georgia, "Times New Roman", serif; }
+  #areaTitle.show { opacity: 1; transition-duration: .9s; }
+  #areaTitle .sub { font-size: 13px; letter-spacing: .55em; text-transform: uppercase; color: #d9c9a3; margin-bottom: 8px; min-height: 1em; }
+  #areaTitle .name { font-size: clamp(30px, 6.2vw, 62px); letter-spacing: .14em; color: #f4ecd8; font-weight: 400; text-shadow: 0 0 22px rgba(0,0,0,.85), 0 2px 4px rgba(0,0,0,.9); text-transform: uppercase; padding: 0 12px; }
+  #areaTitle .line { width: min(600px, 84vw); height: 1px; margin: 12px auto 0; background: linear-gradient(90deg, transparent, rgba(244,236,216,.95), transparent); }
+
+  /* popups */
+  #toast { position: fixed; top: 22%; left: 0; right: 0; text-align: center; font-size: 32px; font-weight: 900; pointer-events: none; text-shadow: 0 3px 10px rgba(0,0,0,.5); opacity: 0; transition: opacity .25s, transform .25s; padding: 0 10px; }
+  #toast.show { opacity: 1; transform: scale(1.08); }
+  .modalBg { position: fixed; inset: 0; background: rgba(8, 14, 28, .55); display: grid; place-items: center; padding: 16px; }
+  .modal { background: #1b2740; border-radius: 20px; padding: 20px; width: min(380px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,.5); text-align: center; }
+  .modal h2 { margin: 0 0 12px; font-size: 26px; }
+  .modal .row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 2px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 15px; text-align: left; }
+  .modal .row b { font-weight: 800; white-space: nowrap; }
+  .modal .total { font-size: 28px; font-weight: 900; margin: 14px 0 4px; color: var(--gold); }
+  .modal .nb { color: var(--gold); font-weight: 900; font-size: 18px; margin-bottom: 6px; }
+  .modal .btns { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .modal .btns button { border-radius: 12px; padding: 12px; font-weight: 800; font-size: 16px; background: #34486e; }
+  .modal .btns button.primary { background: linear-gradient(#3ecf80, #22a45e); box-shadow: 0 4px 0 #16723f; font-size: 19px; }
+  .modal .btns button.danger { background: #7d2f2c; }
+  .modal p { opacity: .85; font-size: 14px; line-height: 1.45; margin: 6px 0; }
+  .modal textarea { width: 100%; height: 90px; border-radius: 10px; border: 0; padding: 8px; font-family: ui-monospace, monospace; font-size: 11px; background: #0e1627; color: #cfe; resize: none; user-select: text; -webkit-user-select: text; }
+  .toggles { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+  .toggle { display: flex; justify-content: space-between; align-items: center; background: #26365a; border-radius: 12px; padding: 10px 12px; font-weight: 700; font-size: 15px; }
+  .toggle .sw { width: 46px; height: 26px; border-radius: 99px; background: #4a5468; position: relative; transition: background .2s; flex: none; }
+  .toggle .sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .2s; }
+  .toggle.on .sw { background: #2fbf71; }
+  .toggle.on .sw::after { left: 23px; }
+  .toggle .val { color: #ffe08a; font-weight: 800; white-space: nowrap; flex: none; }
+  .toggle > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+  .toggle { gap: 10px; }
+  #boot { position: fixed; inset: 0; display: grid; place-items: center; background: #3d8fe0; font-weight: 900; font-size: 22px; letter-spacing: 1px; text-shadow: 0 2px 6px rgba(0,0,0,.4); }
+  #boot.err { font-size: 16px; font-weight: 700; padding: 24px; text-align: center; line-height: 1.5; }
+
+  @media (max-width: 640px) {
+    #chips { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    #detail { grid-template-columns: minmax(0, 1fr); }
+    #upBtn { grid-column: 1; grid-row: auto; width: 100%; margin-top: 4px; padding: 10px; }
+    .pill { padding: 6px 10px; font-size: 14px; }
+    #planeTitle .name { font-size: 22px; }
+    .big { padding: 12px; font-size: 20px; }
+  }
+  @media (max-height: 560px) {
+    #planeTitle .sub, #detail .desc { display: none; }
+    #hangar { gap: 6px; }
+    .chip { padding: 4px 2px; }
+    .chip .ic { font-size: 16px; }
+    .big { padding: 10px; font-size: 19px; }
+    #upBtn { padding: 9px 12px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<canvas id="fx"></canvas>
+<div id="vignette"></div>
+<div id="flash"></div>
+
+<div id="topbar">
+  <div class="pills">
+    <div class="pill"><span class="coin"></span><span id="coins">0</span></div>
+    <div class="pill" id="bestPill">🏁 <span id="best">0 m</span></div>
+  </div>
+  <div class="tbtns">
+    <button class="iconbtn" id="soundBtn" title="Sound">🔊</button>
+    <button class="iconbtn" id="menuBtn" title="Settings">⚙️</button>
+  </div>
+</div>
+
+<div id="hangar">
+  <div id="planeTitle">
+    <div class="name" id="planeName">Paper Plane</div>
+    <div class="sub" id="planeSub"></div>
+  </div>
+  <div id="chips"></div>
+  <div id="detail">
+    <div class="dh"><span id="dIcon"></span><span id="dName"></span><span class="lv" id="dLv"></span></div>
+    <div class="look" id="dLook"></div>
+    <div class="eff" id="dEff"></div>
+    <div class="desc" id="dDesc"></div>
+    <button id="upBtn">Upgrade</button>
+  </div>
+  <div id="actions">
+    <button class="big" id="flyBtn">FLY!</button>
+  </div>
+</div>
+
+<div id="hud" class="hidden">
+  <div id="hudDist">0 m</div>
+  <div id="hudRow">
+    <div class="pill">⬆ <span id="hudAlt">0 m</span></div>
+    <div class="pill">💨 <span id="hudSpd">0 km/h</span></div>
+    <div class="pill"><span class="coin"></span> <span id="hudCoins">0</span></div>
+  </div>
+  <div id="fuelWrap"><div id="fuelBar"></div></div>
+  <div id="reserveWrap" class="hidden"><div id="reserveBar"></div></div>
+</div>
+<div id="flightBtns" class="hidden">
+  <div class="grp"><button class="iconbtn" id="pauseBtn" title="Pause (Esc)">❚❚</button><button class="iconbtn" id="camBtn" title="Camera (C)">🎥</button></div>
+  <button class="iconbtn" id="quitBtn" title="Exit to hangar">✕</button>
+</div>
+<div id="ctls" class="hidden">
+  <div class="ctl" data-role="down">▼<small>DIVE</small></div>
+  <div class="ctl res hidden" data-role="reserve" id="ctlRes">RESERVE<small id="resTxt">SPACE</small></div>
+  <div class="ctl" data-role="up">▲<small>CLIMB</small></div>
+</div>
+<div id="hint" class="hidden"></div>
+
+<div id="launchUI" class="hidden">
+  <div class="t">Tap to launch!</div>
+  <div id="meter"><div id="needle"></div></div>
+</div>
+
+<div id="areaTitle"><div class="sub" id="areaSub"></div><div class="name" id="areaName"></div><div class="line"></div></div>
+<div id="toast"></div>
+
+<div id="boot">Loading…</div>
+
+<div class="modalBg hidden" id="modalBg"><div class="modal" id="modal"></div></div>
+
+<script src="vendor/three.min.js"></script>
+<script src="js/core.js"></script>
+<script src="js/terrain.js"></script>
+<script src="js/scenery.js"></script>
+<script src="js/sky.js"></script>
+<script src="js/plane.js"></script>
+<script src="js/items.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
