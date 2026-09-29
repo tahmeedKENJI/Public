@@ -92,6 +92,9 @@ const particles = new Particles(scene, shared);
 const signs = new Signs(scene);
 const ramp = buildRamp(); scene.add(ramp);
 const blob = makeBlobShadow(); scene.add(blob);
+// one water surface following the camera; it only shows where a region's ground dips below it
+const water = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ color: '#2a6a9a', roughness: 0.12, metalness: 0.25, transparent: true, opacity: 0.9 }));
+water.rotation.x = -Math.PI / 2; water.renderOrder = 1; scene.add(water);
 let plane = buildPlane(save.parts); scene.add(plane.root);
 
 function applyQuality() {
@@ -123,6 +126,7 @@ function refreshPlane() {
 
 /* ---------- game state ---------- */
 let mode = 'hangar'; // hangar | launch | fly | done
+let booted = false;
 let paused = false;
 let P = null, world = null, runSt = null, run = null;
 let meterT = 0, time = 0, hangarT = 0, Vw = 96, shake = 0;
@@ -135,12 +139,25 @@ function setTerrainScale(s) {
   if (Math.abs(s - terrainScale) < 1e-6) return;
   terrainScale = s; terrain.clear(); scenery.reset();
 }
+// Every flight gets a freshly dealt map of the 50 regions (see regions.js). It is dealt on
+// returning to the hangar, so the hangar shows where the next flight starts; if the plane's core
+// power changes before launch, the map is dealt again with the new odds.
+let tunnels = [], mapPower = -1;
+const tunnelObjs = new Map();
+function dealNextMap() {
+  mapPower = corePower();
+  useMap(dealMap((Math.random() * 1e9) | 0, mapPower));
+  terrainScale = Math.max(1, curStats().Sv); terrain.clear(); scenery.reset(); sky.clouds.key = '';
+  for (const t of tunnelObjs.values()) t.dispose(); tunnelObjs.clear();
+  tunnels = tunnelsFor(BIOMES);
+}
 function newRun() {
   runSt = curStats();
   world = makeWorld(runSt);
+  if (corePower() !== mapPower) { dealNextMap(); terrain.warm(new THREE.Vector3(-10, 12, 0), 500); }
   setTerrainScale(world.scale);
-  P = newPlaneState(runSt);
-  run = { reserveToast: false, coins: 0, rings: 0, t: 0, taken: new Set(), hintT: 0, power: 1, area: 0 };
+  P = newPlaneState(runSt); P.z = 0;
+  run = { reserveToast: false, coins: 0, rings: 0, t: 0, taken: new Set(), hintT: 0, power: 1, area: 0, tun: null, tunPassed: new Set() };
   Vw = 96; camState.init = false;
   particles.clear(); floaters = [];
 }
@@ -205,6 +222,80 @@ function collide(ox, oy) {
   }
 }
 
+
+/* ---------- tunnels (cave regions) ---------- */
+let tunnelPrompt = null; // the tunnel the "TUNNEL AHEAD" prompt is offering
+const laneWidth = () => Math.max(14, plane.radius * (TUNNEL_VW / 96) * 2.0);
+function tunnelObj(info) {
+  let t = tunnelObjs.get(info.x0);
+  if (!t) { t = new Tunnel(scene, info, laneWidth(), (world ? world.seed : 1) + Math.round(info.x0)); tunnelObjs.set(info.x0, t); }
+  return t;
+}
+function manageTunnels(camX) { // build tunnels as they come near, drop them once passed
+  for (const info of tunnels) {
+    const near = camX > info.x0 - 5000 && camX < info.x1 + 1500;
+    if (near) tunnelObj(info); else if (tunnelObjs.has(info.x0)) { tunnelObjs.get(info.x0).dispose(); tunnelObjs.delete(info.x0); }
+  }
+  for (const t of tunnelObjs.values()) t.updateCoins(time);
+}
+function updateTunnelPrompt() {
+  tunnelPrompt = null;
+  if (mode === 'fly' && run && !run.tun && !P.grounded) for (const info of tunnels) {
+    const dx = info.x0 - P.x;
+    if (dx > 25 && dx < Math.max(260, P.v * 4) && !run.tunPassed.has(info.x0)) { tunnelPrompt = info; break; }
+  }
+  $('#tunnelPrompt').classList.toggle('hidden', !tunnelPrompt || paused);
+}
+function startTunnel() {
+  const T = tunnelObj(tunnelPrompt); run.tunPassed.add(T.x0);
+  const endX = T.x0 + T.ramp, speed = Math.max(P.v * Math.cos(P.a), TUNNEL_SPEED);
+  run.tun = { T, phase: 'enter', x0: P.x, y0: P.y, dur: clamp((endX - P.x) / speed, 1.5, 4.5), t: 0, lane: 0 };
+  run.hintT = 0; $('#hint').classList.add('hidden');
+  tunnelPrompt = null; ctl.keys.clear(); ctl.ptrs.clear(); paintCtls(); P.thrusting = false; P.reserveOn = false;
+  $('#tunnelPrompt').classList.add('hidden');
+  showToast('INTO THE TUNNEL!', '#ffd08a'); sfx.launch(); showTunnelUI();
+}
+function tunnelStep(dt) {
+  const tu = run.tun, T = tu.T, L = T.lane;
+  if (tu.phase === 'enter') { // the scripted dive into the mouth and down the ramp
+    tu.t += dt; const u = clamp(tu.t / tu.dur, 0, 1), ox = P.x, oy = P.y;
+    P.x = lerp(tu.x0, T.x0 + T.ramp, u);
+    P.y = P.x < T.x0 ? lerp(tu.y0, T.mouthY, smooth(tu.x0, T.x0, P.x)) : T.centerY(P.x);
+    if (dt > 0) { P.v = Math.hypot(P.x - ox, P.y - oy) / dt; P.a = Math.atan2(P.y - oy, P.x - ox); }
+    if (u >= 1) { tu.phase = 'play'; P.a = 0; showToast('GO!', '#8dff9a'); showTunnelUI(); }
+  } else {
+    P.v = TUNNEL_SPEED; P.x += TUNNEL_SPEED * dt; P.fuel = runSt.fuel; // unlimited fuel underground
+    P.z = lerp(P.z, tu.lane * L, 1 - Math.exp(-dt * 12));
+    if (tu.phase === 'play') {
+      P.y = T.playY; P.a = 0;
+      for (const c of T.coins) if (!c.taken && Math.abs(c.x - P.x) < L * 0.4 && Math.abs(P.z - c.lane * L) < L * 0.55) {
+        c.taken = true; const v = Math.ceil(runSt.income * world.scale * 1.6 * (1 + c.x / (500 * world.scale)));
+        run.coins += v; sfx.coin(); floaters.push({ x: c.x, y: T.playY, z: c.lane * L, txt: '+' + fmt(v), c: '#ffd23d', life: 1 });
+      }
+      for (const o of T.obs) if (Math.abs(o.x - P.x) < L * 0.35 && Math.abs(P.z - o.lane * L) < L * 0.6) return ejectFromTunnel();
+      if (P.x >= T.x1 - T.ramp) { tu.phase = 'exit'; showTunnelUI(); }
+    } else if (P.x < T.x1) { P.y = T.centerY(P.x); P.a = Math.atan2(T.centerY(P.x + 1) - P.y, 1); }
+    else { // the exit ramp launches the plane back into normal flight with the main tank half full
+      P.y = T.mouthY; P.a = 0.45; P.fuel = runSt.thrust > 0 ? runSt.fuel * 0.5 : 0; run.tun = null;
+      showToast('BACK IN THE AIR!', '#8dff9a'); sfx.launch(); showTunnelUI();
+    }
+  }
+  P.maxV = Math.max(P.maxV, P.v);
+}
+function ejectFromTunnel() { // an obstacle hit throws the plane out to the surface with an empty main tank
+  run.tun = null;
+  P.y = Math.max(3, 6 * world.scale); P.a = 0.35; P.v = TUNNEL_SPEED * 0.7; P.fuel = 0;
+  sfx.hit(); shake = 12; showToast('EJECTED!', '#ff8a7a');
+  for (let k = 0; k < 16; k++) particles.add({ x: P.x, y: 1, z: P.z, vx: (Math.random() - .5) * 20, vy: Math.random() * 25, vz: (Math.random() - .5) * 20, life: 1, c: '#8a7a6a', r: 0.6 * vis() });
+  showTunnelUI();
+}
+function laneShift(d) { if (run && run.tun && run.tun.phase === 'play') run.tun.lane = clamp(run.tun.lane + d, -1, 1); }
+function showTunnelUI() { // the ◀ ▶ pads exist only in the tunnel minigame; the flight pads hide meanwhile
+  const inTun = mode === 'fly' && run && run.tun, lanes = inTun && run.tun.phase === 'play';
+  document.querySelectorAll('.ctl.lane').forEach(el => el.classList.toggle('hidden', !lanes));
+  document.querySelectorAll('.ctl:not(.lane)').forEach(el => { el.style.visibility = inTun ? 'hidden' : ''; });
+}
+
 /* ---------- cameras ---------- */
 const CAMS = ['chase', 'cinematic', 'side'];
 const CAM_NAMES = { chase: 'Chase', cinematic: 'Cinematic', side: 'Side (classic)' };
@@ -213,8 +304,10 @@ const vis = () => Vw / 96; // the plane and items keep a readable size on screen
 let camDist = 30;
 function flightCamera(dt) {
   const m = camMode(), fov = camera.fov * Math.PI / 180, A = W / H;
-  const off = new THREE.Vector3(), look = new THREE.Vector3();
-  if (m === 'side') {
+  const off = new THREE.Vector3(), look = new THREE.Vector3(), inTube = run && run.tun && P.y < -1;
+  if (inTube) { // inside the tunnel: a low chase view, whatever the camera setting
+    const L = run.tun.T.lane; off.set(-5.2 * L, 1.35 * L, -P.z * 0.5); look.set(7 * L, -0.1 * L, -P.z * 0.7); camDist = 5.4 * L;
+  } else if (m === 'side') {
     // Same framing as the 2D game: the view is W / camZ metres wide, the plane sits at 32% from
     // the left, the ground at 78% down the screen, and the plane never rises above 40%.
     const hw = 0.5 * W * Vw / Math.min(W, H * 1.6), hh = hw / A, D = hh / Math.tan(fov / 2);
@@ -233,11 +326,11 @@ function flightCamera(dt) {
   const k = 1 - Math.exp(-dt * 5);
   camState.off.lerp(off, k); camState.look.lerp(look, k);
   const prev = camera.position.clone();
-  camera.position.set(P.x + camState.off.x, P.y + camState.off.y, camState.off.z);
+  camera.position.set(P.x + camState.off.x, P.y + camState.off.y, P.z + camState.off.z);
   const ground = heightAt(camera.position.x, camera.position.z) + Math.max(1.5, camDist * 0.05);
-  if (camera.position.y < ground) camera.position.y = ground;
+  if (camera.position.y < ground && !(run && run.tun)) camera.position.y = ground;
   if (shake > 0 && dt > 0) { const s = shake * camDist / 900; camera.position.x += (Math.random() - .5) * s; camera.position.y += (Math.random() - .5) * s; }
-  camera.lookAt(P.x + camState.look.x, P.y + camState.look.y, camState.look.z);
+  camera.lookAt(P.x + camState.look.x, P.y + camState.look.y, P.z + camState.look.z);
   if (dt > 0) shared.camVel.copy(camera.position).sub(prev).divideScalar(dt);
 }
 let hangarYaw = 0.9, dragX = null;
@@ -267,9 +360,9 @@ const modalOpen = () => !$('#modalBg').classList.contains('hidden');
 
 function showArea(i) {
   if (!save.settings.titles) return;
-  const b = BIOMES[i], isNew = !save.seen.includes(i);
-  if (isNew) { save.seen.push(i); persist(); }
-  $('#areaSub').textContent = isNew ? 'New area discovered' : '';
+  const b = BIOMES[i], isNew = !save.seen3d.includes(b.key), rare = b.tier >= 2 ? TIERS[b.tier].name + ' region' : '';
+  if (isNew) { save.seen3d.push(b.key); persist(); }
+  $('#areaSub').textContent = isNew ? 'New area discovered' + (rare ? ' · ' + rare : '') : rare;
   $('#areaName').textContent = b.name;
   const el = $('#areaTitle'); el.classList.add('show'); sfx.area();
   clearTimeout(showArea.h); showArea.h = setTimeout(() => el.classList.remove('show'), 3000);
@@ -296,7 +389,7 @@ function renderHangar() {
   const fs = stageOf('frame', save.parts.frame);
   $('#planeName').textContent = LOOKS.frame[fs];
   const rating = PARTS.reduce((s, p) => s + save.parts[p.id], 0);
-  $('#planeSub').textContent = `${FRAME_TAGS[fs]} · Build rating ${rating}`;
+  $('#planeSub').textContent = `${FRAME_TAGS[fs]} · Build rating ${rating} · ${save.seen3d.length}/${REGIONS.length} regions found`;
   const chips = $('#chips');
   if (!chips.children.length) {
     for (const p of PARTS) {
@@ -364,7 +457,8 @@ function setMode(m) {
   $('#ctls').classList.toggle('hidden', m !== 'fly');
   if (m !== 'fly') { ctl.ptrs.clear(); ctl.keys.clear(); paintCtls(); }
   $('#hint').classList.add('hidden');
-  if (m === 'hangar') { $('#areaTitle').classList.remove('show'); items.hide(); particles.clear(); floaters = []; renderHangar(); }
+  if (m === 'hangar') { $('#areaTitle').classList.remove('show'); items.hide(); particles.clear(); floaters = []; dealNextMap(); renderHangar(); hangarCamera(); terrain.warm(camera.position, booted ? 500 : 1500); }
+  showTunnelUI();
 }
 
 $('#flyBtn').addEventListener('click', () => {
@@ -382,6 +476,7 @@ const TOGGLES = [
   ['sound', 'Sound', () => save.sound, v => { save.sound = v; }],
   ['weather', 'Weather effects', () => save.settings.weather, v => { save.settings.weather = v; }],
   ['titles', 'Area titles', () => save.settings.titles, v => { save.settings.titles = v; }],
+  ['markers', 'Distance markers', () => save.settings.markers !== false, v => { save.settings.markers = v; }],
 ];
 const CHOICES = [
   ['camera', 'Camera', CAMS.map(k => [k, CAM_NAMES[k]]), () => camMode(), v => { save.settings.camera = v; }],
@@ -445,7 +540,7 @@ function openSettings() {
 
 function updateHud() {
   $('#hudDist').textContent = fmtDist(P.x);
-  $('#hudAlt').textContent = fmtDist(Math.max(0, P.y));
+  $('#hudAlt').textContent = run.tun && P.y < 0 ? 'Tunnel' : fmtDist(Math.max(0, P.y));
   $('#hudSpd').textContent = fmt(P.v * 3.6) + ' km/h';
   $('#hudCoins').textContent = fmt(run.coins);
   if (runSt.thrust > 0) $('#fuelBar').style.width = clamp(P.fuel / runSt.fuel * 100, 0, 100) + '%';
@@ -532,6 +627,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) { per
 /* ---------- input ---------- */
 // Touch/mouse: the ▲ / ▼ / RESERVE pads do what they say; tapping anywhere else climbs.
 // Keyboard: ↑/W climb, ↓/S dive, Space = reserve tank once you have one (climbs before that), Esc/P pause, C camera.
+// In the tunnel minigame the ◀ ▶ pads (or ←/→, A/D) switch lanes; ▼ / ↓ at the "TUNNEL AHEAD" prompt goes in.
 // In the hangar, drag the plane to turn it.
 function paintCtls() { document.querySelectorAll('.ctl').forEach(el => el.classList.toggle('active', ctlOn(el.dataset.role))); }
 addEventListener('pointerdown', e => {
@@ -541,8 +637,10 @@ addEventListener('pointerdown', e => {
   if (paused) return;
   if (mode === 'launch') { doLaunch(); return; }
   if (mode !== 'fly') return;
-  const pad = e.target.closest && e.target.closest('.ctl');
-  ctl.ptrs.set(e.pointerId, pad ? pad.dataset.role : 'up'); paintCtls();
+  const pad = e.target.closest && e.target.closest('.ctl'), role = pad ? pad.dataset.role : 'up';
+  if (run.tun) { if (role === 'left') laneShift(-1); else if (role === 'right') laneShift(1); return; }
+  if (tunnelPrompt && role === 'down') { startTunnel(); return; }
+  ctl.ptrs.set(e.pointerId, role); paintCtls();
 });
 addEventListener('pointermove', e => { if (dragX !== null && mode === 'hangar') { hangarYaw += (e.clientX - dragX) * 0.012; dragX = e.clientX; hangarSpinPause = 3; } });
 const lift = e => { dragX = null; ctl.ptrs.delete(e.pointerId); paintCtls(); };
@@ -573,6 +671,10 @@ addEventListener('keydown', e => {
     if (e.code === 'ArrowLeft') { selPart = ids[(i + ids.length - 1) % ids.length]; renderHangar(); return; }
     if (e.code === 'KeyU' || e.code === 'Equal' || e.code === 'NumpadAdd') { buy(selPart); return; }
   }
+  if (mode === 'fly' && !paused && run && run.tun) { // the tunnel minigame: ←/→ or A/D switch lanes
+    const d = e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : e.code === 'ArrowRight' || e.code === 'KeyD' ? 1 : 0;
+    if (d) { e.preventDefault(); if (!e.repeat) laneShift(d); return; }
+  }
   const role = keyRole(e.code);
   if (!role && e.code !== 'Enter') return;
   e.preventDefault();
@@ -581,7 +683,7 @@ addEventListener('keydown', e => {
   if (mode === 'done') { if (modalOpen() && $('#colBtn') && (e.code === 'Space' || e.code === 'Enter')) $('#colBtn').click(); return; }
   if (paused) return;
   if (mode === 'launch') { audio(); doLaunch(); return; }
-  if (mode === 'fly' && role) { ctl.keys.add(role); paintCtls(); }
+  if (mode === 'fly' && role) { if (role === 'down' && tunnelPrompt) { startTunnel(); return; } if (run.tun) return; ctl.keys.add(role); paintCtls(); }
 });
 addEventListener('keyup', e => { const role = keyRole(e.code); if (role) { ctl.keys.delete(role); paintCtls(); } });
 addEventListener('contextmenu', e => e.preventDefault());
@@ -608,7 +710,7 @@ function drawOverlay(dt) {
   if (mode === 'hangar' || !P) return;
   fctx.font = 'bold 16px system-ui, sans-serif'; fctx.textAlign = 'center';
   for (const f of floaters) {
-    const [sx, sy, ok] = toScreen(f.x, f.y); if (!ok) continue;
+    const [sx, sy, ok] = toScreen(f.x, f.y, f.z || 0); if (!ok) continue;
     fctx.globalAlpha = clamp(f.life * 1.5, 0, 1);
     fctx.fillStyle = 'rgba(0,0,0,.4)'; fctx.fillText(f.txt, sx + 1, sy - (1 - f.life) * 40 + 1);
     fctx.fillStyle = f.c; fctx.fillText(f.txt, sx, sy - (1 - f.life) * 40);
@@ -652,19 +754,19 @@ function frame(now) {
     if (!paused) {
       if (mode === 'launch') meterT += dt;
       if (mode === 'fly') {
-        const sub = Math.ceil(dt / (1 / 120));
-        for (let i = 0; i < sub; i++) physStep(dt / sub);
+        if (run.tun) tunnelStep(dt);
+        else { const sub = Math.ceil(dt / (1 / 120)); for (let i = 0; i < sub; i++) physStep(dt / sub); P.z = lerp(P.z, 0, 1 - Math.exp(-dt * 3)); }
         run.t += dt;
         if (run.hintT > 0) { run.hintT -= dt; if (run.hintT <= 0) { $('#hint').classList.add('hidden'); save.tipSeen = save.tip2Seen = true; } }
         const vs = vis();
         if (P.thrusting && Math.random() < 0.8) particles.add({ x: P.x - Math.cos(P.a) * 3 * vs, y: P.y + 0.3 * vs, vx: -P.v * 0.1, vy: 0.5, life: 1, c: P.reserveOn ? '#7de8ff' : '#e6e6e6', a: 0.7, r: 0.45 * vs, grow: true });
         if (P.grounded && P.stopT > 0.6) finishRun();
         if (P.grounded && P.v > 1 && Math.random() < 0.5) particles.add({ x: P.x, y: 0.2, z: (Math.random() - 0.5) * vs, vx: -2, vy: 2, life: 0.8, c: '#a7875f', r: 0.35 * vs });
-        if (run.t > 300 && !P.grounded) { P.grounded = true; P.v = 0; P.y = 0; } // safety net
+        if (run.t > 300 && !P.grounded && !run.tun) { P.grounded = true; P.v = 0; P.y = 0; } // safety net
         const area = biomeIndex(P.x);
         if (area > run.area) { run.area = area; showArea(area); }
-        if (save.settings.weather) { // lightning over the caldera
-          const e = envAt(P.x, world.scale), vol = (e.a.key === 'volcano' ? 1 - e.t : 0) + (e.b.key === 'volcano' ? e.t : 0);
+        if (save.settings.weather) { // lightning in stormy regions
+          const e = envAt(P.x, world.scale), vol = (e.a.lightning ? 1 - e.t : 0) + (e.b.lightning ? e.t : 0);
           if (vol > 0.5 && Math.random() < dt * 0.18) { sky.flash = 0.35; beep(60, 0.5, 'sawtooth', 0.03, -20); }
         }
       }
@@ -678,17 +780,22 @@ function frame(now) {
     envX = P.x; alt = Math.max(0, P.y);
     const vs = vis();
     plane.root.scale.setScalar(vs);
-    plane.root.position.set(P.x, P.y - plane.bottom * vs, 0);
-    plane.root.rotation.set(0, 0, P.a);
-    plane.anim({ t: time, thrust: P.thrusting, reserveOn: P.reserveOn, frozen: paused });
+    plane.root.position.set(P.x, P.y - plane.bottom * vs, P.z);
+    plane.root.rotation.set(run.tun ? (run.tun.lane * run.tun.T.lane - P.z) / run.tun.T.lane * 0.5 : 0, 0, P.a);
+    plane.anim({ t: time, thrust: P.thrusting || (!!run.tun && run.tun.phase !== 'enter' && runSt.thrust > 0), reserveOn: P.reserveOn, frozen: paused });
     const sh = !sky.sun.castShadow;
     const a = clamp(1 - P.y * 1152 / (300 * Vw), 0, 0.35);
-    blob.visible = sh && a > 0; blob.position.set(P.x, 0.06, 0); const bw = 68 * (1 - a) * Vw / 1152; blob.scale.set(bw * 1.2, bw * 0.45, 1); blob.material.opacity = a / 0.35;
+    blob.visible = sh && a > 0 && !run.tun; blob.position.set(P.x, 0.06, 0); const bw = 68 * (1 - a) * Vw / 1152; blob.scale.set(bw * 1.2, bw * 0.45, 1); blob.material.opacity = a / 0.35;
     const side = camMode() === 'side', ahead = side ? Vw * 1.3 : Vw * 9;
-    items.update(world, run.taken, P.x - Vw * 0.7, P.x + ahead, Vw, time);
-    signs.update(P.x - Vw * 0.7, P.x + (side ? Vw * 1.3 : Vw * 5), Vw, save.best, time);
+    const under = run.tun && P.x > run.tun.T.x0; // underground, the surface's items and signs are out of sight
+    if (under) { items.hide(); signs.update(1, 0, Vw, 0, time); }
+    else {
+      items.update(world, run.taken, P.x - Vw * 0.7, P.x + ahead, Vw, time);
+      signs.update(P.x - Vw * 0.7, P.x + (side ? Vw * 1.3 : Vw * 5), Vw, save.best, time, save.settings.markers !== false);
+    }
     $('#flash').style.opacity = sky.flash;
     if (mode === 'launch') $('#needle').style.left = (meterValue() * 100) + '%';
+    updateTunnelPrompt();
     updateHud();
   }
   // world
@@ -699,6 +806,13 @@ function frame(now) {
     const S = mode === 'hangar' ? 6 : clamp(camDist * 0.9, 12, 900), tp = plane.root.position;
     sky.sun.target.position.copy(tp); sky.sun.position.copy(tp).addScaledVector(sky.lightDir, S * 3);
     const c = sky.sun.shadow.camera; if (c.right !== S) { c.left = -S; c.right = S; c.top = S; c.bottom = -S; c.near = 0.5; c.far = S * 6; c.updateProjectionMatrix(); }
+  }
+  const wa = e.a.water ? 1 - e.t : 0, wb = e.b !== e.a && e.b.water ? e.t : 0;
+  water.visible = wa + wb > 0.01 || (e.a.water && e.t === 0);
+  if (water.visible) { water.material.color.set(e.t > 0.5 && e.b.water ? e.b.water : e.a.water || e.b.water); water.position.set(camera.position.x, WATER_Y, camera.position.z); water.scale.setScalar(camera.far * 1.6); }
+  manageTunnels(camera.position.x);
+  if (camera.position.y < -1) { // underground: dark, close fog and little sunlight
+    sky.fog.color.set('#0c0a08'); sky.fog.near = 20; sky.fog.far = 60 * (run && run.tun ? run.tun.T.lane : 20); sky.sun.intensity *= 0.15;
   }
   terrain.update(camera.position, q.budget);
   scenery.update(camera.position, camDist, time);
@@ -734,10 +848,8 @@ function offlineEarnings() {
   ok.sort((a, b) => partCost(a.id, save.parts[a.id]) - partCost(b.id, save.parts[b.id]));
   if (ok.length) selPart = ok[0].id;
 })();
-setTerrainScale(Math.max(1, curStats().Sv));
-setMode('hangar');
-hangarCamera();
-terrain.warm(camera.position, 1500); // build the first view before showing anything
+setMode('hangar'); // deals the first map and builds the first view before anything shows
+booted = true;
 offlineEarnings();
 persist();
 $('#boot').remove();

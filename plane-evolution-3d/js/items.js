@@ -143,10 +143,10 @@ class Signs {
     Object.assign(this, { pole, flag, blab });
   }
   // Markers every "nice" distance, spaced like the 2D game's (at least 140 px apart on screen).
-  update(x0, x1, Vw, best, time) {
+  update(x0, x1, Vw, best, time, markers = true) {
     let step = 10; for (const n of [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000]) { step = n; if (n * 1152 / Vw >= 140) break; }
     const H = Vw * 0.07, zOff = -(3 + Vw * 0.05); let k = 0;
-    for (let m = Math.max(1, Math.ceil(x0 / step)) * step; m <= x1 && k < this.pool.length; m += step) {
+    for (let m = Math.max(1, Math.ceil(x0 / step)) * step; markers && m <= x1 && k < this.pool.length; m += step) {
       const s = this.pool[k++], text = fmtDist(m);
       s.g.visible = true; s.g.position.set(m, 0, zOff);
       s.post.scale.set(H * 0.035, H, H * 0.035);

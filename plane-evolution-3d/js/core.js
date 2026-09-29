@@ -57,7 +57,7 @@ const MAT = [
 ];
 
 /* ---------- terrains ---------- */
-const BIOMES = [
+let BIOMES = [ // the current map: the 2D terrains until regions.js deals a flight map (see useMap)
   { at: 0,     name: 'Verdant Meadow',    key: 'meadow',  skyTop: '#3d8fe0', skyBot: '#c4e8ff', ground: '#6cc24a', dirt: '#4a8a32', hillA: '#7cb866', hillB: '#5a9a52', far: '#8fbad6',
     style: 'rolling', weather: 'clear', cloud: '#ffffff', cover: 0.22, stars: 0,   sun: { c: '#fff6c8', r: 34, y: 0.16 } },
   { at: 400,   name: 'Amber Farmlands',   key: 'farm',    skyTop: '#62758f', skyBot: '#cfd6de', ground: '#b3bd4a', dirt: '#857f33', hillA: '#96a45a', hillB: '#768644', far: '#9aa8b6',
@@ -81,7 +81,8 @@ const biomeIndex = x => { let i = 0; while (i < BIOMES.length - 1 && x >= BIOMES
    version must keep loading. The storage key name is permanent — the version lives
    inside the save. Before a save is migrated, the original is kept as a backup.
    The 3D game shares this key and schema with the 2D game, so progress carries over
-   when both are served from the same origin. 3D-only settings (quality, camera) are
+   when both are served from the same origin. 3D-only fields (settings.quality, .camera, .markers,
+   seen3d) are
    plain additions with defaults: the 2D game keeps them untouched, so no version bump. */
 const SAVE_KEY = 'planeEvolution.save.v1';
 const SAVE_VERSION = 3;
@@ -105,7 +106,7 @@ const MIGRATIONS = {
 };
 const defaultSave = () => ({ v: SAVE_VERSION, coins: 0,
   parts: { frame: 0, wings: 0, engine: 0, fuel: 0, tail: 0, nose: 0, magnet: 0, reserve: 0 },
-  best: 0, bestAlt: 0, ms: 0, runs: 0, sound: true, settings: { weather: true, titles: true, quality: 'auto', camera: 'chase' }, seen: [0],
+  best: 0, bestAlt: 0, ms: 0, runs: 0, sound: true, settings: { weather: true, titles: true, quality: 'auto', camera: 'chase', markers: true }, seen: [0], seen3d: [],
   last: Date.now(), tipSeen: false, tip2Seen: false });
 function migrateSave(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('not a save');
@@ -122,6 +123,7 @@ function migrateSave(raw) {
   for (const k in out.parts) out.parts[k] = Math.floor(num(out.parts[k]));
   for (const p of PARTS) out.parts[p.id] = Math.min(p.max, out.parts[p.id]);
   if (!Array.isArray(out.seen)) out.seen = [0];
+  if (!Array.isArray(out.seen3d)) out.seen3d = []; // regions discovered in 3D (by key); `seen` stays the 2D game's list
   return out;
 }
 

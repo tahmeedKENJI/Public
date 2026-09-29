@@ -84,6 +84,9 @@
   .ctl.res.active { animation: none; background: rgba(125,232,255,.6); }
   #hint { position: fixed; bottom: 16%; left: 0; right: 0; text-align: center; font-size: 22px; font-weight: 900; text-shadow: 0 2px 6px rgba(0,0,0,.5); pointer-events: none; animation: bob 1s infinite ease-in-out; }
   @keyframes bob { 50% { transform: translateY(-6px); } }
+  #tunnelPrompt { position: fixed; top: 60%; left: 0; right: 0; text-align: center; pointer-events: none; text-shadow: 0 2px 8px rgba(0,0,0,.6); animation: pulse 0.8s infinite; padding: 0 12px; }
+  #tunnelPrompt .t { font-size: 30px; font-weight: 900; color: #ffd08a; letter-spacing: 2px; }
+  #tunnelPrompt .s { font-size: 17px; font-weight: 800; margin-top: 4px; }
 
   /* launch meter */
   #launchUI { position: fixed; left: 0; right: 0; bottom: 18%; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
@@ -196,11 +199,14 @@
   <button class="iconbtn" id="quitBtn" title="Exit to hangar">✕</button>
 </div>
 <div id="ctls" class="hidden">
+  <div class="ctl lane hidden" data-role="left">◀<small>LEFT</small></div>
   <div class="ctl" data-role="down">▼<small>DIVE</small></div>
   <div class="ctl res hidden" data-role="reserve" id="ctlRes">RESERVE<small id="resTxt">SPACE</small></div>
   <div class="ctl" data-role="up">▲<small>CLIMB</small></div>
+  <div class="ctl lane hidden" data-role="right">▶<small>RIGHT</small></div>
 </div>
 <div id="hint" class="hidden"></div>
+<div id="tunnelPrompt" class="hidden"><div class="t">TUNNEL AHEAD</div><div class="s">Press ▼ DIVE to go underground</div></div>
 
 <div id="launchUI" class="hidden">
   <div class="t">Tap to launch!</div>
@@ -216,11 +222,13 @@
 
 <script src="vendor/three.min.js"></script>
 <script src="js/core.js"></script>
+<script src="js/regions.js"></script>
 <script src="js/terrain.js"></script>
 <script src="js/scenery.js"></script>
 <script src="js/sky.js"></script>
 <script src="js/plane.js"></script>
 <script src="js/items.js"></script>
+<script src="js/tunnel.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

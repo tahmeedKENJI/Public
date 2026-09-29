@@ -6,8 +6,9 @@
 // Env: CHROMIUM=/path/to/chrome to use a specific browser build.
 // Checks: save migrations and backups, unreadable saves, 2D <-> 3D save sharing, pause freezing,
 // every quit path banking exactly the promised coins, results, export/import, offline earnings,
-// physics identical to the 2D game, UI overflow at seven screen sizes, a screenshot of every
-// terrain, and zero console errors.
+// physics identical to the 2D game, UI overflow at seven screen sizes, the 50 regions and map
+// dealing (rarity odds), area titles, the distance-markers setting, the tunnel minigame, and zero
+// console errors.
 'use strict';
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
@@ -114,7 +115,7 @@ const ok = (c, m) => { if (!c) fails++; console.log((c ? 'PASS ' : 'FAIL ') + m)
   await seed(put, { v: 3, coins: 1234567890123, parts: { frame: 49, wings: 50, engine: 47, fuel: 44, tail: 19, nose: 20, magnet: 48, reserve: 29 }, best: 123456, ms: 10, runs: 999, sound: true, settings: { weather: true, titles: true, quality: 'low', camera: 'chase' }, seen: [0, 1, 2, 3, 4, 5], last: Date.now() });
   const check = label => p.evaluate(label => {
     const bad = [], vis = el => { const q = el.getBoundingClientRect(); return q.width > 0 && q.height > 0 && getComputedStyle(el).visibility !== 'hidden' && !el.closest('.hidden'); };
-    for (const el of document.querySelectorAll('.pill, .chip, .chip .nm, .chip .lv, #upBtn, #flyBtn, #planeTitle .name, #planeTitle .sub, #detail .dh, #detail .look, #detail .eff, #detail .desc, .toggle, .toggle > span, .modal h2, .modal .row, .modal .row b, .modal .total, .modal button, #hudDist, #hudRow, .ctl, #areaTitle .name, #launchUI .t, .iconbtn, #topbar .pills')) {
+    for (const el of document.querySelectorAll('.pill, .chip, .chip .nm, .chip .lv, #upBtn, #flyBtn, #planeTitle .name, #planeTitle .sub, #detail .dh, #detail .look, #detail .eff, #detail .desc, .toggle, .toggle > span, .modal h2, .modal .row, .modal .row b, .modal .total, .modal button, #hudDist, #hudRow, .ctl, #areaTitle .name, #launchUI .t, .iconbtn, #topbar .pills, #tunnelPrompt .t, #tunnelPrompt .s')) {
       if (!vis(el)) continue;
       const q = el.getBoundingClientRect();
       if (el.scrollWidth > el.clientWidth + 1) bad.push(`${label}: "${el.textContent.trim().slice(0, 30)}" overflows its box`);
@@ -140,16 +141,74 @@ const ok = (c, m) => { if (!c) fails++; console.log((c ? 'PASS ' : 'FAIL ') + m)
   }
   ok(!bad.length, 'no UI text overflows at 360x640 … 1920x1080' + (bad.length ? '\n  ' + bad.join('\n  ') : ''));
 
-  // --- a screenshot of every terrain, from the chase and side cameras
+  // --- regions: the catalogue, dealing, rarity odds
+  r = await p.evaluate(() => {
+    const tiers = [0, 1, 2, 3, 4].map(t => REGIONS.filter(x => x.tier === t).length), keys = new Set(REGIONS.map(x => x.key));
+    let firstCommon = true, noDup = true, lens = true; const rare = { low: 0, high: 0 };
+    for (let i = 0; i < 400; i++) {
+      const lo = dealMap(i + 1, 5), hi = dealMap(i + 1, 45);
+      if (lo[0].tier !== 0 || hi[0].tier !== 0) firstCommon = false;
+      if (new Set(lo.map(x => x.key)).size !== 50) noDup = false;
+      lo.forEach((x, k) => { if (Math.abs(x.len - 400 * Math.pow(1.25, k)) > 1e-6) lens = false; });
+      for (let k = 1; k < 12; k++) { if (lo[k].tier >= 3) rare.low++; if (hi[k].tier >= 3) rare.high++; }
+    }
+    return { n: REGIONS.length, tiers, uniq: keys.size, firstCommon, noDup, lens, rare };
+  });
+  ok(r.n === 50 && r.uniq === 50 && r.tiers.join() === '12,12,12,9,5', `50 regions in tiers ${r.tiers.join('/')}`);
+  ok(r.firstCommon && r.noDup && r.lens, 'every map starts Common, never repeats a region, and region k is 400 × 1.25^k m');
+  ok(r.rare.high > r.rare.low * 3, `stronger planes meet Epic/Legendary regions more often (${r.rare.low} vs ${r.rare.high} in 400 maps)`);
+  await p.evaluate(() => closeModal && closeModal());
+  const m1 = await p.evaluate(() => BIOMES.map(x => x.key).join());
+  await p.evaluate(() => setMode('hangar'));
+  const m2 = await p.evaluate(() => BIOMES.map(x => x.key).join());
+  ok(m1 !== m2, 'returning to the hangar deals a new map');
+
+  // --- a screenshot of the first regions of a dealt map, from the chase and side cameras
   await p.setViewportSize({ width: 960, height: 540 });
-  await p.evaluate(() => { save.settings.quality = 'low'; applyQuality(); renderHangar(); });
+  await p.evaluate(() => { save.settings.quality = 'low'; save.seen3d = []; save.seen = [0]; applyQuality(); renderHangar(); });
   await p.evaluate(() => { document.querySelector('#flyBtn').click(); doLaunch(); });
-  for (const [i, x] of [[0, 150], [1, 700], [2, 2300], [3, 5500], [4, 11000], [5, 20000]]) for (const cam of ['chase', 'side']) {
-    await p.evaluate(([x, cam]) => { save.settings.camera = cam; P.x = x; P.y = 35; P.a = 0.1; P.v = 30; P.fuel = 99; camState.init = false; }, [x, cam]);
-    await p.waitForTimeout(2000); await p.evaluate(x => { P.x = x; P.y = 35; camState.init = false; }, x); await p.waitForTimeout(300);
-    await shot(`terrain${i}_${cam}`);
-    if (cam === 'chase') ok(await p.evaluate(i => document.querySelector('#areaName').textContent === BIOMES[i].name, i), `area title reads "${C.BIOMES[i].name}"`);
+  for (let i = 0; i < 6; i++) for (const cam of ['chase', 'side']) {
+    await p.evaluate(([i, cam]) => { const g = BIOMES[i]; window.X = g.at + Math.min(150, g.len * 0.4); save.settings.camera = cam; P.x = X; P.y = 35; P.a = 0.1; P.v = 30; P.fuel = 99; camState.init = false; }, [i, cam]);
+    await p.waitForTimeout(2000); await p.evaluate(() => { P.x = X; P.y = 35; camState.init = false; }); await p.waitForTimeout(300);
+    await shot(`region${i}_${cam}`);
+    if (cam === 'chase') { const nm = await p.evaluate(i => [document.querySelector('#areaName').textContent, BIOMES[i].name], i); ok(nm[0] === nm[1], `area title reads "${nm[1]}"`); }
   }
+  r = await p.evaluate(() => ({ seen3d: save.seen3d.slice(), keys: BIOMES.slice(0, 6).map(x => x.key), seen: save.seen }));
+  ok(r.keys.every(k => r.seen3d.includes(k)) && r.seen.join() === '0', 'discoveries go to seen3d by region; the 2D seen list is untouched');
+
+  // --- distance markers setting (BEST flag stays)
+  await p.evaluate(() => { save.best = P.x + 60; save.settings.markers = false; });
+  await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ posts: signs.pool.filter(s => s.g.visible).length, best: signs.best.visible }));
+  ok(r.posts === 0 && r.best, 'Distance markers off hides the signposts but keeps the BEST flag');
+  await p.evaluate(() => { save.settings.markers = true; }); await p.waitForTimeout(400);
+  ok(await p.evaluate(() => signs.pool.some(s => s.g.visible)), 'Distance markers on shows the signposts');
+
+  // --- tunnels: prompt, dive in, lanes, eject, and the exit ramp
+  const tunnelMap = () => { const map = [Object.assign({}, REGION.meadow, { at: 0, len: 400 }), Object.assign({}, REGION.caverns, { at: 400, len: 3000 }), Object.assign({}, REGION.desert, { at: 3400, len: 9000 })];
+    useMap(map); terrain.clear(); scenery.reset(); for (const t of tunnelObjs.values()) t.dispose(); tunnelObjs.clear(); tunnels = tunnelsFor(map); run.tun = null; run.tunPassed.clear();
+    save.settings.camera = 'chase'; P.x = tunnels[0].x0 - 150; P.y = 30; P.a = 0; P.v = 40; P.fuel = 0; P.grounded = false; camState.init = false; };
+  await p.evaluate(tunnelMap); await p.waitForTimeout(500);
+  ok(await p.evaluate(() => !document.querySelector('#tunnelPrompt').classList.contains('hidden')), '"TUNNEL AHEAD" shows before a cave region\'s tunnel');
+  await shot('tunnel_prompt');
+  await p.keyboard.press('ArrowDown'); await p.waitForTimeout(100);
+  ok(await p.evaluate(() => run.tun && run.tun.phase === 'enter'), 'pressing DIVE at the prompt starts the dive into the tunnel');
+  await p.evaluate(() => { run.tun.t = run.tun.dur; }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ phase: run.tun.phase, lanes: [...document.querySelectorAll('.ctl.lane')].every(e => !e.classList.contains('hidden')), flight: [...document.querySelectorAll('.ctl:not(.lane)')].every(e => e.style.visibility === 'hidden') }));
+  ok(r.phase === 'play' && r.lanes && r.flight, 'in the tunnel only the ◀ ▶ lane pads show');
+  await p.keyboard.press('ArrowRight'); await p.waitForTimeout(100);
+  ok(await p.evaluate(() => run.tun.lane === 1), '→ moves one lane right');
+  await p.evaluate(() => { P.x = run.tun.T.x0 + run.tun.T.ramp + 60; }); await p.waitForTimeout(600); await shot('tunnel_inside');
+  ok(await p.evaluate(() => P.fuel === runSt.fuel), 'fuel is unlimited in the tunnel');
+  await p.evaluate(() => { const T = run.tun.T, o = T.obs.find(o => o.x > P.x + 5); run.tun.lane = o.lane; P.z = o.lane * T.lane; P.x = o.x - 1; });
+  await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ tun: !!run.tun, fuel: P.fuel, y: P.y, toast: document.querySelector('#toast').textContent }));
+  ok(!r.tun && r.fuel === 0 && r.y > 0 && r.toast === 'EJECTED!', 'hitting an obstacle ejects the plane to the surface with an empty main tank');
+  await p.evaluate(tunnelMap); await p.waitForTimeout(300);
+  await p.evaluate(() => { startTunnel(); run.tun.t = run.tun.dur; }); await p.waitForTimeout(300);
+  await p.evaluate(() => { const T = run.tun.T; T.obs.length = 0; P.x = T.x1 - 5; }); await p.waitForTimeout(600);
+  r = await p.evaluate(() => ({ tun: !!run.tun, fuel: P.fuel, full: runSt.fuel, y: P.y, toast: document.querySelector('#toast').textContent }));
+  ok(!r.tun && Math.abs(r.fuel - r.full * 0.5) < 1e-9 && r.y > 0 && r.toast === 'BACK IN THE AIR!', 'the exit ramp launches the plane with the main tank half full');
 
   ok(!errs.length, 'no console errors' + (errs.length ? '\n  ' + errs.slice(0, 10).join('\n  ') : ''));
   console.log(`\n${fails ? fails + ' FAILED' : 'all passed'}; screenshots in ${OUT}`);

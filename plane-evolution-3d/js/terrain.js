@@ -80,164 +80,209 @@ function spireIn(cx, cz) {
   return R > 8 ? { x, z, H, R } : null;
 }
 
-/* ---------- heights ---------- */
-// Height of one terrain style at (x, z). d = distance into the hills (0 at the corridor edge),
-// far = how far out we are, for distant ranges. Returns metres above the physics ground.
-function styleHeight(key, x, z) {
-  const left = z < 0;
-  // on the near side, the land is a low plain until PLAIN_W, then distant ranges
-  const d = left ? -z : 0, m = left ? smooth(CORRIDOR, CORRIDOR + RAMP, d) : 0;
+/* ---------- heights ----------
+   Height of one region's terrain style at (x, z), in metres above the physics ground.
+   The far side (z < 0) carries the landscape; the near side is a low plain for PLAIN_W metres
+   (so the side camera never sits inside a hill), except where a style puts water there. */
+const WATER_Y = -1.2;
+function craterField(x, z, cell, amp) { // bowls with raised rims
+  const cx = Math.floor(x / cell), cz = Math.floor(z / cell); let h = 0;
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+    const k = hash2(cx + i + 311, cz + j + 17); if (k > 0.6) continue;
+    const px = (cx + i + 0.2 + 0.6 * hash2(cx + i, cz + j + 5)) * cell, pz = (cz + j + 0.2 + 0.6 * hash2(cx + i + 9, cz + j)) * cell;
+    const R = cell * (0.12 + 0.3 * hash2(cx + i + 3, cz + j + 7)), q = Math.hypot(x - px, z - pz) / R;
+    if (q > 1.6) continue;
+    h += (q < 1 ? (q * q - 1) * R * 0.28 : 0) + Math.exp(-(((q - 1) / 0.22) ** 2)) * R * 0.14 * amp;
+  }
+  return h;
+}
+function styleHeight(rg, x, z) {
+  const hp = rg.hp, left = z < 0, dz = Math.abs(z), d = left ? dz : 0, m = left ? smooth(CORRIDOR, CORRIDOR + RAMP, d) : 0;
   const far = left ? d : Math.max(0, z - PLAIN_W);
   const plain = left ? 0 : smooth(CORRIDOR, CORRIDOR + 300, z) * (1.2 + 1.2 * fbm(x / 260, z / 260, 3));
-  switch (key) {
-    case 'meadow': {
-      const hills = 0.5 + 0.5 * fbm(x / 340, z / 340, 5);
-      const rng_ = ridged(x / 2600 + 7.1, z / 2600, 5);
-      return plain + m * (3 + 75 * hills * hills) + 1100 * rng_ * rng_ * smooth(900, 4500, far);
-    }
-    case 'farm': {
-      const hills = 0.5 + 0.5 * fbm(x / 520, z / 520, 4);
-      const back = 0.5 + 0.5 * fbm(x / 2200 - 4, z / 2200, 4);
-      return plain * 0.6 + m * (2 + 22 * hills) + 420 * back * back * smooth(1000, 4200, far);
-    }
-    case 'desert': {
-      const u = (x * 0.8 + z * 0.6) / 75 + 2.6 * fbm(x / 700, z / 700, 3);
-      const s = fract(u), prof = s < 0.72 ? s / 0.72 : (1 - s) / 0.28; // gentle windward face, steep lee face
+  const range = (amp, from, to, s = 2600) => { if (!amp) return 0; const r = ridged(x / s + 7.1, z / s, 5); return amp * r * r * smooth(from, to, far); };
+  let h = 0;
+  switch (rg.h) {
+    case 'rolling': { const hills = 0.5 + 0.5 * fbm(x / 340, z / 340, 5); h = plain + m * (3 + hp.amp * hills * hills) + range(hp.far, 900, 4500); break; }
+    case 'fields': { const hills = 0.5 + 0.5 * fbm(x / 520, z / 520, 4), back = 0.5 + 0.5 * fbm(x / 2200 - 4, z / 2200, 4);
+      h = plain * 0.6 + m * (2 + hp.amp * hills) + hp.back * back * back * smooth(1000, 4200, far); break; }
+    case 'terraces': { const hills = 0.5 + 0.5 * fbm(x / 420, z / 420, 4), t = m * hp.amp * hills * 1.4, st = 5, f = fract(t / st);
+      h = plain * 0.6 + (Math.floor(t / st) + smooth(0.85, 1, f)) * st + range(900, 1500, 5000); break; }
+    case 'dunes': { const u = (x * 0.8 + z * 0.6) / 75 + 2.6 * fbm(x / 700, z / 700, 3), s = fract(u), prof = s < 0.72 ? s / 0.72 : (1 - s) / 0.28;
       const dune = prof * prof * (3 - 2 * prof) * (0.35 + 0.65 * (0.5 + 0.5 * fbm(x / 900, z / 900, 2)));
-      const mm = 0.5 + 0.5 * fbm(x / 1500 + 9, z / 1500, 4);
-      const mesa = smooth(0.56, 0.6, mm) * (160 + 60 * (0.5 + 0.5 * noise2(x / 3000, z / 3000)));
-      const terrace = smooth(0.52, 0.56, mm) * 26;
-      return plain * 1.5 + m * (2 + 30 * dune) + (mesa + terrace) * smooth(220, 900, far) + 600 * Math.pow(ridged(x / 3000, z / 3000, 4), 2) * smooth(3000, 7000, far);
+      const mm = 0.5 + 0.5 * fbm(x / 1500 + 9, z / 1500, 4), mesa = hp.mesa ? smooth(0.56, 0.6, mm) * (160 + 60 * (0.5 + 0.5 * noise2(x / 3000, z / 3000))) + smooth(0.52, 0.56, mm) * 26 : 0;
+      h = plain * 1.5 + m * (2 + hp.amp * dune) + mesa * smooth(220, 900, far) + range(600, 3000, 7000, 3000); break; }
+    case 'canyon': { const mm = 0.5 + 0.5 * fbm(x / 700 + 3, z / 700, 5), cap = smooth(0.48, 0.52, mm), step = smooth(0.4, 0.44, mm);
+      h = plain + m * (4 + 10 * (0.5 + 0.5 * fbm(x / 200, z / 200, 3))) + (cap * hp.amp + step * hp.amp * 0.35) * smooth(40, 240, far) + range(700, 2000, 6000); break; }
+    case 'flat': h = plain * 0.5 + m * hp.amp * (0.5 + 0.5 * fbm(x / 400, z / 400, 3)) + range(500, 3000, 8000); break;
+    case 'jagged': case 'fjord': {
+      const drift = 0.5 + 0.5 * fbm(x / 300, z / 300, 4), mt = Math.pow(ridged(x / 1700 + 2, z / 1700, 6), 1.7);
+      h = plain + m * (4 + (hp.drift || 28) * drift) + (hp.mt || 1500) * mt * smooth(90, 1500, far);
+      if (rg.h === 'fjord' && !left) h = -14 * smooth(CORRIDOR + 4, CORRIDOR + 90, z) + (hp.mt || 1500) * 0.7 * mt * smooth(1800, 3500, z); // the sea, then peaks across the water
+      break;
     }
-    case 'tundra': {
-      const drift = 0.5 + 0.5 * fbm(x / 300, z / 300, 4);
-      const mt = Math.pow(ridged(x / 1700 + 2, z / 1700, 6), 1.7);
-      return plain + m * (4 + 28 * drift) + 1500 * mt * smooth(90, 1500, far);
-    }
-    case 'volcano': {
-      let h = plain + m * (3 + 26 * (0.5 + 0.5 * fbm(x / 380, z / 380, 4))) + 420 * Math.pow(ridged(x / 1400, z / 1400, 5), 1.5) * smooth(120, 1600, far);
-      if (left) for (const c of conesNear(x, z, _cones)) {
+    case 'volcanic': {
+      h = plain + m * (3 + 26 * (0.5 + 0.5 * fbm(x / 380, z / 380, 4))) + hp.mt * Math.pow(ridged(x / 1400, z / 1400, 5), 1.5) * smooth(120, 1600, far);
+      if (left && hp.cones) for (const c of conesNear(x, z, _cones)) {
         const r = Math.hypot(x - c.x, z - c.z); if (r >= c.R) continue;
         const k = 1 - r / c.R; let v = c.H * Math.pow(k, 1.7);
-        const cr = c.R * 0.13; if (r < cr) v -= c.H * 0.22 * Math.sqrt(1 - r / cr); // crater
+        const cr = c.R * 0.13; if (r < cr) v -= c.H * 0.22 * Math.sqrt(1 - r / cr);
         h = Math.max(h, v + 30 * noise2(x / 90, z / 90) * k);
       }
-      return h;
+      break;
     }
-    case 'alien': {
-      let h = plain + m * (4 + 46 * (0.5 + 0.5 * fbm(x / 420, z / 420, 4))) + 700 * Math.pow(ridged(x / 2400 + 1, z / 2400, 5), 2) * smooth(1500, 6000, far);
+    case 'spires': {
+      h = plain + m * (4 + 46 * (0.5 + 0.5 * fbm(x / 420, z / 420, 4))) + 700 * Math.pow(ridged(x / 2400 + 1, z / 2400, 5), 2) * smooth(1500, 6000, far);
       const cx = Math.floor(x / SPIRE_CELL), cz = Math.floor(z / SPIRE_CELL);
       for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
         const s = spireIn(cx + i, cz + j); if (!s) continue;
         const r = Math.hypot(x - s.x, z - s.z); if (r >= s.R) continue;
         const k = 1 - r / s.R; h = Math.max(h, s.H * k * k * (0.6 + 0.4 * k));
       }
-      return h;
+      break;
     }
+    case 'gorge': { // dense walls close on the far side, and on the near side beyond the side camera's reach
+      const wall = left ? smooth(CORRIDOR, CORRIDOR + 50, dz) : smooth(320, 460, z);
+      h = wall * (70 + 50 * fbm(x / 120, z / 120, 3) + hp.mt * Math.pow(ridged(x / 800 + 3, z / 800, 5), 1.3) * smooth(20, 500, left ? dz : z - 320)) + plain * 0.5;
+      break;
+    }
+    case 'craters': { const base = (left ? m : smooth(CORRIDOR, CORRIDOR + 200, z) * 0.35) * hp.amp * (0.5 + 0.5 * fbm(x / 500, z / 500, 4));
+      h = base + craterField(x, z, 260, 1) * (left ? smooth(CORRIDOR, CORRIDOR + 60, dz) : smooth(CORRIDOR, CORRIDOR + 80, z) * 0.6) + range(900, 2500, 8000, 2000); break; }
+    case 'coast': h = left ? m * hp.amp * (0.7 + 0.3 * fbm(x / 300, z / 300, 4)) + range(1200, 1500, 5000) : -12 * smooth(CORRIDOR + 6, CORRIDOR + 70, z); break;
+    case 'river': { const hills = 0.5 + 0.5 * fbm(x / 340, z / 340, 5), bank = smooth(55, 75, z) * smooth(165, 145, z);
+      h = (left ? m * (3 + hp.amp * hills * hills) : plain) - 7 * bank + range(hp.far, 900, 4500); break; }
+    case 'swamp': { const v = fbm(x / 120, z / 120, 3), edge = smooth(CORRIDOR, CORRIDOR + 30, dz);
+      h = (v * 7 - 1.4) * edge + m * 14 * (0.5 + 0.5 * fbm(x / 600, z / 600, 3)) + range(400, 1500, 5000); break; }
   }
-  return 0;
+  return rg.water ? h : Math.max(h, WATER_Y + 0.4); // only water regions dip below the water line
 }
 
 let terrainScale = 1; // world scale of the current run: sets how wide the terrain blends are
 function heightAt(x, z) {
   if (Math.abs(z) < CORRIDOR) return 0;
   const e = envAt(x, terrainScale);
-  let h = styleHeight(e.a.key, x, z);
-  if (e.t > 0) h = lerp(h, styleHeight(e.b.key, x, z), e.t);
+  let h = styleHeight(e.a, x, z);
+  if (e.t > 0) h = lerp(h, styleHeight(e.b, x, z), e.t);
   return h * smooth(CORRIDOR, CORRIDOR + 12, Math.abs(z));
 }
 
 /* ---------- paint ----------
-   Vertex colours (sRGB 0..1) and glow per terrain style. out = { r, g, b, gr, gg, gb, rx, rz, rs }
-   where g* is emissive glow and r* is a crop-row direction/strength for the shader. */
+   Vertex colours (sRGB 0..1) and glow per paint style. out = { r, g, b, gr, gg, gb, ga, rx, rz, rs }
+   where g* is emissive glow (the shader draws thin glowing lines where it is set; ga = 1 makes it
+   solid) and r* is a crop-row direction/strength for the shader. */
 const HEXC = {};
 const hx = h => HEXC[h] || (HEXC[h] = rgb(h).map(v => v / 255));
 function mixInto(o, c, t) { o.r += (c[0] - o.r) * t; o.g += (c[1] - o.g) * t; o.b += (c[2] - o.b) * t; }
 function setC(o, c) { o.r = c[0]; o.g = c[1]; o.b = c[2]; }
-const CROPS = ['#c8ae4c', '#8ea53d', '#6d5838', '#d8c34a', '#a0ad4b', '#b8984a', '#7d9a3a', '#c9b86a'].map(hx);
+const setGlow = (o, c, k) => { o.gr = c[0] * k; o.gg = c[1] * k; o.gb = c[2] * k; };
 
-function paintStyle(key, x, z, h, ny, o) {
-  const b = BIOMES[BIOME_IX[key]];
-  const n = fbm(x / 45, z / 45, 3), slope = 1 - ny, d = Math.abs(z);
-  const inCorr = d < CORRIDOR + 6;
+function paintStyle(rg, x, z, h, ny, o) {
+  const pal = rg.pal, n = fbm(x / 45, z / 45, 3), slope = 1 - ny, d = Math.abs(z), inCorr = d < CORRIDOR + 6, nn = 0.5 + 0.5 * n;
   o.gr = o.gg = o.gb = o.ga = 0; o.rs = 0;
-  switch (key) {
-    case 'meadow': {
-      setC(o, hx('#5c9c3c')); mixInto(o, hx('#86bd5c'), 0.5 + 0.5 * n);
-      mixInto(o, hx(b.ground), 0.25);
-      const f = forestAt(x, z);
-      if (z < -30 || z > 400) mixInto(o, hx('#2e5a26'), smooth(0.56, 0.72, f) * 0.85); // forests, where trees may grow
-      if (d < 3.2 && x > -60 && x < 160) mixInto(o, hx('#8d7250'), smooth(3.2, 1.8, d) * smooth(160, 120, x));
-      mixInto(o, hx('#7f776b'), smooth(0.4, 0.7, slope));
-      mixInto(o, hx('#f2f6f8'), smooth(620, 700, h + n * 90) * smooth(0.25, 0.55, ny));
+  switch (rg.p) {
+    case 'grass': {
+      setC(o, hx(pal.g1)); mixInto(o, hx(pal.g2), nn); mixInto(o, hx(rg.ground), 0.2);
+      if (rg.forest && (z < -30 || z > 400)) mixInto(o, hx(pal.forest), smooth(0.56, 0.72, forestAt(x, z)) * 0.85); // forests, where trees may grow
+      if (d < 3.2 && x > -60 && x < 160) mixInto(o, hx(pal.path), smooth(3.2, 1.8, d) * smooth(160, 120, x));
+      mixInto(o, hx(pal.rock), smooth(0.4, 0.7, slope));
+      mixInto(o, hx('#f2f6f8'), smooth(rg.hp.snow, rg.hp.snow + 80, h + n * 90) * smooth(0.25, 0.55, ny));
       break;
     }
-    case 'farm': {
+    case 'fields': {
       const ca = 0.35, u = x * Math.cos(ca) - z * Math.sin(ca), v = x * Math.sin(ca) + z * Math.cos(ca);
-      const fu = u / 84, fv = v / 58, cu = Math.floor(fu), cv = Math.floor(fv);
-      const hc = hash2(cu, cv), crop = CROPS[Math.floor(hc * CROPS.length)];
-      if (inCorr) { setC(o, hx(b.ground)); mixInto(o, hx('#8a9a42'), 0.5 + 0.5 * n); }
+      const fu = u / 84, fv = v / 58, hc = hash2(Math.floor(fu), Math.floor(fv)), crops = pal.crops, crop = hx(crops[Math.floor(hc * crops.length)]);
+      if (inCorr) { setC(o, hx(rg.ground)); mixInto(o, hx(pal.verge), nn); }
       else {
-        setC(o, crop); mixInto(o, [0.35, 0.3, 0.2], 0.12 * (0.5 + 0.5 * n));
+        setC(o, crop); mixInto(o, [0.35, 0.3, 0.2], 0.12 * nn);
         const edge = Math.min(fract(fu), 1 - fract(fu)) * 84 < 2.4 || Math.min(fract(fv), 1 - fract(fv)) * 58 < 2.4;
-        if (edge) setC(o, hx('#4b6a2c'));
+        if (edge) setC(o, hx(pal.hedge));
         else { const along = hc < 0.5; o.rx = along ? Math.cos(ca) : Math.sin(ca); o.rz = along ? -Math.sin(ca) : Math.cos(ca); o.rs = hc > 0.12 ? 1 : 0; }
       }
-      mixInto(o, hx('#6a7a4a'), smooth(20, 80, h));
-      mixInto(o, hx('#7a7468'), smooth(0.45, 0.75, slope));
+      mixInto(o, hx('#6a7a4a'), smooth(20, 80, h)); mixInto(o, hx('#7a7468'), smooth(0.45, 0.75, slope));
       break;
     }
-    case 'desert': {
-      setC(o, hx(b.ground)); mixInto(o, hx('#dcae68'), 0.5 + 0.5 * n);
-      mixInto(o, hx('#f3d696'), 0.3 * (0.5 + 0.5 * noise2(x / 9, z / 9)));
-      const band = 0.5 + 0.5 * Math.sin(h * 0.22 + noise2(x / 200, z / 200) * 2);
-      const strata = band < 0.33 ? hx('#b3683b') : band < 0.66 ? hx('#c98a4f') : hx('#9c5634');
-      const cliff = smooth(0.35, 0.6, slope) * smooth(12, 30, h);
-      o.r += (strata[0] - o.r) * cliff; o.g += (strata[1] - o.g) * cliff; o.b += (strata[2] - o.b) * cliff;
-      if (h > 150 && ny > 0.8) mixInto(o, hx('#c4884c'), 0.6);
+    case 'terraces': {
+      setC(o, hx(pal.g1)); mixInto(o, hx(pal.g2), nn);
+      if (!inCorr && ny > 0.97) { mixInto(o, hx('#7aa0a0'), 0.45); o.rx = 1; o.rz = 0.3; o.rs = 0.6; } // flooded paddies with rows
+      mixInto(o, hx('#6a5a40'), smooth(0.3, 0.6, slope));
       break;
     }
-    case 'tundra': {
-      setC(o, hx('#e9f1f6')); mixInto(o, hx('#cfdde8'), 0.5 + 0.5 * n);
-      if (h < 6 && !inCorr) mixInto(o, hx('#a9cde0'), smooth(0.55, 0.8, 0.5 + 0.5 * noise2(x / 70, z / 70)) * 0.7); // frozen ponds
+    case 'sand': case 'canyon': {
+      setC(o, hx(pal.g1)); mixInto(o, hx(pal.g2), nn); mixInto(o, [0.95, 0.84, 0.59], 0.25 * (0.5 + 0.5 * noise2(x / 9, z / 9)));
+      const st = pal.strata, band = 0.5 + 0.5 * Math.sin(h * 0.22 + noise2(x / 200, z / 200) * 2), strata = hx(st[band < 0.33 ? 0 : band < 0.66 ? 1 : 2]);
+      const cliff = smooth(0.35, 0.6, slope) * smooth(12, 30, h) + (rg.p === 'canyon' ? smooth(0.2, 0.4, slope) * 0.6 : 0);
+      mixInto(o, strata, clamp(cliff, 0, 1));
+      if (h > 150 && ny > 0.8) mixInto(o, strata, 0.4);
+      break;
+    }
+    case 'salt': {
+      setC(o, hx(pal.g1)); mixInto(o, hx(pal.g2), 0.4 * nn);
+      if (!inCorr) setGlow(o, [0.2, 0.18, 0.15], 0.35 * smooth(0.2, 0.6, noise2(x / 300, z / 300))); // faint crack lines (the shader darkens them)
+      break;
+    }
+    case 'snow': {
+      setC(o, hx(pal.g1)); mixInto(o, hx(pal.g2), nn);
+      if (h < 6 && !inCorr) mixInto(o, hx(pal.ice), smooth(0.55, 0.8, 0.5 + 0.5 * noise2(x / 70, z / 70)) * 0.7);
       const rock = smooth(0.42, 0.66, slope) * (1 - smooth(900, 1300, h) * 0.5 * ny);
-      mixInto(o, hx('#4e5967'), rock);
-      mixInto(o, hx('#6a7788'), rock * 0.3 * (0.5 + 0.5 * n));
+      mixInto(o, hx(pal.rock), rock);
       break;
     }
-    case 'volcano': {
-      setC(o, hx(b.ground)); mixInto(o, hx('#5a4a44'), 0.5 + 0.5 * n);
-      mixInto(o, hx('#221917'), smooth(0.35, 0.65, slope));
-      mixInto(o, hx('#332624'), smooth(80, 300, h) * 0.6);
-      { // lava fields: the shader draws thin glowing cracks wherever this potential is set
-        const field = smooth(0.05, 0.45, noise2(x / 260 + 3, z / 260)) * smooth(0.55, 0.85, ny) * (h < 80 ? 1 : 0.3) * (inCorr ? 0.6 : 1);
-        if (field > 0) { mixInto(o, hx('#2e2220'), field * 0.5); o.gr = 1.6 * field; o.gg = 0.42 * field; o.gb = 0.07 * field; }
-      }
-      for (const c of conesNear(x, z, _cones)) { // glowing crater floors
+    case 'lava': {
+      setC(o, hx(pal.g1)); mixInto(o, hx(pal.g2), nn); mixInto(o, hx(pal.rock), smooth(0.35, 0.65, slope)); mixInto(o, hx('#332624'), smooth(80, 300, h) * 0.6);
+      const field = smooth(0.05, pal.field, noise2(x / 260 + 3, z / 260)) * smooth(0.55, 0.85, ny) * (h < 80 ? 1 : 0.3) * (inCorr ? 0.6 : 1);
+      if (field > 0) { mixInto(o, hx('#2e2220'), field * 0.5); setGlow(o, pal.lava, field); }
+      for (const c of conesNear(x, z, _cones)) {
         const r = Math.hypot(x - c.x, z - c.z), cr = c.R * 0.1;
         if (r < cr) { const k = 1 - r / cr; o.gr = Math.max(o.gr, 2.2 * k); o.gg = Math.max(o.gg, 0.7 * k); o.gb = Math.max(o.gb, 0.12 * k); o.ga = Math.max(o.ga, smooth(0, 0.3, k)); }
       }
       break;
     }
-    case 'alien': {
-      setC(o, hx(b.ground)); mixInto(o, hx('#5c3f9e'), 0.5 + 0.5 * n);
-      mixInto(o, hx('#2d1d5c'), smooth(0.4, 0.7, slope));
-      mixInto(o, hx('#c9a8ff'), smooth(200, 520, h) * 0.6);
-      { // glowing veins, drawn by the shader where this potential is set
-        const field = smooth(0.1, 0.5, noise2(x / 340 + 2, z / 340)) * smooth(0.4, 0.8, ny) * (inCorr ? 0.7 : 1);
-        if (field > 0) { const pink = noise2(x / 900, z / 900) > 0.1; o.gr = (pink ? 1.3 : 0.2) * field; o.gg = (pink ? 0.3 : 1.2) * field; o.gb = (pink ? 1.1 : 0.9) * field; }
-      }
+    case 'asphalt': {
+      const cu = Math.floor(x / 40), cv = Math.floor(z / 40), park = hash2(cu + 7, cv + 3) < 0.12;
+      setC(o, hx(pal.g1)); mixInto(o, hx(pal.g2), nn);
+      if (park && !inCorr) setC(o, hx(pal.lot));
+      if (Math.min(fract(x / 40), 1 - fract(x / 40)) * 40 < 5 || Math.min(fract(z / 40), 1 - fract(z / 40)) * 40 < 5) mixInto(o, [0.2, 0.2, 0.22], 0.5); // streets
+      break;
+    }
+    case 'rock': {
+      setC(o, hx(pal.g1)); mixInto(o, hx(pal.g2), nn);
+      mixInto(o, hx(pal.moss || pal.g2), smooth(0.8, 0.95, ny) * 0.5 * (inCorr ? 0.3 : 1));
+      mixInto(o, hx(pal.rock), smooth(0.4, 0.7, slope));
+      break;
+    }
+    case 'veins': case 'swamp': {
+      setC(o, hx(pal.g1)); mixInto(o, hx(pal.g2), nn); mixInto(o, hx(pal.rock), smooth(0.4, 0.7, slope));
+      if (pal.top) mixInto(o, hx(pal.top), smooth(200, 520, h) * 0.6);
+      if (h < 0.5 && rg.water) mixInto(o, [0.2, 0.18, 0.12], 0.6); // mud by the pools
+      const field = smooth(0.1, 0.5, noise2(x / 340 + 2, z / 340)) * smooth(0.4, 0.8, ny) * (inCorr ? 0.7 : 1);
+      if (field > 0) setGlow(o, noise2(x / 900, z / 900) > 0.1 ? pal.veinA : pal.veinB, field);
+      break;
+    }
+    case 'regolith': case 'ice': {
+      setC(o, hx(pal.g1)); mixInto(o, hx(pal.g2), nn); mixInto(o, hx(pal.rock), smooth(0.3, 0.6, slope));
+      if (pal.rim) mixInto(o, hx(pal.rim), smooth(0.9, 1, ny) * smooth(3, 12, h) * 0.5);
+      if (rg.p === 'ice') setGlow(o, [0.35, 0.12, 0.04], 0.6); // rust-red cracks across the ice
+      break;
+    }
+    case 'glass': {
+      setC(o, hx(pal.g1)); mixInto(o, hx(pal.g2), nn); mixInto(o, hx(pal.rock), smooth(0.3, 0.6, slope));
+      setGlow(o, pal.lava, 0.5 + 0.5 * smooth(-0.2, 0.4, noise2(x / 400, z / 400)));
+      break;
+    }
+    case 'deck': { // a station deck: metal plates with glowing seams
+      setC(o, hx(pal.g1)); mixInto(o, hx(pal.g2), hash2(Math.floor(x / 12), Math.floor(z / 12)) * 0.6);
+      setGlow(o, hx(pal.line).map(v => v * 1.5), inCorr ? 0.4 : 0.8);
       break;
     }
   }
+  if (rg.water && h < 1.8 && rg.p !== 'swamp' && rg.p !== 'veins') mixInto(o, hx('#d8c8a0'), smooth(1.8, 0.2, h) * (inCorr ? 0 : 1)); // beaches
 }
-const BIOME_IX = Object.fromEntries(BIOMES.map((b, i) => [b.key, i]));
 const _pa = { r: 0, g: 0, b: 0, gr: 0, gg: 0, gb: 0, ga: 0, rx: 0, rz: 0, rs: 0 }, _pb = { r: 0, g: 0, b: 0, gr: 0, gg: 0, gb: 0, ga: 0, rx: 0, rz: 0, rs: 0 };
 function paintAt(x, z, h, ny, o) {
   const e = envAt(x, terrainScale);
-  paintStyle(e.a.key, x, z, h, ny, o);
+  paintStyle(e.a, x, z, h, ny, o);
   if (e.t > 0) {
-    paintStyle(e.b.key, x, z, h, ny, _pb);
+    paintStyle(e.b, x, z, h, ny, _pb);
     const t = e.t;
     o.r = lerp(o.r, _pb.r, t); o.g = lerp(o.g, _pb.g, t); o.b = lerp(o.b, _pb.b, t);
     o.gr = lerp(o.gr, _pb.gr, t); o.gg = lerp(o.gg, _pb.gg, t); o.gb = lerp(o.gb, _pb.gb, t); o.ga = lerp(o.ga, _pb.ga, t);

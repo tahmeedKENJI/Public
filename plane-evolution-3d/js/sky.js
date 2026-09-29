@@ -5,21 +5,13 @@
    Colours come from the 2D BIOMES table and blend exactly as in the 2D envAt.
    ========================================================================== */
 
-// Per-terrain light (3D only): sun colour/intensity, sky-fill colours, sun elevation, haze.
-const LIGHT3D = {
-  meadow:  { sun: '#fff1d6', sunI: 2.3, sky: '#bcdcff', gnd: '#5a7a3a', hemI: 1.0, elev: 0.62, haze: 1.0 },
-  farm:    { sun: '#e6ebf0', sunI: 0.9, sky: '#c9d1db', gnd: '#6a6a48', hemI: 1.6, elev: 0.9, haze: 0.5 },
-  desert:  { sun: '#ffe0ae', sunI: 2.6, sky: '#ffd6a0', gnd: '#b08850', hemI: 0.9, elev: 0.42, haze: 0.95 },
-  tundra:  { sun: '#c4d4ff', sunI: 1.5, sky: '#7890cc', gnd: '#a0acc8', hemI: 1.3, elev: 0.5, haze: 0.9 },
-  volcano: { sun: '#ff8a50', sunI: 1.4, sky: '#9a3a20', gnd: '#3a1a10', hemI: 0.95, elev: 0.3, haze: 0.55 },
-  alien:   { sun: '#c8a8ff', sunI: 1.1, sky: '#6a48b0', gnd: '#3a2870', hemI: 1.05, elev: 0.45, haze: 0.8 },
-};
-const WEATHER_DENSITY = { clear: 0.12, rain: 0.95, dust: 0.55, snow: 0.8, ash: 0.7, spores: 0.35 };
+// Light per region comes from regions.js (region.light).
+const WEATHER_DENSITY = { clear: 0.12, rain: 0.95, dust: 0.55, snow: 0.8, ash: 0.7, spores: 0.35, leaves: 0.35, petals: 0.3, none: 0 };
 const lin = (c, out = new THREE.Color()) => out.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
 
 const SKY_VERT = `varying vec3 vDir;
 void main() { vDir = position; vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position = p.xyww; }`;
-const SKY_FRAG = `uniform vec3 uTop, uBot, uHor, uSunDir, uSunCol, uMoonDir, uMoonCol; uniform float uSunVis, uSunSize, uMoonVis, uMoonSize, uHaze;
+const SKY_FRAG = `uniform vec3 uTop, uBot, uHor, uSunDir, uSunCol, uMoonDir, uMoonCol; uniform float uSunVis, uSunSize, uMoonVis, uMoonSize, uHaze, uNeb;
 varying vec3 vDir;
 void main() {
   vec3 d = normalize(vDir); float h = d.y;
@@ -33,6 +25,11 @@ void main() {
   float disc = smoothstep(cos(uMoonSize), cos(uMoonSize * 0.9), md), cut = smoothstep(cos(uMoonSize * 0.86), cos(uMoonSize * 0.76), dot(d, d2));
   c = mix(c, uMoonCol * 1.4, disc * (1.0 - cut) * uMoonVis);
   c += uMoonCol * uMoonVis * pow(max(md, 0.0), 300.0) * 0.25;
+  if (uNeb > 0.0) { // nebula: soft coloured clouds of gas across the sky
+    float n1 = sin(d.x * 5.3 + sin(d.y * 7.1 + d.z * 3.0) * 2.0) * sin(d.z * 4.7 + sin(d.x * 6.3) * 1.7) * 0.5 + 0.5;
+    float n2 = sin(d.y * 9.1 + sin(d.z * 5.9) * 2.3) * sin(d.x * 3.9 - d.z * 2.1) * 0.5 + 0.5;
+    c += uNeb * smoothstep(-0.1, 0.3, h) * (vec3(0.55, 0.12, 0.6) * pow(n1, 3.0) + vec3(0.1, 0.35, 0.7) * pow(n2, 3.0) + vec3(0.7, 0.3, 0.1) * pow(n1 * n2, 4.0));
+  }
   if (h < 0.0) c = mix(c, uHor * 0.85, smoothstep(0.0, -0.2, h));
   gl_FragColor = vec4(c, 1.0);
   #include <tonemapping_fragment>
@@ -71,7 +68,7 @@ const WX_VERT = `attribute vec4 aSeed; attribute float aEnd; uniform vec3 uCente
 varying float vSeed; varying float vEnd;
 void main() { vSeed = aSeed.w; vEnd = aEnd;
   vec3 wob = vec3(0.0);
-  if (uKind == 1.0) wob = vec3(sin(uTime * 1.5 + aSeed.w * 9.0), 0.0, cos(uTime * 1.1 + aSeed.w * 7.0)) * uBox * 0.02;
+  if (uKind == 1.0 || uKind >= 6.0) wob = vec3(sin(uTime * 1.5 + aSeed.w * 9.0), 0.0, cos(uTime * 1.1 + aSeed.w * 7.0)) * uBox * 0.02;
   if (uKind == 4.0 || uKind == 0.0) wob = vec3(sin(uTime + aSeed.w * 7.0), sin(uTime * 0.7 + aSeed.w * 3.0) * 0.5, cos(uTime * 0.8 + aSeed.w * 5.0)) * uBox * 0.02;
   vec3 off = (uKind == 3.0 && aSeed.w < 0.25) ? uOff2 : uOff; // embers rise while ash falls
   vec3 local = mod(aSeed.xyz * uBox + off, uBox) - uBox * 0.5;
@@ -86,10 +83,10 @@ void main() {
   if (uLine < 0.5) { vec2 q = gl_PointCoord - 0.5; a *= smoothstep(0.5, 0.15, length(q)); }
   else a *= 1.0 - vEnd * 0.9;
   if (uKind == 3.0 && vSeed < 0.25) { c = uColB; a *= 0.6 + 0.4 * sin(uTime * 8.0 + vSeed * 50.0); }
-  if (uKind == 4.0 && vSeed < 0.5) c = uColB;
+  if ((uKind == 4.0 || uKind >= 6.0) && vSeed < 0.5) c = uColB;
   gl_FragColor = vec4(c, a);
 }`;
-const WX_KIND = { clear: 0, snow: 1, dust: 2, ash: 3, spores: 4, rain: 5 };
+const WX_KIND = { clear: 0, snow: 1, dust: 2, ash: 3, spores: 4, rain: 5, leaves: 6, petals: 7 };
 
 class Sky {
   constructor(scene, shared) {
@@ -97,7 +94,7 @@ class Sky {
     const u = this.u = {
       uTop: { value: new THREE.Color() }, uBot: { value: new THREE.Color() }, uHor: { value: new THREE.Color() },
       uSunDir: { value: new THREE.Vector3(0.5, 0.5, -0.6).normalize() }, uSunCol: { value: new THREE.Color() }, uSunVis: { value: 1 }, uSunSize: { value: 0.03 },
-      uMoonDir: { value: new THREE.Vector3(0.6, 0.45, -0.5).normalize() }, uMoonCol: { value: new THREE.Color('#eef3ff') }, uMoonVis: { value: 0 }, uMoonSize: { value: 0.03 }, uHaze: { value: 1 },
+      uMoonDir: { value: new THREE.Vector3(0.6, 0.45, -0.5).normalize() }, uMoonCol: { value: new THREE.Color('#eef3ff') }, uMoonVis: { value: 0 }, uMoonSize: { value: 0.03 }, uHaze: { value: 1 }, uNeb: { value: 0 },
     };
     this.dome = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), new THREE.ShaderMaterial({ uniforms: u, vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, side: THREE.BackSide, depthWrite: false, fog: false }));
     this.dome.frustumCulled = false; this.dome.renderOrder = -10; scene.add(this.dome);
@@ -140,6 +137,16 @@ class Sky {
     this.moonlet = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeMoonTexture(), transparent: true, depthWrite: false, fog: false }));
     this.moonlet.renderOrder = -6; this.moonlet.visible = false; scene.add(this.moonlet);
     
+    // big sky objects for the space regions: [texture, forward, right, up, size]
+    this.objs = {};
+    const OBJ = { earth: [makeEarthTexture, 0.9, -0.35, 0.1, 0.55], gasgiant: [makeGasGiantTexture, 0.9, 0.38, 0.28, 0.36], blackhole: [makeBlackHoleTexture, 1, 0.05, 0.3, 0.7],
+      quasar: [makeQuasarTexture, 0.9, -0.4, 0.42, 0.45], bloodmoon: [makeBloodMoonTexture, 0.9, 0.35, 0.24, 0.2] };
+    for (const [k, [tex, f, r, up, size]] of Object.entries(OBJ)) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex(), transparent: true, depthWrite: false, fog: false }));
+      sp.renderOrder = -6; sp.visible = false; scene.add(sp); this.objs[k] = { sp, f, r, up, size };
+    }
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(1, 0.006, 6, 256, Math.PI), new THREE.MeshBasicMaterial({ color: '#e8dcc0', transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+    arc.renderOrder = -6; arc.visible = false; scene.add(arc); this.ringArc = arc;
     // lights
     this.sun = new THREE.DirectionalLight(0xffffff, 2); this.sun.position.set(1, 1, 1); scene.add(this.sun); scene.add(this.sun.target);
     this.hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1); scene.add(this.hemi);
@@ -157,7 +164,7 @@ class Sky {
     const u = this.u, k = clamp((alt - 600) / 9000, 0, 1); // altitude: fade toward space
     const top = mixA(envMix(e, 'skyTop'), [2, 4, 15], k), bot = mixA(envMix(e, 'skyBot'), [26, 35, 80], k * 0.9);
     lin(top, u.uTop.value); lin(bot, u.uBot.value);
-    const la = LIGHT3D[e.a.key], lb = LIGHT3D[e.b.key], t = e.t, L = (key) => lerp(la[key], lb[key], t);
+    const la = e.a.light, lb = e.b.light, t = e.t, L = (key) => lerp(la[key], lb[key], t);
     const LC = (key) => mixA(rgb(la[key]), rgb(lb[key]), t);
     const hor = mixA(bot, [255, 255, 255], 0.08 * (1 - k));
     lin(hor, u.uHor.value);
@@ -191,6 +198,16 @@ class Sky {
       s.material.opacity = pl; const R = cam.far * 0.8;
       s.position.copy(cam.position).addScaledVector(d, R); s.scale.set(R * size, R * size, 1);
     }
+    const objA = key => ((e.a.objs && e.a.objs[key]) || 0) * (1 - t) + (e.b !== e.a ? ((e.b.objs && e.b.objs[key]) || 0) * t : 0);
+    for (const [k, o2] of Object.entries(this.objs)) {
+      const a = objA(k); o2.sp.visible = a > 0.02; if (!o2.sp.visible) continue;
+      const R = cam.far * 0.8, dir = this.tmpV.copy(f).multiplyScalar(o2.f).addScaledVector(right, o2.r).addScaledVector(this.up, o2.up).normalize();
+      o2.sp.material.opacity = a; o2.sp.position.copy(cam.position).addScaledVector(dir, R); o2.sp.scale.set(R * o2.size, R * o2.size, 1);
+      if (k === 'blackhole') o2.sp.material.rotation = Math.sin(this.shared.time.value * 0.1) * 0.05;
+    }
+    const ra = objA('ringarc'); this.ringArc.visible = ra > 0.02;
+    if (ra > 0.02) { this.ringArc.material.opacity = ra * 0.85; this.ringArc.position.copy(cam.position); this.ringArc.scale.setScalar(cam.far * 0.75); this.ringArc.rotation.set(0, Math.atan2(-f.z, f.x) + Math.PI / 2, 0.25); }
+    u.uNeb.value = objA('nebula');
     // lights
     const shadowHaze = this.flash > 0 ? 1 + this.flash * 3 : 1;
     lin(LC('sun'), this.sun.color); this.sun.intensity = L('sunI') * (0.35 + 0.65 * Math.max(sunA, moonA, pl, 0.4)) * shadowHaze;
@@ -277,7 +294,7 @@ class Weather {
     for (let i = 0; i < N; i++) { const s = [r(), r(), r(), r()]; for (let k = 0; k < (line ? 2 : 1); k++) { const v = line ? i * 2 + k : i; seed.set(s, v * 4); end[v] = k; } }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts * 3), 3));
     g.setAttribute('aSeed', new THREE.BufferAttribute(seed, 4)); g.setAttribute('aEnd', new THREE.BufferAttribute(end, 1));
-    const C = { clear: ['#fffff0', '#fffff0'], rain: ['#e2eaf6', '#e2eaf6'], dust: ['#ebc387', '#ebc387'], snow: ['#ffffff', '#ffffff'], ash: ['#4a4444', '#ff9a3c'], spores: ['#7dffdc', '#ff8ce6'] }[kind];
+    const C = { clear: ['#fffff0', '#fffff0'], rain: ['#e2eaf6', '#e2eaf6'], dust: ['#ebc387', '#ebc387'], snow: ['#ffffff', '#ffffff'], ash: ['#4a4444', '#ff9a3c'], spores: ['#7dffdc', '#ff8ce6'], leaves: ['#e08a2a', '#c8402a'], petals: ['#ffc8e0', '#ffffff'] }[kind];
     this.u = { uCenter: { value: new THREE.Vector3() }, uOff: { value: new THREE.Vector3() }, uOff2: { value: new THREE.Vector3() }, uVel: { value: new THREE.Vector3() }, uStreak: { value: new THREE.Vector3() },
       uBox: { value: 60 }, uTime: shared.time, uSize: { value: 1 }, uPx: { value: 1 }, uKind: { value: WX_KIND[kind] }, uColA: { value: new THREE.Color(C[0]) }, uColB: { value: new THREE.Color(C[1]) },
       uA: { value: 1 }, uLine: { value: line ? 1 : 0 } };
@@ -295,7 +312,7 @@ class Weather {
     const dir = new THREE.Vector3(); cam.getWorldDirection(dir);
     u.uCenter.value.copy(cam.position).addScaledVector(dir, box * 0.35);
     u.uBox.value = box; u.uPx.value = this.shared.px;
-    const V = { clear: [0.4, -0.15, 0.2, 0.004], rain: [-1.6, -11, 0, 0], dust: [-16, 0.3, 1.5, 0], snow: [-0.8, -1.4, 0.3, 0.007], ash: [-0.8, -0.9, 0, 0.0045], spores: [0.2, 0.5, 0.1, 0.009] }[this.kind]; // velocity (per 60 m of box) and particle size (share of box)
+    const V = { clear: [0.4, -0.15, 0.2, 0.004], rain: [-1.6, -11, 0, 0], dust: [-16, 0.3, 1.5, 0], snow: [-0.8, -1.4, 0.3, 0.007], ash: [-0.8, -0.9, 0, 0.0045], spores: [0.2, 0.5, 0.1, 0.009], leaves: [-1.5, -1.2, 0.5, 0.012], petals: [-1.0, -0.6, 0.4, 0.008] }[this.kind]; // velocity (per 60 m of box) and particle size (share of box)
     u.uVel.value.set(V[0] * k, V[1] * k, V[2] * k); u.uSize.value = V[3] * box;
     // particle drift and the box position are folded into a wrapped offset in doubles here,
     // so the shader's mod stays precise far from the origin and late in a flight
@@ -307,7 +324,7 @@ class Weather {
       u.uStreak.value.copy(rel.multiplyScalar(this.kind === 'rain' ? 0.035 : 0.05));
       if (u.uStreak.value.length() > box * 0.1) u.uStreak.value.setLength(box * 0.1);
     }
-    u.uA.value = { clear: 0.45, rain: 0.75, dust: 0.3, snow: 0.95, ash: 0.75, spores: 0.9 }[this.kind];
+    u.uA.value = { clear: 0.45, rain: 0.75, dust: 0.3, snow: 0.95, ash: 0.75, spores: 0.9, leaves: 0.95, petals: 0.9 }[this.kind];
   }
 }
 
@@ -330,4 +347,59 @@ function makeMoonTexture() {
   g.fillStyle = gr; g.beginPath(); g.arc(64, 64, 58, 0, 7); g.fill();
   g.fillStyle = 'rgba(90,110,140,.35)'; [[44, 50, 10], [80, 76, 14], [70, 40, 7]].forEach(([a, b, r]) => { g.beginPath(); g.arc(a, b, r, 0, 7); g.fill(); });
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+function skyCanvas(S, draw) { const c = document.createElement('canvas'); c.width = c.height = S; draw(c.getContext('2d'), S); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
+function makeEarthTexture() {
+  return skyCanvas(512, (g, S) => {
+    const x = S / 2, y = S / 2, r = S * 0.42, r2 = rng(7);
+    const at = g.createRadialGradient(x, y, r * 0.9, x, y, r * 1.12); at.addColorStop(0, 'rgba(120,180,255,.6)'); at.addColorStop(1, 'rgba(120,180,255,0)'); g.fillStyle = at; g.fillRect(0, 0, S, S);
+    g.save(); g.beginPath(); g.arc(x, y, r, 0, 7); g.clip();
+    g.fillStyle = '#1e4a8a'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 14; i++) { g.fillStyle = i % 3 ? '#3a7a3a' : '#a08a5a'; g.beginPath(); g.ellipse(x + (r2() - 0.5) * r * 1.6, y + (r2() - 0.5) * r * 1.6, r * (0.1 + r2() * 0.25), r * (0.06 + r2() * 0.15), r2() * 3, 0, 7); g.fill(); }
+    g.globalAlpha = 0.7; g.fillStyle = '#ffffff'; for (let i = 0; i < 26; i++) { g.beginPath(); g.ellipse(x + (r2() - 0.5) * r * 1.8, y + (r2() - 0.5) * r * 1.8, r * (0.08 + r2() * 0.2), r * 0.03, r2() * 0.6, 0, 7); g.fill(); }
+    g.globalAlpha = 1; const sh = g.createLinearGradient(x - r, y - r, x + r, y + r); sh.addColorStop(0.45, 'rgba(0,0,10,0)'); sh.addColorStop(1, 'rgba(0,0,10,.85)'); g.fillStyle = sh; g.fillRect(0, 0, S, S);
+    g.restore();
+  });
+}
+function makeGasGiantTexture() {
+  return skyCanvas(512, (g, S) => {
+    const x = S / 2, y = S / 2, r = S * 0.44; g.save(); g.beginPath(); g.arc(x, y, r, 0, 7); g.clip();
+    const cols = ['#e8c89a', '#c8905a', '#f0dcc0', '#a86a3a', '#e0b080', '#d89a60'];
+    for (let i = 0; i < 18; i++) { g.fillStyle = cols[i % cols.length]; g.fillRect(0, y - r + i * (2 * r / 18) + Math.sin(i) * 3, S, 2 * r / 18 + 2); }
+    g.fillStyle = '#b85a3a'; g.beginPath(); g.ellipse(x + r * 0.3, y + r * 0.25, r * 0.16, r * 0.09, 0, 0, 7); g.fill();
+    const sh = g.createLinearGradient(x - r, y, x + r, y); sh.addColorStop(0.5, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.8)'); g.fillStyle = sh; g.fillRect(0, 0, S, S); g.restore();
+  });
+}
+function makeBlackHoleTexture() {
+  return skyCanvas(512, (g, S) => {
+    const x = S / 2, y = S / 2, r = S * 0.11;
+    const glow = g.createRadialGradient(x, y, r, x, y, S * 0.5); glow.addColorStop(0, 'rgba(255,170,90,.55)'); glow.addColorStop(0.4, 'rgba(160,70,40,.18)'); glow.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = glow; g.fillRect(0, 0, S, S);
+    const disc = (rx, ry, w, a) => { g.strokeStyle = `rgba(255,${190 + (a * 60 | 0)},120,${a})`; g.lineWidth = w; g.beginPath(); g.ellipse(x, y, rx, ry, -0.12, 0, 7); g.stroke(); };
+    for (let i = 0; i < 12; i++) disc(r * (1.7 + i * 0.12), r * (0.34 + i * 0.03), 3, 0.85 - i * 0.06);           // the disc seen edge-on
+    g.strokeStyle = 'rgba(255,220,170,.8)'; g.lineWidth = 5; g.beginPath(); g.arc(x, y, r * 1.35, Math.PI * 1.05, Math.PI * 1.95); g.stroke(); // light bent over the top
+    g.strokeStyle = 'rgba(255,200,150,.45)'; g.lineWidth = 3; g.beginPath(); g.arc(x, y, r * 1.28, Math.PI * 0.1, Math.PI * 0.9); g.stroke();
+    g.fillStyle = '#000000'; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(255,240,210,.9)'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, r * 1.02, 0, 7); g.stroke();
+  });
+}
+function makeQuasarTexture() {
+  return skyCanvas(512, (g, S) => {
+    const x = S / 2, y = S / 2;
+    for (const s of [1, -1]) { const b = g.createLinearGradient(x, y, x + s * S * 0.12, y - s * S * 0.48); b.addColorStop(0, 'rgba(200,230,255,.9)'); b.addColorStop(1, 'rgba(120,160,255,0)');
+      g.fillStyle = b; g.beginPath(); g.moveTo(x - 6, y); g.lineTo(x + s * S * 0.14, y - s * S * 0.5); g.lineTo(x + s * S * 0.08, y - s * S * 0.5); g.lineTo(x + 6, y); g.fill(); }
+    const c = g.createRadialGradient(x, y, 0, x, y, S * 0.2); c.addColorStop(0, 'rgba(255,255,255,1)'); c.addColorStop(0.15, 'rgba(210,230,255,.8)'); c.addColorStop(1, 'rgba(90,120,255,0)');
+    g.fillStyle = c; g.beginPath(); g.arc(x, y, S * 0.2, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(180,200,255,.5)'; g.lineWidth = 3; g.beginPath(); g.ellipse(x, y, S * 0.16, S * 0.035, 0.2, 0, 7); g.stroke();
+  });
+}
+function makeBloodMoonTexture() {
+  return skyCanvas(256, (g, S) => {
+    const x = S / 2, y = S / 2, r = S * 0.4;
+    const glow = g.createRadialGradient(x, y, r * 0.9, x, y, S * 0.5); glow.addColorStop(0, 'rgba(255,60,40,.5)'); glow.addColorStop(1, 'rgba(255,0,0,0)'); g.fillStyle = glow; g.fillRect(0, 0, S, S);
+    const m = g.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r); m.addColorStop(0, '#e86040'); m.addColorStop(1, '#6a1a10');
+    g.fillStyle = m; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+    g.fillStyle = 'rgba(60,10,5,.35)'; [[0.3, 0.4, 0.14], [0.6, 0.6, 0.1], [0.45, 0.72, 0.07], [0.62, 0.3, 0.08]].forEach(([a, b, q]) => { g.beginPath(); g.arc(a * S, b * S, q * S, 0, 7); g.fill(); });
+  });
 }
