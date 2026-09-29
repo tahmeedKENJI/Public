@@ -247,6 +247,7 @@ function updateTunnelPrompt() {
   $('#tunnelPrompt').classList.toggle('hidden', !tunnelPrompt || paused);
 }
 function startTunnel() {
+  if (!tunnelPrompt) return;
   const T = tunnelObj(tunnelPrompt); run.tunPassed.add(T.x0);
   const endX = T.x0 + T.ramp, speed = Math.max(P.v * Math.cos(P.a), TUNNEL_SPEED);
   run.tun = { T, phase: 'enter', x0: P.x, y0: P.y, dur: clamp((endX - P.x) / speed, 1.5, 4.5), t: 0, lane: 0 };

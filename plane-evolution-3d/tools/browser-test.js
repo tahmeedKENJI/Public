@@ -188,12 +188,14 @@ const ok = (c, m) => { if (!c) fails++; console.log((c ? 'PASS ' : 'FAIL ') + m)
   const tunnelMap = () => { const map = [Object.assign({}, REGION.meadow, { at: 0, len: 400 }), Object.assign({}, REGION.caverns, { at: 400, len: 3000 }), Object.assign({}, REGION.desert, { at: 3400, len: 9000 })];
     useMap(map); terrain.clear(); scenery.reset(); for (const t of tunnelObjs.values()) t.dispose(); tunnelObjs.clear(); tunnels = tunnelsFor(map); run.tun = null; run.tunPassed.clear();
     save.settings.camera = 'chase'; P.x = tunnels[0].x0 - 150; P.y = 30; P.a = 0; P.v = 40; P.fuel = 0; P.grounded = false; camState.init = false; };
-  await p.evaluate(tunnelMap); await p.waitForTimeout(500);
+  await p.evaluate(tunnelMap);
+  for (let i = 0; i < 40 && !(await p.evaluate(() => !!tunnelPrompt)); i++) await p.waitForTimeout(100);
   ok(await p.evaluate(() => !document.querySelector('#tunnelPrompt').classList.contains('hidden')), '"TUNNEL AHEAD" shows before a cave region\'s tunnel');
   await shot('tunnel_prompt');
   await p.keyboard.press('ArrowDown'); await p.waitForTimeout(100);
   ok(await p.evaluate(() => run.tun && run.tun.phase === 'enter'), 'pressing DIVE at the prompt starts the dive into the tunnel');
-  await p.evaluate(() => { run.tun.t = run.tun.dur; }); await p.waitForTimeout(400);
+  await p.evaluate(() => { run.tun.t = run.tun.dur; });
+  for (let i = 0; i < 40 && !(await p.evaluate(() => run.tun && run.tun.phase === 'play')); i++) await p.waitForTimeout(100);
   r = await p.evaluate(() => ({ phase: run.tun.phase, lanes: [...document.querySelectorAll('.ctl.lane')].every(e => !e.classList.contains('hidden')), flight: [...document.querySelectorAll('.ctl:not(.lane)')].every(e => e.style.visibility === 'hidden') }));
   ok(r.phase === 'play' && r.lanes && r.flight, 'in the tunnel only the ◀ ▶ lane pads show');
   await p.keyboard.press('ArrowRight'); await p.waitForTimeout(100);
@@ -204,10 +206,16 @@ const ok = (c, m) => { if (!c) fails++; console.log((c ? 'PASS ' : 'FAIL ') + m)
   await p.waitForTimeout(400);
   r = await p.evaluate(() => ({ tun: !!run.tun, fuel: P.fuel, y: P.y, toast: document.querySelector('#toast').textContent }));
   ok(!r.tun && r.fuel === 0 && r.y > 0 && r.toast === 'EJECTED!', 'hitting an obstacle ejects the plane to the surface with an empty main tank');
-  await p.evaluate(tunnelMap); await p.waitForTimeout(300);
-  await p.evaluate(() => { startTunnel(); run.tun.t = run.tun.dur; }); await p.waitForTimeout(300);
-  await p.evaluate(() => { const T = run.tun.T; T.obs.length = 0; P.x = T.x1 - 5; }); await p.waitForTimeout(600);
-  r = await p.evaluate(() => ({ tun: !!run.tun, fuel: P.fuel, full: runSt.fuel, y: P.y, toast: document.querySelector('#toast').textContent }));
+  await p.evaluate(tunnelMap);
+  for (let i = 0; i < 40 && !(await p.evaluate(() => !!tunnelPrompt)); i++) await p.waitForTimeout(100);
+  await p.evaluate(() => { startTunnel(); run.tun.t = run.tun.dur; });
+  for (let i = 0; i < 40 && !(await p.evaluate(() => run.tun && run.tun.phase === 'play')); i++) await p.waitForTimeout(100);
+  await p.evaluate(() => { // note the tank at the moment of the exit, before the engine starts burning it
+    const T = run.tun.T; T.obs.length = 0; P.x = T.x1 - 5; const show = showToast;
+    window.showToast = (t, c) => { if (t === 'BACK IN THE AIR!') window.EXIT_FUEL = P.fuel; return show(t, c); };
+  });
+  await p.waitForTimeout(600);
+  r = await p.evaluate(() => ({ tun: !!run.tun, fuel: window.EXIT_FUEL, full: runSt.fuel, y: P.y, toast: document.querySelector('#toast').textContent }));
   ok(!r.tun && Math.abs(r.fuel - r.full * 0.5) < 1e-9 && r.y > 0 && r.toast === 'BACK IN THE AIR!', 'the exit ramp launches the plane with the main tank half full');
 
   ok(!errs.length, 'no console errors' + (errs.length ? '\n  ' + errs.slice(0, 10).join('\n  ') : ''));
