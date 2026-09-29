@@ -7,7 +7,8 @@
 // Checks: save migrations and backups, unreadable saves, 2D <-> 3D save sharing, pause freezing,
 // every quit path banking exactly the promised coins, results, export/import, offline earnings,
 // physics identical to the 2D game, UI overflow at seven screen sizes, the 50 regions and map
-// dealing (rarity odds), area titles, the distance-markers setting, the tunnel minigame, and zero
+// dealing (rarity odds), area titles and the region tag, the distance-markers setting, the plane's size
+// on landing, the tunnel minigame (area skip, lanes, multipliers, bumps, time limit, exit), and zero
 // console errors.
 'use strict';
 const http = require('http'), fs = require('fs'), path = require('path');
@@ -115,10 +116,10 @@ const ok = (c, m) => { if (!c) fails++; console.log((c ? 'PASS ' : 'FAIL ') + m)
   await seed(put, { v: 3, coins: 1234567890123, parts: { frame: 49, wings: 50, engine: 47, fuel: 44, tail: 19, nose: 20, magnet: 48, reserve: 29 }, best: 123456, ms: 10, runs: 999, sound: true, settings: { weather: true, titles: true, quality: 'low', camera: 'chase' }, seen: [0, 1, 2, 3, 4, 5], last: Date.now() });
   const check = label => p.evaluate(label => {
     const bad = [], vis = el => { const q = el.getBoundingClientRect(); return q.width > 0 && q.height > 0 && getComputedStyle(el).visibility !== 'hidden' && !el.closest('.hidden'); };
-    for (const el of document.querySelectorAll('.pill, .chip, .chip .nm, .chip .lv, #upBtn, #flyBtn, #planeTitle .name, #planeTitle .sub, #detail .dh, #detail .look, #detail .eff, #detail .desc, .toggle, .toggle > span, .modal h2, .modal .row, .modal .row b, .modal .total, .modal button, #hudDist, #hudRow, .ctl, #areaTitle .name, #launchUI .t, .iconbtn, #topbar .pills, #tunnelPrompt .t, #tunnelPrompt .s')) {
+    for (const el of document.querySelectorAll('.pill, .chip, .chip .nm, .chip .lv, #upBtn, #flyBtn, #planeTitle .name, #planeTitle .sub, #detail .dh, #detail .look, #detail .eff, #detail .desc, .toggle, .toggle > span, .modal h2, .modal .row, .modal .row b, .modal .total, .modal button, #hudDist, #hudRow, .ctl, #areaTitle .name, #launchUI .t, .iconbtn, #topbar .pills, #tunnelPrompt .t, #tunnelPrompt .s, #regionTag')) {
       if (!vis(el)) continue;
       const q = el.getBoundingClientRect();
-      if (el.scrollWidth > el.clientWidth + 1) bad.push(`${label}: "${el.textContent.trim().slice(0, 30)}" overflows its box`);
+      if (el.id !== 'regionTag' && el.scrollWidth > el.clientWidth + 1) bad.push(`${label}: "${el.textContent.trim().slice(0, 30)}" overflows its box`);
       if (q.left < -1 || q.right > innerWidth + 1) bad.push(`${label}: "${el.textContent.trim().slice(0, 30)}" leaves the screen`);
     }
     return bad;
@@ -184,39 +185,78 @@ const ok = (c, m) => { if (!c) fails++; console.log((c ? 'PASS ' : 'FAIL ') + m)
   await p.evaluate(() => { save.settings.markers = true; }); await p.waitForTimeout(400);
   ok(await p.evaluate(() => signs.pool.some(s => s.g.visible)), 'Distance markers on shows the signposts');
 
-  // --- tunnels: prompt, dive in, lanes, eject, and the exit ramp
-  const tunnelMap = () => { const map = [Object.assign({}, REGION.meadow, { at: 0, len: 400 }), Object.assign({}, REGION.caverns, { at: 400, len: 3000 }), Object.assign({}, REGION.desert, { at: 3400, len: 9000 })];
-    useMap(map); terrain.clear(); scenery.reset(); for (const t of tunnelObjs.values()) t.dispose(); tunnelObjs.clear(); tunnels = tunnelsFor(map); run.tun = null; run.tunPassed.clear();
-    save.settings.camera = 'chase'; P.x = tunnels[0].x0 - 150; P.y = 30; P.a = 0; P.v = 40; P.fuel = 0; P.grounded = false; camState.init = false; };
-  await p.evaluate(tunnelMap);
-  for (let i = 0; i < 40 && !(await p.evaluate(() => !!tunnelPrompt)); i++) await p.waitForTimeout(100);
-  ok(await p.evaluate(() => !document.querySelector('#tunnelPrompt').classList.contains('hidden')), '"TUNNEL AHEAD" shows before a cave region\'s tunnel');
+  // --- the region tag under the HUD: after the splash title, or straight away with titles off
+  r = await p.evaluate(() => { const t = document.querySelector('#regionTag'); return { txt: t.textContent, cls: t.className, name: BIOMES[run.area].name, op: getComputedStyle(t).opacity }; });
+  ok(r.txt.startsWith(r.name + ' · ') && r.cls === '' && r.op === '1', `after the splash, the HUD names the region ("${r.txt}")`);
+  await p.evaluate(() => { save.settings.titles = false; showArea(run.area); });
+  r = await p.evaluate(() => ({ cls: document.querySelector('#regionTag').className, splash: document.querySelector('#areaTitle').classList.contains('show') }));
+  ok(r.cls === '' && !r.splash, 'with area titles off, the region tag shows straight away');
+  await p.evaluate(() => { save.settings.titles = true; });
+
+  // --- the plane keeps its size once it lands
+  await p.evaluate(() => { P.x = BIOMES[2].at; P.y = 0.4; P.v = 70; P.a = -0.05; P.fuel = 0; P.grounded = false; run.tun = null; });
+  for (let i = 0; i < 40 && !(await p.evaluate(() => P.grounded)); i++) await p.waitForTimeout(50);
+  const vw0 = await p.evaluate(() => Vw); await p.waitForTimeout(700);
+  r = await p.evaluate(() => ({ vw: Vw, v: P.v, g: P.grounded }));
+  ok(r.g && Math.abs(r.vw - vw0) < 1e-9, `the plane's size holds while it rolls to a stop (view ${Math.round(vw0)} → ${Math.round(r.vw)})`);
+
+  // --- tunnels: under every 5th area, skipping it; 10 s lane game, multipliers, 3 bumps, ramp exit
+  r = await p.evaluate(() => ({ n: tunnels.length, at: tunnels.every((t, i) => t.area === 4 + 5 * i && t.x0 === BIOMES[t.area].at && Math.abs(t.exitX - (BIOMES[t.area].at + BIOMES[t.area].len)) < 1e-6), mult: tunnels.map(t => t.mult).join() }));
+  ok(r.n === 10 && r.at, 'a tunnel starts each of areas 5, 10, 15 … 50 and comes out at the start of the next area');
+  ok(r.mult === '2,4,8,8,8,8,8,8,8,8', `the multiplier is ×2 in the first tunnel, ×4 in the second, then ×8 (${r.mult})`);
+  const toTunnel = () => { run.tun = null; run.tunPassed.clear(); save.settings.camera = 'chase'; const t = tunnels[0]; P.x = t.x0 - 150; P.y = 30; P.a = 0; P.v = 40; P.fuel = 0; P.grounded = false; camState.init = false; run.area = t.area - 1; };
+  await p.evaluate(toTunnel);
+  for (let i = 0; i < 60 && !(await p.evaluate(() => !!tunnelPrompt)); i++) await p.waitForTimeout(100);
+  r = await p.evaluate(() => ({ shown: !document.querySelector('#tunnelPrompt').classList.contains('hidden'), sub: document.querySelector('#tunnelSub').textContent }));
+  ok(r.shown && /×2 coins/.test(r.sub), `"TUNNEL AHEAD" shows before area 5 ("${r.sub}")`);
   await shot('tunnel_prompt');
-  await p.keyboard.press('ArrowDown'); await p.waitForTimeout(100);
-  ok(await p.evaluate(() => run.tun && run.tun.phase === 'enter'), 'pressing DIVE at the prompt starts the dive into the tunnel');
+  await p.keyboard.press('ArrowDown'); await p.waitForTimeout(700);
+  r = await p.evaluate(() => ({ phase: run.tun && run.tun.phase, dist: document.querySelector('#hudDist').textContent, want: fmtDist(tunnels[0].exitX), earn: runEarnings().dist, exitX: tunnels[0].exitX }));
+  ok(r.phase === 'enter' && r.dist === r.want && Math.abs(r.earn - r.exitX) < 1e-6, `DIVE takes the tunnel and the distance jumps to the end of the skipped area (${r.dist})`);
   await p.evaluate(() => { run.tun.t = run.tun.dur; });
-  for (let i = 0; i < 40 && !(await p.evaluate(() => run.tun && run.tun.phase === 'play')); i++) await p.waitForTimeout(100);
-  r = await p.evaluate(() => ({ phase: run.tun.phase, lanes: [...document.querySelectorAll('.ctl.lane')].every(e => !e.classList.contains('hidden')), flight: [...document.querySelectorAll('.ctl:not(.lane)')].every(e => e.style.visibility === 'hidden') }));
-  ok(r.phase === 'play' && r.lanes && r.flight, 'in the tunnel only the ◀ ▶ lane pads show');
+  for (let i = 0; i < 60 && !(await p.evaluate(() => run.tun && run.tun.phase === 'play')); i++) await p.waitForTimeout(100);
+  r = await p.evaluate(() => ({ phase: run.tun.phase, lanes: [...document.querySelectorAll('.ctl.lane')].every(e => !e.classList.contains('hidden')), flight: [...document.querySelectorAll('.ctl:not(.lane)')].every(e => e.style.visibility === 'hidden'), hud: !document.querySelector('#tunHud').classList.contains('hidden') }));
+  ok(r.phase === 'play' && r.lanes && r.flight && r.hud, 'in the tunnel only the ◀ ▶ lane pads show, with chances and time on the HUD');
   await p.keyboard.press('ArrowRight'); await p.waitForTimeout(100);
   ok(await p.evaluate(() => run.tun.lane === 1), '→ moves one lane right');
-  await p.evaluate(() => { P.x = run.tun.T.x0 + run.tun.T.ramp + 60; }); await p.waitForTimeout(600); await shot('tunnel_inside');
-  ok(await p.evaluate(() => P.fuel === runSt.fuel), 'fuel is unlimited in the tunnel');
-  await p.evaluate(() => { const T = run.tun.T, o = T.obs.find(o => o.x > P.x + 5); run.tun.lane = o.lane; P.z = o.lane * T.lane; P.x = o.x - 1; });
-  await p.waitForTimeout(400);
-  r = await p.evaluate(() => ({ tun: !!run.tun, fuel: P.fuel, y: P.y, toast: document.querySelector('#toast').textContent }));
-  ok(!r.tun && r.fuel === 0 && r.y > 0 && r.toast === 'EJECTED!', 'hitting an obstacle ejects the plane to the surface with an empty main tank');
-  await p.evaluate(tunnelMap);
-  for (let i = 0; i < 40 && !(await p.evaluate(() => !!tunnelPrompt)); i++) await p.waitForTimeout(100);
-  await p.evaluate(() => { startTunnel(); run.tun.t = run.tun.dur; });
-  for (let i = 0; i < 40 && !(await p.evaluate(() => run.tun && run.tun.phase === 'play')); i++) await p.waitForTimeout(100);
-  await p.evaluate(() => { // note the tank at the moment of the exit, before the engine starts burning it
-    const T = run.tun.T; T.obs.length = 0; P.x = T.x1 - 5; const show = showToast;
-    window.showToast = (t, c) => { if (t === 'BACK IN THE AIR!') window.EXIT_FUEL = P.fuel; return show(t, c); };
+  await p.evaluate(() => { const T = run.tun.T; T.obs.forEach(o => { if (o.x < T.play0 + 200) o.hit = true; }); P.x = T.play0 + 60; }); await p.waitForTimeout(900); await shot('tunnel_inside');
+  r = await p.evaluate(() => ({ fuel: P.fuel === runSt.fuel, dist: document.querySelector('#hudDist').textContent, want: fmtDist(tunnels[0].exitX), cam: camera.layers.mask }));
+  ok(r.fuel && r.dist === r.want, 'fuel is unlimited inside, and the distance stays frozen at the end of the skipped area');
+  ok(r.cam === 2, 'inside, the camera sees only the tunnel layer (no ground or weather showing through)');
+  await p.evaluate(() => { const T = run.tun.T, m = T.multi; T.obs.forEach(o => { if (Math.abs(o.x - m.x) < T.lane * 4) o.hit = true; }); run.coins = 1000; run.tun.lane = m.lane; P.z = m.lane * T.lane; P.x = m.x - T.lane * 0.8; });
+  for (let i = 0; i < 120 && !(await p.evaluate(() => run.tun.T.multi.taken)); i++) await p.waitForTimeout(50);
+  r = await p.evaluate(() => run.coins);
+  ok(r >= 2000 && r < 2100, `the ×2 multiplier doubles the flight's coins (1,000 → ${r})`);
+  const COINS = r;
+  for (let k = 0; k < 3; k++) {
+    await p.evaluate(() => { const T = run.tun.T, o = T.obs.find(o => !o.hit && o.x > P.x + T.lane) || T.obs.find(o => !o.hit); run.tun.inv = 0; run.tun.lane = o.lane; P.z = o.lane * T.lane; P.x = o.x - T.lane * 0.8; });
+    for (let i = 0; i < 40 && (await p.evaluate(k => run.tun.lives > 2 - k, k)); i++) await p.waitForTimeout(50);
+    if (k === 0) await shot('tunnel_bump');
+  }
+  r = await p.evaluate(() => ({ lives: run.tun.lives, phase: run.tun.phase, coins: run.coins, toast: document.querySelector('#toast').textContent }));
+  ok(r.lives === 0 && r.phase === 'exit' && r.coins >= COINS && r.toast === 'OUT OF CHANCES!', 'the 3rd bump ends the tunnel early, keeping the coins and the multiplier');
+  await p.evaluate(() => { // note the state at the moment of the launch, before the engine starts burning fuel
+    const show = showToast; window.showToast = (t, c) => { if (t === 'BACK IN THE AIR!') window.EXIT = { fuel: P.fuel, v: P.v, x: P.x }; return show(t, c); };
+    P.x = run.tun.T.exitX - 5;
   });
-  await p.waitForTimeout(600);
-  r = await p.evaluate(() => ({ tun: !!run.tun, fuel: window.EXIT_FUEL, full: runSt.fuel, y: P.y, toast: document.querySelector('#toast').textContent }));
-  ok(!r.tun && Math.abs(r.fuel - r.full * 0.5) < 1e-9 && r.y > 0 && r.toast === 'BACK IN THE AIR!', 'the exit ramp launches the plane with the main tank half full');
+  for (let i = 0; i < 40 && (await p.evaluate(() => !!run.tun)); i++) await p.waitForTimeout(50);
+  await p.waitForTimeout(300);
+  r = await p.evaluate(() => ({ tun: !!run.tun, e: window.EXIT, full: runSt.fuel, exitX: tunnels[0].exitX, y: P.y, area: run.area, skipped: tunnels[0].area, seen: save.seen3d.includes(tunnels[0].rg.key), next: BIOMES[tunnels[0].area + 1].key, seenNext: save.seen3d.includes(BIOMES[tunnels[0].area + 1].key) }));
+  ok(!r.tun && r.e && Math.abs(r.e.fuel - r.full * 0.5) < 1e-9 && r.e.v === 80 && r.e.x >= r.exitX && r.y > 0, 'the ramp launches the plane at 288 km/h with the main tank half full, at the next area');
+  ok(r.area === r.skipped + 1 && r.seenNext, 'after the tunnel the flight is in the next area, and it is announced');
+  await shot('tunnel_out');
+  // the time limit
+  await p.evaluate(toTunnel);
+  for (let i = 0; i < 60 && !(await p.evaluate(() => !!tunnelPrompt)); i++) await p.waitForTimeout(100);
+  await p.evaluate(() => { startTunnel(); run.tun.t = run.tun.dur; });
+  for (let i = 0; i < 60 && !(await p.evaluate(() => run.tun && run.tun.phase === 'play')); i++) await p.waitForTimeout(100);
+  await p.evaluate(() => { run.tun.T.obs.length = 0; run.tun.play = TUNNEL_TIME - 0.02; });
+  for (let i = 0; i < 40 && (await p.evaluate(() => run.tun.phase === 'play')); i++) await p.waitForTimeout(50);
+  r = await p.evaluate(() => ({ phase: run.tun.phase, lives: run.tun.lives, toast: document.querySelector('#toast').textContent, lanes: [...document.querySelectorAll('.ctl.lane')].every(e => e.classList.contains('hidden')) }));
+  ok(r.phase === 'exit' && r.lives === 3 && r.toast === "TIME'S UP!" && r.lanes, `after ${10} s the lane game ends and the plane heads for the exit`);
+  // quitting from inside banks the skipped area's distance
+  r = await p.evaluate(() => ({ d: runEarnings().dist, exitX: run.tun.T.exitX }));
+  ok(Math.abs(r.d - r.exitX) < 1e-6, 'quitting from inside the tunnel counts the skipped area');
 
   ok(!errs.length, 'no console errors' + (errs.length ? '\n  ' + errs.slice(0, 10).join('\n  ') : ''));
   console.log(`\n${fails ? fails + ' FAILED' : 'all passed'}; screenshots in ${OUT}`);

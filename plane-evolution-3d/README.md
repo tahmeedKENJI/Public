@@ -29,8 +29,10 @@ New in 3D:
   so every new area takes longer to reach (a 100 km flight passes about 19). Rarity tiers are
   Common, Uncommon, Rare, Epic and Legendary, and a stronger plane (higher core power: the
   average of Frame, Wings, Engine and Fuel) meets the rare ones more often. The hangar backdrop
-  is where your next flight starts. The area title marks Rare-and-up regions, and the hangar
-  counts regions found. The full list is in `js/regions.js`; the choices behind it are in
+  is where your next flight starts. The area title marks Rare-and-up regions; after it fades, a
+  small tag under the HUD keeps naming the region you're in and its tier. The hangar counts
+  regions found. Region lengths are set in one line in `js/regions.js`
+  (`REGION_FIRST_LEN, REGION_GROWTH`). The full list is in `js/regions.js`; the choices behind it are in
   [`DECISIONS.md`](DECISIONS.md).
   - Meadows, farmland, vineyards, lavender and sunflower fields, rice terraces, orchards, forests
     (birch, autumn, pine, bamboo, rainforest), moors, coasts and rivers.
@@ -41,13 +43,17 @@ New in 3D:
   - Calderas and eruptions, a toxic wasteland, blood-moon wastes, the alien expanse.
   - The Moon, Mars, a frozen moon, the asteroid belt, a ringworld, orbit above Earth, a nebula,
     a quasar field, the event horizon of a black hole, and the void beyond.
-- **Tunnels.** Cave regions (Deep Caverns, Underground Tunnels, Crystal Caves) have a tunnel
-  mouth on the flight line. "TUNNEL AHEAD" appears a few seconds before it: press **▼ DIVE** to
-  go underground, or fly on through the gorge. Inside, the plane flies level at 288 km/h with
-  unlimited fuel, and **◀ ▶** (or ←/→, A/D) switch between 3 lanes to dodge rocks and beams and
-  collect coins. Hitting one ejects you to the surface with an empty main tank; reaching the
-  end launches you off a ramp with the main tank half full. It rescues weak planes that are out
-  of fuel, and it's slow for strong ones.
+- **Tunnels.** A tunnel mouth starts every 5th area (areas 5, 10, 15 …). "TUNNEL AHEAD" appears
+  a few seconds before it: press **▼ DIVE** to take it, or fly on. Taking it **skips that area**:
+  the distance jumps to the area's end and stays there while you're underground. Inside is a
+  10-second lane game in the style of a runner: the camera sits close behind the plane, which
+  flies level at 288 km/h with unlimited fuel, and **◀ ▶** (or ←/→, A/D) switch between 3 lanes
+  along the mine rails to dodge boulders, barricades and mine carts and collect coins. Each
+  tunnel holds one **coin multiplier** that multiplies the flight's coins when grabbed: ×2 in the
+  first tunnel, ×4 in the second, ×8 in every one after. You have **3 chances**: the third bump
+  ends the tunnel early, but you keep the coins and the multiplier. Either way, a ramp at the
+  start of the next area launches you back into flight at 288 km/h with the main tank half full.
+  The tuning constants are at the top of `js/tunnel.js`.
 - The flight line runs down a flat strip at height 0, which is the physics ground. Landscape
   rises on the far side. The near side stays low (a plain, the sea or a river), so no camera ends
   up inside a hill.
@@ -81,7 +87,7 @@ js/scenery.js           instanced vegetation and props, volcano glows and smoke
 js/sky.js               sky dome, sun/moon, stars, aurora, planet, clouds, weather particles, lights, fog
 js/plane.js             the modular plane: one procedural model per part and look stage
 js/items.js             coins, rings, fuel cans, birds, balloons, particles, signposts, ramp
-js/tunnel.js            the tunnel minigame in cave regions: bore, mouths, obstacles, coins
+js/tunnel.js            the tunnel minigame under every 5th area: bore, rails, obstacles, coins, multiplier
 js/game.js              renderer, cameras, game loop, UI and input
 vendor/three.min.js     three.js r186 as one classic script (re-make with tools/vendor-three.sh)
 sw.js, manifest.webmanifest, icon.svg   offline install

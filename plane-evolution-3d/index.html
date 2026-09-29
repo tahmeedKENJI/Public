@@ -70,6 +70,12 @@
   #reserveWrap { width: min(260px, 60vw); height: 8px; background: rgba(0,0,0,.35); border-radius: 99px; overflow: hidden; margin-top: 4px; border: 2px solid rgba(160,220,255,.6); }
   #reserveBar { height: 100%; width: 100%; background: linear-gradient(90deg, #3d8bff, #7de8ff); }
   #reserveWrap.on { box-shadow: 0 0 10px #7de8ff; }
+  #tunHud { display: flex; gap: 8px; margin-top: 8px; font-size: 14px; font-weight: 800; flex-wrap: wrap; justify-content: center; }
+  #tunLives { color: #ff6a5a; letter-spacing: 2px; }
+  #regionTag { margin-top: 8px; max-width: 92vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: #f4ecd8;
+    font-family: "Palatino Linotype", "Book Antiqua", Palatino, "Iowan Old Style", Georgia, "Times New Roman", serif; text-shadow: 0 1px 3px rgba(0,0,0,.9), 0 0 10px rgba(0,0,0,.6); transition: opacity .8s; }
+  #regionTag b { font-weight: 700; }
+  #regionTag.wait, #regionTag.off { opacity: 0; }
   #flightBtns { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; padding: max(10px, env(safe-area-inset-top)) 12px 0; pointer-events: none; }
   #flightBtns .iconbtn { width: 42px; height: 42px; font-size: 18px; font-weight: 900; }
   #flightBtns .grp { display: flex; gap: 8px; }
@@ -193,6 +199,8 @@
   </div>
   <div id="fuelWrap"><div id="fuelBar"></div></div>
   <div id="reserveWrap" class="hidden"><div id="reserveBar"></div></div>
+  <div id="tunHud" class="hidden"><span class="pill" id="tunLives"></span><span class="pill">⏱ <span id="tunTime"></span></span><span class="pill" id="tunMult"></span></div>
+  <div id="regionTag" class="wait"></div>
 </div>
 <div id="flightBtns" class="hidden">
   <div class="grp"><button class="iconbtn" id="pauseBtn" title="Pause (Esc)">❚❚</button><button class="iconbtn" id="camBtn" title="Camera (C)">🎥</button></div>
@@ -206,7 +214,7 @@
   <div class="ctl lane hidden" data-role="right">▶<small>RIGHT</small></div>
 </div>
 <div id="hint" class="hidden"></div>
-<div id="tunnelPrompt" class="hidden"><div class="t">TUNNEL AHEAD</div><div class="s">Press ▼ DIVE to go underground</div></div>
+<div id="tunnelPrompt" class="hidden"><div class="t">TUNNEL AHEAD</div><div class="s" id="tunnelSub">▼ DIVE to skip this area</div></div>
 
 <div id="launchUI" class="hidden">
   <div class="t">Tap to launch!</div>

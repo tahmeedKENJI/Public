@@ -9,7 +9,7 @@
 
    A region is built from presets: a height style (h + hp), a ground paint (p +
    pal), vegetation and props (veg, forest), sky and weather (the same fields the
-   2D BIOMES used), light, and extras: water, sky objects, lightning, tunnel.
+   2D BIOMES used), light, and extras: water, sky objects, lightning.
    No DOM and no three.js here, so Node can load it for tests.
    ========================================================================== */
 
@@ -65,7 +65,7 @@ const BASES = {
     veg: { house: 0.4, oak: 0.03, bush: 0.05, lamp: 0.02, fence: 0.02 }, windows: '#2a3440',
     skyTop: '#3d8fe0', skyBot: '#c4e8ff', ground: '#6cc24a', dirt: '#4a8a32', cloud: '#ffffff', cover: 0.3, stars: 0, sun: SUN, weather: 'clear', light: 'day' },
   gorge: { h: 'gorge', hp: { mt: 900 }, p: 'rock', pal: { g1: '#6a6258', g2: '#7a7266', rock: '#4a443e', moss: '#4a6a3a' },
-    veg: { rock: 0.06, pine: 0.01 }, rockTint: '#6a6258', tunnel: true,
+    veg: { rock: 0.06, pine: 0.01 }, rockTint: '#6a6258',
     skyTop: '#5a7aa0', skyBot: '#b8c8d8', ground: '#6a6258', dirt: '#4a443e', cloud: '#d0d8e0', cover: 0.35, stars: 0, sun: SUN, weather: 'clear', light: 'mist' },
   alien: { h: 'spires', hp: {}, p: 'veins', pal: { g1: '#7e5bc0', g2: '#5c3f9e', rock: '#2d1d5c', top: '#c9a8ff', veinA: [1.3, 0.3, 1.1], veinB: [0.2, 1.2, 0.9] },
     veg: { crystal: 0.045, mushroom: 0.04, glowplant: 0.095, spire: 0.012 },
